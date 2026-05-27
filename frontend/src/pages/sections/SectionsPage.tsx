@@ -1,0 +1,232 @@
+import { useState, useEffect } from 'react';
+import { useDataStore } from '../../stores/dataStore';
+import { PageHeader } from '../../components/layout';
+import { Button, Input, Textarea, Table, Modal, toast } from '../../components/ui';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import type { Section } from '../../types';
+import { clsx } from 'clsx';
+
+export function SectionsPage() {
+  const { sections, tables, fetchSections, fetchTables, createSection, updateSection, deleteSection } = useDataStore();
+  const [showModal, setShowModal] = useState(false);
+  const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    isActive: true,
+  });
+
+  useEffect(() => {
+    fetchSections();
+    fetchTables();
+  }, [refreshKey]);
+
+  const getTableCount = (sectionId: string) => {
+    return tables.filter(t => t.sectionId === sectionId).length;
+  };
+
+  const handleOpenModal = (section?: Section) => {
+    if (section) {
+      setEditingSection(section);
+      setFormData({
+        name: section.name,
+        description: section.description || '',
+        isActive: section.isActive,
+      });
+    } else {
+      setEditingSection(null);
+      setFormData({
+        name: '',
+        description: '',
+        isActive: true,
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    let success = false;
+    if (editingSection) {
+      success = await updateSection(editingSection.id, formData);
+    } else {
+      success = await createSection(formData);
+    }
+
+    setIsSubmitting(false);
+
+    if (success) {
+      toast('success', editingSection ? 'Section updated successfully' : 'Section created successfully');
+      setShowModal(false);
+      setRefreshKey(k => k + 1);
+    } else {
+      toast('error', 'Failed to save section');
+    }
+  };
+
+  const handleDelete = async (section: Section) => {
+    const tableCount = getTableCount(section.id);
+    if (tableCount > 0) {
+      toast('error', `Cannot delete "${section.name}". It has ${tableCount} associated table(s).`);
+      return;
+    }
+    const confirmed = window.confirm(`Are you sure you want to delete Section "${section.name}"?`);
+    if (confirmed) {
+      const success = await deleteSection(section.id);
+      if (success) {
+        toast('success', `Section "${section.name}" deleted successfully`);
+        setRefreshKey(k => k + 1);
+      } else {
+        toast('error', 'Failed to delete section.');
+      }
+    }
+  };
+
+  const handleToggleStatus = async (section: Section) => {
+    const newStatus = !section.isActive;
+    const success = await updateSection(section.id, {
+      name: section.name,
+      description: section.description,
+      isActive: newStatus
+    });
+    if (success) {
+      toast('success', `Section ${newStatus ? 'activated' : 'deactivated'}`);
+      setRefreshKey(k => k + 1);
+    } else {
+      toast('error', 'Failed to update section status');
+    }
+  };
+
+  const columns = [
+    { key: 'name', label: 'Section Name' },
+    { key: 'description', label: 'Description' },
+    { key: 'tableCount', label: 'Tables', render: (s: Section) => (
+      <span className="badge-info badge">{getTableCount(s.id)}</span>
+    )},
+    { 
+      key: 'isActive', 
+      label: 'Status', 
+      render: (s: Section) => (
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleStatus(s); }}
+          className={clsx(
+            'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer',
+            s.isActive ? 'bg-primary' : 'bg-gray-300'
+          )}
+          type="button"
+        >
+          <span 
+            className={clsx(
+              'inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm',
+              s.isActive ? 'translate-x-6' : 'translate-x-1'
+            )} 
+          />
+        </button>
+      )
+    },
+    { 
+      key: 'actions', 
+      label: 'Actions', 
+      className: 'w-24',
+      render: (s: Section) => (
+        <div className="flex gap-2">
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleOpenModal(s); }}
+            className="p-1 hover:bg-accent/20 rounded transition-colors"
+            title="Edit"
+          >
+            <Pencil className="w-4 h-4 text-accent" />
+          </button>
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleDelete(s); }}
+            className={clsx(
+              'p-1 rounded transition-colors',
+              getTableCount(s.id) > 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-error/20'
+            )}
+            title={getTableCount(s.id) > 0 ? 'Cannot delete - has tables' : 'Delete'}
+            disabled={getTableCount(s.id) > 0}
+          >
+            <Trash2 className={clsx(
+              'w-4 h-4',
+              getTableCount(s.id) > 0 ? 'text-text-muted' : 'text-error'
+            )} />
+          </button>
+        </div>
+      )
+    },
+  ];
+
+  return (
+    <div key={refreshKey}>
+      <PageHeader
+        title="Sections"
+        subtitle="Organize tables into sections (e.g., AC Hall, Outdoor, Bar)"
+        actions={
+          <Button onClick={() => handleOpenModal()}>
+            <Plus className="w-4 h-4" />
+            Add Section
+          </Button>
+        }
+      />
+
+      {/* Table */}
+      <Table
+        columns={columns}
+        data={sections}
+        emptyMessage="No sections found. Create sections to organize your tables."
+        loading={false}
+      />
+
+      {/* Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingSection ? 'Edit Section' : 'Add Section'}
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Section Name *"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g., AC Hall, Outdoor, Bar, VIP"
+            required
+          />
+
+          <Textarea
+            label="Description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Brief description of this section..."
+          />
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActiveToggle"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="w-5 h-5"
+            />
+            <label htmlFor="isActiveToggle" className="text-sm text-text-secondary cursor-pointer">
+              Active
+            </label>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
+              {editingSection ? 'Update Section' : 'Add Section'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
