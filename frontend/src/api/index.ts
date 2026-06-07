@@ -314,6 +314,19 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // Generic GET method for custom endpoints
+  async get<T>(endpoint: string) {
+    return this.request<T>(endpoint);
+  }
+
+  // Generic PUT method for custom endpoints
+  async put<T>(endpoint: string, data?: any) {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
 }
 
 export const api = new ApiClient();

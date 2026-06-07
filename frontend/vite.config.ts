@@ -20,7 +20,7 @@ export default defineConfig({
   preview: {
     port: 12000,
     host: '0.0.0.0',
-    allowedHosts: ['work-1-vooowpmdncbpfahz.prod-runtime.all-hands.dev', 'work-2-vooowpmdncbpfahz.prod-runtime.all-hands.dev', 'localhost', '127.0.0.1'],
+    allowedHosts: ['work-1-yowaxbeqinlgirym.prod-runtime.all-hands.dev', 'work-2-yowaxbeqinlgirym.prod-runtime.all-hands.dev', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

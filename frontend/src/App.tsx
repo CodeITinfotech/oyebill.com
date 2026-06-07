@@ -57,12 +57,9 @@ class ErrorBoundary extends React.Component<
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  console.log('[ProtectedRoute] Rendering with children:', !!children);
   const { isAuthenticated, isLoading } = useAuthStore();
-  console.log('[ProtectedRoute] Auth state:', { isAuthenticated, isLoading });
 
   if (isLoading) {
-    console.log('[ProtectedRoute] Showing loading');
     return (
       <div className="min-h-screen bg-background-primary flex items-center justify-center">
         <div className="text-center">
@@ -74,23 +71,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    console.log('[ProtectedRoute] Not authenticated, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 
-  console.log('[ProtectedRoute] Authenticated, showing layout and children');
   return <Layout>{children}</Layout>;
 }
 
 function App() {
-  console.log('[App] Component rendering');
   const { checkAuth, checkSetup, needsSetup, isAuthenticated, isLoading, user } = useAuthStore();
   const [checkingSetup, setCheckingSetup] = useState(true);
 
-  console.log('[App] Auth state:', { needsSetup, isAuthenticated, isLoading, checkingSetup });
-
   useEffect(() => {
-    console.log('[App] Running init effect');
     const init = async () => {
       await checkSetup();
       await checkAuth();
@@ -99,11 +90,8 @@ function App() {
     init();
   }, []);
 
-  console.log('[App] Checking if should show loading...');
-
   // Show loading while checking setup
   if (checkingSetup || isLoading) {
-    console.log('[App] Showing loading screen');
     return (
       <div className="min-h-screen bg-background-primary flex items-center justify-center">
         <div className="text-center">
@@ -113,8 +101,6 @@ function App() {
       </div>
     );
   }
-
-  console.log('[App] Rendering routes');
   return (
     <BrowserRouter>
       <ErrorBoundary>

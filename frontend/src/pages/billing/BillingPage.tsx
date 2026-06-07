@@ -13,7 +13,7 @@ interface CartItem extends OrderItem {
 }
 
 export function BillingPage() {
-  console.log('[BillingPage] RENDER - Component rendering');
+  
   
   // State
   const [selectedSection, setSelectedSection] = useState('');
@@ -30,8 +30,9 @@ export function BillingPage() {
   const [lastAddedItemId, setLastAddedItemId] = useState<string | null>(null);
   const [editingKotId, setEditingKotId] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState('');
+  const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   
-  console.log('[BillingPage] State initialized');
+  
   
   // Ref for quantity input focus
   const quantityInputRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -42,28 +43,33 @@ export function BillingPage() {
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   // Stores
-  console.log('[BillingPage] Getting authStore...');
   const { user } = useAuthStore();
-  console.log('[BillingPage] Getting dataStore...');
   const store = useDataStore();
-  console.log('[BillingPage] DataStore obtained:', !!store);
-  const { sections, tables, categories, products, settings, fetchSections, fetchTables, fetchCategories, fetchProducts, createOrder, updateOrder, generateKOT, generateBill, applyDiscount } = store;
-  console.log('[BillingPage] Store properties extracted');
+  const { sections, tables, categories, products, settings } = store;
 
-  // Fetch all data on mount
+  // Fetch all data on mount - only once on mount
   useEffect(() => {
-    console.log('[BillingPage] Component mounted, fetching data...');
     store.fetchSections();
     store.fetchCategories();
     store.fetchProducts();
     store.fetchSettings();
-    console.log('[BillingPage] Data fetch initiated');
-  }, [store]);
+  }, []);
 
   // Fetch tables when section changes
   useEffect(() => {
     store.fetchTables(selectedSection || undefined);
-  }, [selectedSection, store]);
+  }, [selectedSection]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showMoreDropdown && !(e.target as Element).closest('.more-dropdown')) {
+        setShowMoreDropdown(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showMoreDropdown]);
 
   // Calculate totals
   const { subtotal, taxAmount, discountValue, couponDiscountValue, total } = useMemo(() => {
@@ -726,48 +732,58 @@ export function BillingPage() {
                 <Receipt className="w-4 h-4" />
                 <span>Bill</span>
               </Button>
-              <div className="relative group">
+              <div className="relative">
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setShowMoreDropdown(!showMoreDropdown)}
                   className="flex items-center gap-2"
                 >
                   <MoreHorizontal className="w-4 h-4" />
-                  <span>+More</span>
+                  <span>More</span>
                 </Button>
                 {/* Dropdown */}
-                <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-10">
-                  <div className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[160px]">
-                    <button
-                      onClick={() => {
-                        if (appliedCoupon) {
-                          toast('warning', 'Remove coupon first before applying discount');
-                          return;
-                        }
-                        setShowDiscountModal(true);
-                      }}
-                      disabled={cart.length === 0 || !!appliedCoupon}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                {showMoreDropdown && (
+                  <div 
+                    className="absolute bottom-full left-0 mb-1 z-20 more-dropdown"
+                  >
+                    <div 
+                      className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]"
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Percent className="w-4 h-4" />
-                      <span>% Disc.</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (discountValue > 0) {
-                          toast('warning', 'Discount already applied. Remove it to use coupon.');
-                          return;
-                        }
-                        setShowCouponModal(true);
-                      }}
-                      disabled={cart.length === 0 || discountValue > 0}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Ticket className="w-4 h-4" />
-                      <span>Coupon</span>
-                    </button>
+                      <button
+                        onClick={() => {
+                          if (appliedCoupon) {
+                            toast('warning', 'Remove coupon first before applying discount');
+                            return;
+                          }
+                          setShowDiscountModal(true);
+                          setShowMoreDropdown(false);
+                        }}
+                        disabled={cart.length === 0 || !!appliedCoupon}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Percent className="w-4 h-4" />
+                        <span>Disc.</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (discountValue > 0) {
+                            toast('warning', 'Discount already applied. Remove it to use coupon.');
+                            return;
+                          }
+                          setShowCouponModal(true);
+                          setShowMoreDropdown(false);
+                        }}
+                        disabled={cart.length === 0 || discountValue > 0}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Ticket className="w-4 h-4" />
+                        <span>Coupon</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 

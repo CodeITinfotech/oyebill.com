@@ -6,7 +6,6 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  console.log('[Layout] Rendering with children:', !!children);
   return (
     <div className="flex h-screen bg-background-primary">
       <Sidebar />

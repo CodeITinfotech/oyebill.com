@@ -42,7 +42,6 @@ type SidebarMode = 'icon' | 'full';
 type ViewMode = 'mobile' | 'tablet' | 'desktop';
 
 export function Sidebar() {
-  console.log('[Sidebar] Rendering');
   const { user, restaurant, logout } = useAuthStore();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
