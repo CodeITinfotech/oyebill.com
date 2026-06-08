@@ -2075,7 +2075,7 @@ export function SettingsPage() {
                         onChange={(e) => setSelectedTableId(e.target.value)}
                       >
                         <option value="">Select Table</option>
-                        {tables.map(table => (
+                        {(tables || []).map(table => (
                           <option key={table.id} value={table.id}>
                             Table {table.number}
                           </option>
@@ -2089,7 +2089,7 @@ export function SettingsPage() {
                         onChange={(e) => setSelectedWaiterId(e.target.value)}
                       >
                         <option value="">Select Waiter</option>
-                        {users.filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
+                        {(users || []).filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
                           <option key={waiter.id} value={waiter.id}>
                             {waiter.name}
                           </option>
@@ -2140,7 +2140,7 @@ export function SettingsPage() {
                       <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                       <p className="text-text-muted text-sm">Loading...</p>
                     </div>
-                  ) : allocations.length === 0 ? (
+                  ) : !allocations || allocations.length === 0 ? (
                     <div className="text-center py-8 text-text-muted">
                       <LayoutGrid className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p>No allocations yet</p>
