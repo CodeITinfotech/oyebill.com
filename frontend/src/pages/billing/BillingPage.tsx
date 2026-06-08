@@ -332,13 +332,13 @@ export function BillingPage() {
     syncTableStatusWithCart();
   }, [cart.length, selectedTable?.id]);
 
-  // Update table status when cart becomes empty (set to available if no active order)
+  // Update table status when cart becomes empty (set to available if no active order/KOT)
   useEffect(() => {
     const updateTableStatusOnEmptyCart = async () => {
       if (!selectedTable) return;
       
-      // If cart is empty and table is occupied, check if there's an active order
-      if (cart.length === 0 && selectedTable.status === 'occupied') {
+      // If cart is empty and table is occupied or active (has KOT), check if there's an active order
+      if (cart.length === 0 && (selectedTable.status === 'occupied' || selectedTable.status === 'active')) {
         try {
           const response = await api.getOrderByTable(selectedTable.id);
           // If no active order, mark table as available
@@ -346,6 +346,16 @@ export function BillingPage() {
             await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
             setSelectedTable({ ...selectedTable, status: 'available' });
             store.fetchTables(selectedSection || undefined);
+          }
+          // If there IS an active order with KOT items, ensure status is 'active'
+          else if (response.success && response.data) {
+            const order = response.data;
+            const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
+            if (hasKotItems && selectedTable.status !== 'active') {
+              await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+              setSelectedTable({ ...selectedTable, status: 'active' });
+              store.fetchTables(selectedSection || undefined);
+            }
           }
         } catch (error) {
           console.error('Failed to check order status:', error);
@@ -355,6 +365,38 @@ export function BillingPage() {
     
     updateTableStatusOnEmptyCart();
   }, [cart.length]);
+
+  // Sync table status with backend when selecting table
+  useEffect(() => {
+    const syncTableStatusWithBackend = async () => {
+      if (!selectedTable) return;
+      
+      try {
+        const response = await api.getOrderByTable(selectedTable.id);
+        if (response.success && response.data) {
+          const order = response.data;
+          const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
+          
+          // If order has KOT items, table should be 'active'
+          if (hasKotItems && selectedTable.status !== 'active') {
+            await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+            setSelectedTable({ ...selectedTable, status: 'active' });
+            store.fetchTables(selectedSection || undefined);
+          }
+          // If order exists but no KOT items yet, table should be 'occupied'
+          else if (!hasKotItems && selectedTable.status === 'available') {
+            await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+            setSelectedTable({ ...selectedTable, status: 'occupied' });
+            store.fetchTables(selectedSection || undefined);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to sync table status:', error);
+      }
+    };
+    
+    syncTableStatusWithBackend();
+  }, [selectedTable?.id]);
 
   // Update item quantity
   const updateQuantity = (itemId: string, delta: number) => {
