@@ -13,7 +13,7 @@ type PrinterTab = 'kot' | 'bill' | 'setup';
 export function SettingsPage() {
   const [searchParams] = useSearchParams();
   const { user, restaurant, setRestaurant } = useAuthStore();
-  const { settings, fetchSettings, updateSettings } = useDataStore();
+  const { settings, tables, fetchSettings, updateSettings, fetchTables } = useDataStore();
   
   const urlTab = searchParams.get('tab');
   const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons'].includes(urlTab) 
@@ -189,6 +189,7 @@ export function SettingsPage() {
   useEffect(() => {
     if (activeTab === 'tableAllocations' && restaurant?.id) {
       fetchAllocations();
+      fetchTables();
     }
   }, [activeTab, restaurant?.id]);
 
