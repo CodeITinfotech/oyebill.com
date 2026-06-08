@@ -12,6 +12,7 @@ import type { Product, Table, OrderItem } from '../../types';
 interface CartItem extends OrderItem {
   isNew?: boolean;
   isOnlineOrder?: boolean;
+  alreadyKot?: boolean; // Items that were already KOT'd in previous rounds
 }
 
 export function BillingPage() {
@@ -777,14 +778,15 @@ export function BillingPage() {
       const existingOrder = response.data;
       setCurrentOrderId(existingOrder.id);
       
-      // Load existing items and new items
+      // Load existing items (already KOT'd in previous rounds)
+      // These items should be marked as alreadyKot so they can be struck through
       const existingItems: CartItem[] = existingOrder.items
         .filter((item: any) => item.isKot)
-        .map((item: any) => ({ ...item, isKot: true, isNew: false }));
+        .map((item: any) => ({ ...item, isKot: true, isNew: false, alreadyKot: true }));
       
       const newItems: CartItem[] = existingOrder.items
         .filter((item: any) => !item.isKot)
-        .map((item: any) => ({ ...item, isNew: false }));
+        .map((item: any) => ({ ...item, isNew: false, alreadyKot: false }));
       
       setCart([...existingItems, ...newItems]);
       
@@ -951,19 +953,33 @@ export function BillingPage() {
     // If preview is enabled, show preview modal
     if (showPreview) {
       setPreviewContent({ type: 'kot', content: kotContent });
+      // Save current isKot state for executeKOT to use
+      const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       setPendingAction(async () => {
-        await executeKOT();
+        await executeKOT(preKotState);
       });
       setShowPreviewModal(true);
     } else {
-      await executeKOT();
+      const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
+      await executeKOT(preKotState);
     }
   };
 
   // Execute KOT generation (called after preview confirm or if preview disabled)
-  const executeKOT = async () => {
-    // Mark new items as KOT
-    const kotItems = cart.map(item => ({ ...item, isKot: true, isNew: false }));
+  const executeKOT = async (preKotState: any[]) => {
+    // Mark items as KOT and track which ones were already KOT'd
+    const kotItems = cart.map(item => {
+      // Check if this item was already KOT'd before this round
+      const prevState = preKotState.find(p => p.id === item.id);
+      const wasAlreadyKot = prevState?.alreadyKot === true || prevState?.isKot === true;
+      
+      return { 
+        ...item, 
+        isKot: true, 
+        isNew: false, 
+        alreadyKot: wasAlreadyKot
+      };
+    });
     setCart(kotItems);
 
     const isOnlineOrderMode = onlineOrder !== null;
@@ -1766,32 +1782,16 @@ export function BillingPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Page Header - visible on mobile at top, hidden on desktop (handled by sidebar) */}
-      <div className="lg:hidden px-4 py-3 border-b border-white/10 bg-background-card text-center">
+      {/* Page Header - Centered Billing title on mobile, with Bell on desktop */}
+      <div className="lg:hidden flex items-center justify-center mb-4">
         <h1 className="text-xl font-display font-bold text-text-primary">Billing</h1>
       </div>
 
-      {/* Desktop: Full page header */}
+      {/* Desktop: Full page header with Bell */}
       <div className="hidden lg:flex items-center justify-between mb-4">
         <h1 className="text-2xl font-display font-bold text-text-primary">Billing</h1>
         
         {/* Notification Bell for Waiters/Admins */}
-        {(user?.role === 'waiter' || user?.role === 'admin') && (
-          <button
-            onClick={() => setShowOrdersPanel(true)}
-            className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
-      <div className="lg:hidden mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-display font-bold text-text-primary">Billing</h1>
         {(user?.role === 'waiter' || user?.role === 'admin') && (
           <button
             onClick={() => setShowOrdersPanel(true)}
@@ -1814,7 +1814,7 @@ export function BillingPage() {
           {/* Mobile: View Toggle */}
           <div className="lg:hidden flex border-b border-white/10">
             <button
-              onClick={() => setMobileView('menu')}
+              onClick={() => { setMobileView('menu'); setShowMobileCart(false); }}
               className={`flex-1 py-3 text-sm font-medium transition-all ${
                 mobileView === 'menu' 
                   ? 'bg-accent/10 text-accent border-b-2 border-accent' 
@@ -1824,7 +1824,7 @@ export function BillingPage() {
               Menu
             </button>
             <button
-              onClick={() => setMobileView('cart')}
+              onClick={() => { setMobileView('cart'); setShowMobileCart(true); }}
               className={`flex-1 py-3 text-sm font-medium transition-all relative ${
                 mobileView === 'cart' 
                   ? 'bg-accent/10 text-accent border-b-2 border-accent' 
@@ -2040,9 +2040,6 @@ export function BillingPage() {
                       <span className="text-xs text-accent font-medium truncate max-w-[100px]">
                         {selectedCustomer.name}
                       </span>
-                      {selectedCustomer.phone && (
-                        <span className="text-[10px] text-text-muted">({selectedCustomer.phone})</span>
-                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -2081,10 +2078,7 @@ export function BillingPage() {
                           }}
                           className="w-full px-3 py-2 text-left text-xs hover:bg-accent/10 flex items-center justify-between"
                         >
-                          <span>
-                            <span className="text-text-primary">{c.name || 'Unknown'}</span>
-                            {c.phone && <span className="text-text-muted ml-1">({c.phone})</span>}
-                          </span>
+                          <span className="text-text-primary">{c.name || 'Unknown'}</span>
                           {c.loyalty_discount > 0 && <span className="text-accent">🎁</span>}
                         </button>
                       ))
@@ -2238,6 +2232,61 @@ export function BillingPage() {
               <span className="text-xl font-bold text-accent">{formatCurrency(total)}</span>
             </div>
 
+            {/* Mobile: Action Buttons - shown only in Cart view */}
+            <div className="lg:hidden grid grid-cols-3 gap-2" style={{ display: showMobileCart ? 'grid' : 'none' }}>
+              {billGenerated ? (
+                <>
+                  <Button
+                    variant="success"
+                    size="md"
+                    onClick={() => setShowCollectModal(true)}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <span>COLLECT</span>
+                  </Button>
+                  <Button
+                    variant="warning"
+                    size="md"
+                    onClick={() => setShowPushModal(true)}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <span>PUSH</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={handleKOT}
+                    disabled={cart.filter(i => i.isNew).length === 0}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <Printer className="w-3 h-3" />
+                    <span>KOT</span>
+                  </Button>
+                  <Button
+                    variant="accent"
+                    size="md"
+                    onClick={handleBill}
+                    disabled={cart.length === 0}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <Receipt className="w-3 h-3" />
+                    <span>Bill</span>
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+                className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+              >
+                <MoreHorizontal className="w-3 h-3" />
+              </Button>
+            </div>
+
             {/* Desktop: Full breakdown */}
             <div className="hidden lg:block space-y-2 text-sm">
               <div className="flex justify-between">
@@ -2272,8 +2321,8 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* Action Buttons - Mobile friendly */}
-            <div className="grid grid-cols-3 gap-2">
+            {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
+            <div className="hidden lg:grid lg:grid-cols-3 gap-2">
               {billGenerated ? (
                 <>
                   <Button
@@ -2649,10 +2698,10 @@ export function BillingPage() {
         </div>
       </div>
 
-      {/* Mobile: Floating Cart Button */}
+      {/* Mobile: Floating Cart Button (when in menu view) */}
       <div className="lg:hidden fixed bottom-4 right-4 z-30">
         <button
-          onClick={() => setMobileView('cart')}
+          onClick={() => { setMobileView('cart'); setShowMobileCart(true); }}
           className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${
             cart.length > 0 
               ? 'bg-accent text-background-primary' 
@@ -2667,6 +2716,9 @@ export function BillingPage() {
           )}
         </button>
       </div>
+
+      {/* Mobile: Cart Action Buttons - shown in cart area below totals */}
+      {/* This is a placeholder - buttons are now in the cart panel when mobileView='cart' */}
 
       {/* Discount Modal */}
       <Modal
@@ -3214,14 +3266,45 @@ export function BillingPage() {
                     <span className="text-right">Rate</span>
                     <span className="text-right">Amount</span>
                   </div>
-                  {previewContent.content.items.map((item: any, idx: number) => (
-                    <div key={idx} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5">
-                      <span className="truncate">{item.productName}</span>
-                      <span className="text-right">{item.quantity}</span>
-                      <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
-                      <span className="text-right">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
-                    </div>
-                  ))}
+                  {previewContent.type === 'kot' && previewContent.content.items.some((item: any) => item.alreadyKot) ? (
+                    <>
+                      {/* Show already KOT items with strikethrough */}
+                      <div className="text-[10px] text-gray-500 mb-1">Already Sent:</div>
+                      {previewContent.content.items.map((item: any, idx: number) => (
+                        item.alreadyKot ? (
+                          <div key={`old-${idx}`} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5 opacity-50">
+                            <span className="truncate line-through">{item.productName}</span>
+                            <span className="text-right line-through">{item.quantity}</span>
+                            <span className="text-right line-through">₹{item.unitPrice.toFixed(2)}</span>
+                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ) : null
+                      ))}
+                      <div className="border-t border-dashed border-gray-400 my-2"></div>
+                      <div className="text-[10px] text-green-600 font-semibold mb-1">New Items:</div>
+                      {/* Show new items (not alreadyKot) */}
+                      {previewContent.content.items.map((item: any, idx: number) => (
+                        !item.alreadyKot ? (
+                          <div key={`new-${idx}`} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5 font-semibold">
+                            <span className="truncate">{item.productName}</span>
+                            <span className="text-right">{item.quantity}</span>
+                            <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
+                            <span className="text-right">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                          </div>
+                        ) : null
+                      ))}
+                    </>
+                  ) : (
+                    /* Default: show all items without strikethrough */
+                    previewContent.content.items.map((item: any, idx: number) => (
+                      <div key={idx} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5">
+                        <span className="truncate">{item.productName}</span>
+                        <span className="text-right">{item.quantity}</span>
+                        <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
+                        <span className="text-right">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Totals (Bill only) */}
