@@ -58,6 +58,27 @@ try {
   console.log('Index migration note:', err.message);
 }
 
+// Migration: Add missing columns to orders table
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(orders)").all();
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  const columnsToAdd = [
+    { name: 'waiter_id', type: 'TEXT' },
+    { name: 'customer_id', type: 'TEXT' },
+    { name: 'loyalty_discount', type: 'REAL DEFAULT 0' }
+  ];
+  
+  for (const col of columnsToAdd) {
+    if (!existingColumns.includes(col.name)) {
+      db.exec(`ALTER TABLE orders ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`Added ${col.name} column to orders table`);
+    }
+  }
+} catch (err) {
+  console.log('Orders migration note:', err.message);
+}
+
 // Create tables
 db.exec(`
   -- Restaurants table
