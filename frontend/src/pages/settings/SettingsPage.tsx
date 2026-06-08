@@ -636,11 +636,19 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Manage your restaurant settings" />
+      {/* Mobile Header */}
+      <div className="lg:hidden p-4 border-b border-white/10">
+        <h1 className="text-xl font-bold text-center">Settings</h1>
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden lg:block">
+        <PageHeader title="Settings" subtitle="Manage your restaurant settings" />
+      </div>
 
       <div className="flex gap-6">
         {/* Tab Navigation */}
-        <div className="w-56 shrink-0">
+        <div className="w-56 shrink-0 hidden lg:block">
           <div className="card p-2 space-y-1">
             {tabs.map((tab) => (
               <button
