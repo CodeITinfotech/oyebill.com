@@ -340,6 +340,9 @@ router.post('/:id/kot', authenticateToken, (req, res) => {
         .run('kot', req.params.id);
     }
 
+    // Update table status to active (KOT generated)
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active', order.table_id);
+
     // Return updated order
     const updatedOrder = db.prepare(`
       SELECT o.*, t.number as table_number 

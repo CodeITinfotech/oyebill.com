@@ -1486,28 +1486,29 @@ export function BillingPage() {
             <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Tables</h3>
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
               {tables.map((table) => {
+                // Determine status based on actual table status
+                const isActive = table.status === 'active';
                 const isAvailable = table.status === 'available';
+                const isOccupied = table.status === 'occupied' || table.status === 'billing';
                 const isPendingCleaning = table.status === 'pending_cleaning';
-                const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
-                const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
-                const isCurrentlySelected = selectedTable?.id === table.id;
+                const isPendingPrint = table.status === 'pending_printing';
                 
-                // Status colors
+                // Status colors based on ACTUAL table status
                 let statusColor = 'bg-success';
                 let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
                 
-                if (isCurrentlySelected) {
+                if (isActive) {
                   statusColor = 'bg-accent';
-                  statusBgClass = 'border-accent bg-accent/20 ring-2 ring-accent/50';
+                  statusBgClass = 'border-accent/50 bg-accent/20 hover:border-accent';
                 } else if (isOccupied) {
                   statusColor = 'bg-red-500';
-                  statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
+                  statusBgClass = 'border-red-500/50 bg-red-500/20 hover:border-red-500';
                 } else if (isPendingCleaning) {
                   statusColor = 'bg-gray-500';
-                  statusBgClass = 'border-gray-500/50 bg-gray-500/10 hover:border-gray-500 cursor-pointer';
+                  statusBgClass = 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer';
                 } else if (isPendingPrint) {
                   statusColor = 'bg-orange-500';
-                  statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
+                  statusBgClass = 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500';
                 }
                 
                 return (
@@ -1942,9 +1943,12 @@ export function BillingPage() {
             {tables
               .filter(table => table.id !== selectedTable?.id)
               .map((table) => {
+                // Determine status based on actual table status
+                const isActive = table.status === 'active';
                 const isAvailable = table.status === 'available';
-                const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
+                const isOccupied = table.status === 'occupied' || table.status === 'billing';
                 const isPendingCleaning = table.status === 'pending_cleaning';
+                const isPendingPrint = table.status === 'pending_printing';
                 
                 return (
                   <button
@@ -2005,8 +2009,10 @@ export function BillingPage() {
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
                     {isAvailable && <span className="text-[10px] text-success">Available</span>}
+                    {isActive && <span className="text-[10px] text-accent">Active - KOT</span>}
                     {isOccupied && <span className="text-[10px] text-red-500">Occupied - Billing</span>}
                     {isPendingCleaning && <span className="text-[10px] text-gray-400">Cleaning - Pending</span>}
+                    {isPendingPrint && <span className="text-[10px] text-orange-500">Pending</span>}
                   </button>
                 );
               })}
