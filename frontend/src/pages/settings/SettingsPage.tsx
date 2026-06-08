@@ -7,7 +7,7 @@ import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from
 import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus } from 'lucide-react';
 import { api } from '../../api';
 
-type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons';
+type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus';
 type PrinterTab = 'kot' | 'bill' | 'setup';
 
 export function SettingsPage() {
@@ -160,6 +160,15 @@ export function SettingsPage() {
     loyaltyDiscount: '',
   });
 
+  // Table Status Colors form
+  const [tableStatusForm, setTableStatusForm] = useState({
+    available: { color: 'bg-success', label: 'Available' },
+    active: { color: 'bg-accent', label: 'Active - KOT' },
+    occupied: { color: 'bg-red-500', label: 'Occupied - Billing' },
+    pending_cleaning: { color: 'bg-gray-500', label: 'Cleaning - Pending' },
+    pending_printing: { color: 'bg-orange-500', label: 'Pending' },
+  });
+
   useEffect(() => {
     fetchSettings();
     if (user?.role === 'admin') {
@@ -216,6 +225,11 @@ export function SettingsPage() {
             canViewPendingCleaning: settings.userRights.busser?.canViewPendingCleaning ?? true,
           },
         });
+      }
+      
+      // Load Table Status Colors
+      if (settings.tableStatusColors) {
+        setTableStatusForm(settings.tableStatusColors);
       }
       
       // Load Payment settings
@@ -577,6 +591,20 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveTableStatus = async () => {
+    setIsSubmitting(true);
+    const success = await updateSettings({
+      tableStatusColors: tableStatusForm,
+    });
+    setIsSubmitting(false);
+
+    if (success) {
+      toast('success', 'Table Status Colors saved');
+    } else {
+      toast('error', 'Failed to save Table Status Colors');
+    }
+  };
+
   const handleCreateUser = async () => {
     if (!newUserForm.name || !newUserForm.email) {
       toast('error', 'Please fill all required fields');
@@ -631,6 +659,7 @@ export function SettingsPage() {
       { id: 'printer', label: 'Printer', icon: Printer },
       { id: 'payment', label: 'Payment', icon: Percent },
       { id: 'rights', label: 'User Rights', icon: Shield },
+      { id: 'tableStatus', label: 'Table Status', icon: Tag },
     ] : []),
   ];
 
@@ -1774,6 +1803,176 @@ export function SettingsPage() {
                 <div className="pt-4 border-t border-white/10">
                   <Button onClick={handleSaveUserRights} loading={isSubmitting}>
                     Save User Rights
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Table Status Colors */}
+          {activeTab === 'tableStatus' && user?.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold">Table Status Colors</h2>
+                <p className="text-sm text-text-muted">Customize table status colors and labels</p>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Available */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.available.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Available</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.available.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-success">Green</option>
+                          <option value="bg-green-400">Light Green</option>
+                          <option value="bg-emerald-500">Emerald</option>
+                          <option value="bg-teal-500">Teal</option>
+                          <option value="bg-blue-500">Blue</option>
+                          <option value="bg-cyan-500">Cyan</option>
+                          <option value="bg-yellow-500">Yellow</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.available.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Active - KOT */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.active.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Active - KOT</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.active.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, active: {...tableStatusForm.active, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-accent">Accent (Default)</option>
+                          <option value="bg-blue-500">Blue</option>
+                          <option value="bg-indigo-500">Indigo</option>
+                          <option value="bg-violet-500">Violet</option>
+                          <option value="bg-purple-500">Purple</option>
+                          <option value="bg-pink-500">Pink</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.active.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, active: {...tableStatusForm.active, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Occupied - Billing */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.occupied.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Occupied - Billing</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.occupied.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, occupied: {...tableStatusForm.occupied, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-red-500">Red (Default)</option>
+                          <option value="bg-orange-500">Orange</option>
+                          <option value="bg-amber-500">Amber</option>
+                          <option value="bg-rose-500">Rose</option>
+                          <option value="bg-red-600">Dark Red</option>
+                          <option value="bg-yellow-500">Yellow</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.occupied.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, occupied: {...tableStatusForm.occupied, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cleaning - Pending */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.pending_cleaning.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Cleaning - Pending</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.pending_cleaning.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-gray-500">Grey (Default)</option>
+                          <option value="bg-slate-500">Slate</option>
+                          <option value="bg-zinc-500">Zinc</option>
+                          <option value="bg-neutral-500">Neutral</option>
+                          <option value="bg-stone-500">Stone</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.pending_cleaning.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pending Print */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.pending_printing.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Pending Print</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.pending_printing.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_printing: {...tableStatusForm.pending_printing, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-orange-500">Orange (Default)</option>
+                          <option value="bg-amber-500">Amber</option>
+                          <option value="bg-yellow-500">Yellow</option>
+                          <option value="bg-lime-500">Lime</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.pending_printing.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_printing: {...tableStatusForm.pending_printing, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/10">
+                  <Button onClick={handleSaveTableStatus} loading={isSubmitting}>
+                    Save Table Status Colors
                   </Button>
                 </div>
               </CardBody>

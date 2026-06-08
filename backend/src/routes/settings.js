@@ -52,6 +52,7 @@ router.get('/', authenticateToken, (req, res) => {
       bill_setup: safeParse(settings.bill_setup),
       userRights: safeParse(settings.user_rights),
       payment: safeParse(settings.payment),
+      tableStatusColors: safeParse(settings.table_status_colors),
     });
   } catch (error) {
     console.error('Get settings error:', error);
@@ -65,7 +66,7 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     const { 
       cgstRate, sgstRate, defaultTaxRate, priceInclusiveTax, 
       kotPrinter, billPrinter, printCopies, skipLinesBeforeCut,
-      taxName, isActive, kot_setup, bill_setup, userRights, payment
+      taxName, isActive, kot_setup, bill_setup, userRights, payment, tableStatusColors
     } = req.body;
     const { db } = req;
 
@@ -84,7 +85,8 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
         kot_setup = COALESCE(?, kot_setup),
         bill_setup = COALESCE(?, bill_setup),
         user_rights = COALESCE(?, user_rights),
-        payment = COALESCE(?, payment)
+        payment = COALESCE(?, payment),
+        table_status_colors = COALESCE(?, table_status_colors)
       WHERE restaurant_id = ?
     `).run(
       cgstRate,
@@ -101,6 +103,7 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       bill_setup ? JSON.stringify(bill_setup) : null,
       userRights ? JSON.stringify(userRights) : null,
       payment ? JSON.stringify(payment) : null,
+      tableStatusColors ? JSON.stringify(tableStatusColors) : null,
       req.user.restaurantId
     );
 
@@ -122,6 +125,7 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       bill_setup: safeParse(settings.bill_setup),
       userRights: safeParse(settings.user_rights),
       payment: safeParse(settings.payment),
+      tableStatusColors: safeParse(settings.table_status_colors),
     });
   } catch (error) {
     console.error('Update settings error:', error);

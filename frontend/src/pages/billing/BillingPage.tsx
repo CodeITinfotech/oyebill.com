@@ -166,6 +166,25 @@ export function BillingPage() {
     store.fetchTables(selectedSection || undefined);
   }, [selectedSection]);
 
+  // Persist table carts to localStorage
+  useEffect(() => {
+    const savedTableCarts = localStorage.getItem('tableCarts');
+    if (savedTableCarts) {
+      try {
+        setTableCarts(JSON.parse(savedTableCarts));
+      } catch (e) {
+        console.error('Error parsing table carts:', e);
+      }
+    }
+  }, []);
+
+  // Save table carts to localStorage whenever they change
+  useEffect(() => {
+    if (Object.keys(tableCarts).length > 0) {
+      localStorage.setItem('tableCarts', JSON.stringify(tableCarts));
+    }
+  }, [tableCarts]);
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1493,22 +1512,38 @@ export function BillingPage() {
                 const isPendingCleaning = table.status === 'pending_cleaning';
                 const isPendingPrint = table.status === 'pending_printing';
                 
-                // Status colors based on ACTUAL table status
-                let statusColor = 'bg-success';
-                let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
+                // Get custom colors from settings or use defaults
+                const customColors = store.settings?.tableStatusColors || {};
+                
+                // Default colors mapping
+                const colorMap: Record<string, { dot: string; bg: string; label: string }> = {
+                  available: { dot: customColors.available?.color || 'bg-success', bg: 'border-success/30 bg-success/5 hover:border-success', label: customColors.available?.label || 'Available' },
+                  active: { dot: customColors.active?.color || 'bg-accent', bg: 'border-accent/50 bg-accent/20 hover:border-accent', label: customColors.active?.label || 'Active - KOT' },
+                  occupied: { dot: customColors.occupied?.color || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.occupied?.label || 'Occupied - Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Cleaning - Pending' },
+                  pending_printing: { dot: customColors.pending_printing?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.pending_printing?.label || 'Pending' },
+                };
+                
+                let statusColor = colorMap.available.dot;
+                let statusBgClass = colorMap.available.bg;
+                let statusLabel = colorMap.available.label;
                 
                 if (isActive) {
-                  statusColor = 'bg-accent';
-                  statusBgClass = 'border-accent/50 bg-accent/20 hover:border-accent';
+                  statusColor = colorMap.active.dot;
+                  statusBgClass = colorMap.active.bg;
+                  statusLabel = colorMap.active.label;
                 } else if (isOccupied) {
-                  statusColor = 'bg-red-500';
-                  statusBgClass = 'border-red-500/50 bg-red-500/20 hover:border-red-500';
+                  statusColor = colorMap.occupied.dot;
+                  statusBgClass = colorMap.occupied.bg;
+                  statusLabel = colorMap.occupied.label;
                 } else if (isPendingCleaning) {
-                  statusColor = 'bg-gray-500';
-                  statusBgClass = 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer';
+                  statusColor = colorMap.pending_cleaning.dot;
+                  statusBgClass = colorMap.pending_cleaning.bg;
+                  statusLabel = colorMap.pending_cleaning.label;
                 } else if (isPendingPrint) {
-                  statusColor = 'bg-orange-500';
-                  statusBgClass = 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500';
+                  statusColor = colorMap.pending_printing.dot;
+                  statusBgClass = colorMap.pending_printing.bg;
+                  statusLabel = colorMap.pending_printing.label;
                 }
                 
                 return (
@@ -1526,22 +1561,50 @@ export function BillingPage() {
             </div>
             {/* Legend - Desktop only */}
             <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
-                <span>Available</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
-                <span>Active - KOT</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
-                <span>Occupied - Billing</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
-                <span>Cleaning - Pending</span>
-              </div>
+              {customColors.available?.label ? (
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.available.color || 'bg-success'}`}></span>
+                  <span>{customColors.available.label}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
+                  <span>Available</span>
+                </div>
+              )}
+              {customColors.active?.label ? (
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.active.color || 'bg-accent'}`}></span>
+                  <span>{customColors.active.label}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
+                  <span>Active - KOT</span>
+                </div>
+              )}
+              {customColors.occupied?.label ? (
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.occupied.color || 'bg-red-500'}`}></span>
+                  <span>{customColors.occupied.label}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
+                  <span>Occupied - Billing</span>
+                </div>
+              )}
+              {customColors.pending_cleaning?.label ? (
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_cleaning.color || 'bg-gray-500'}`}></span>
+                  <span>{customColors.pending_cleaning.label}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
+                  <span>Cleaning - Pending</span>
+                </div>
+              )}
             </div>
           </div>
 

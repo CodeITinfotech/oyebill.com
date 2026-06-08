@@ -108,6 +108,13 @@ export interface Settings {
   kotPrinter: string;
   billPrinter: string;
   printCopies: number;
+  tableStatusColors?: {
+    available?: { color: string; label: string };
+    active?: { color: string; label: string };
+    occupied?: { color: string; label: string };
+    pending_cleaning?: { color: string; label: string };
+    pending_printing?: { color: string; label: string };
+  };
 }
 
 export interface LoginCredentials {
