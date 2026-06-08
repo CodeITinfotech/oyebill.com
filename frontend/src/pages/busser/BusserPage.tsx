@@ -121,7 +121,7 @@ export default function BusserPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center shrink-0">
-                        <span className="text-xl font-bold text-orange-400">{table.number}</span>
+                        <span className="text-sm font-bold text-orange-400" style={{ fontSize: '0.9375rem' }}>{table.number}</span>
                       </div>
                       <div className="flex items-center gap-1.5 min-w-0 flex-1">
                         <span className="text-sm font-medium text-text-primary truncate">{table.sectionName || 'Main Hall'}</span>
