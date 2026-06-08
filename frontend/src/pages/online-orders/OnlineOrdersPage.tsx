@@ -241,65 +241,65 @@ export default function OnlineOrdersPage() {
             <p className="text-sm">New orders from Swiggy/Zomato will appear here</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredOrders.map(order => (
               <div
                 key={order.id}
-                className={`bg-background-secondary rounded-xl border border-white/10 overflow-hidden ${
-                  order.status === 'new' ? 'ring-2 ring-yellow-500/50' : ''
+                className={`bg-background-secondary rounded-lg border border-white/10 overflow-hidden ${
+                  order.status === 'new' ? 'ring-1 ring-yellow-500/50' : ''
                 }`}
               >
                 {/* Order Header */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg ${platformColors[order.platform] || 'bg-gray-500'} flex items-center justify-center text-white font-bold`}>
+                <div className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg ${platformColors[order.platform] || 'bg-gray-500'} flex items-center justify-center text-white font-bold text-sm`}>
                         {order.platform?.charAt(0).toUpperCase() || 'O'}
                       </div>
                       <div>
-                        <p className="font-medium">{order.external_order_id || order.id.slice(0, 8)}</p>
-                        <p className="text-sm text-text-muted">{order.customer_name || 'Guest'}</p>
+                        <p className="font-medium text-sm">{order.external_order_id || order.id.slice(0, 8)}</p>
+                        <p className="text-xs text-text-muted">{order.customer_name || 'Guest'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold">₹{order.total_amount || 0}</p>
+                      <p className="font-bold">₹{order.total_amount || 0}</p>
                       <p className="text-xs text-text-muted">{getTimeSince(order.created_at)}</p>
                     </div>
                   </div>
 
                   {/* Items preview */}
                   {order.order_data?.items && order.order_data.items.length > 0 && (
-                    <div className="mb-3 text-sm text-text-secondary">
-                      {order.order_data.items.slice(0, 3).map((item: any, i: number) => (
+                    <div className="mb-2 text-xs text-text-secondary truncate">
+                      {order.order_data.items.slice(0, 2).map((item: any, i: number) => (
                         <span key={i}>
                           {item.quantity}x {item.name}
-                          {i < Math.min(order.order_data.items.length, 3) - 1 && ' • '}
+                          {i < Math.min(order.order_data.items.length, 2) - 1 && ' • '}
                         </span>
                       ))}
-                      {order.order_data.items.length > 3 && (
-                        <span className="text-text-muted"> +{order.order_data.items.length - 3} more</span>
+                      {order.order_data.items.length > 2 && (
+                        <span className="text-text-muted"> +{order.order_data.items.length - 2}</span>
                       )}
                     </div>
                   )}
 
                   {/* Status badge and actions */}
                   <div className="flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium text-white ${statusColors[order.status] || 'bg-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium text-white ${statusColors[order.status] || 'bg-gray-500'}`}>
                       {statusLabels[order.status] || order.status}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       {order.status === 'new' && (
                         <>
                           <button
                             onClick={() => handleAcceptOrder(order)}
                             disabled={acceptingOrderId === order.id}
-                            className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                            className="px-2 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:opacity-50"
                           >
-                            {acceptingOrderId === order.id ? 'Opening...' : 'Accept & Bill'}
+                            {acceptingOrderId === order.id ? '...' : 'Accept'}
                           </button>
                           <button
                             onClick={() => handleUpdateStatus(order.id, 'declined')}
-                            className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700"
+                            className="px-2 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700"
                           >
                             Decline
                           </button>
@@ -308,17 +308,17 @@ export default function OnlineOrdersPage() {
                       {order.status === 'accepted' && (
                         <button
                           onClick={() => handleUpdateStatus(order.id, 'preparing')}
-                          className="px-3 py-1.5 bg-orange-600 text-white text-xs font-medium rounded-lg hover:bg-orange-700"
+                          className="px-2 py-1 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700"
                         >
-                          Start Preparing
+                          Prepare
                         </button>
                       )}
                       {order.status === 'preparing' && (
                         <button
                           onClick={() => handleUpdateStatus(order.id, 'ready')}
-                          className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700"
+                          className="px-2 py-1 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700"
                         >
-                          Mark Ready
+                          Ready
                         </button>
                       )}
                     </div>
