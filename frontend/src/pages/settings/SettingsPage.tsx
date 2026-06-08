@@ -2089,7 +2089,7 @@ export function SettingsPage() {
                         onChange={(e) => setSelectedWaiterId(e.target.value)}
                       >
                         <option value="">Select Waiter</option>
-                        {waiters.filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
+                        {users.filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
                           <option key={waiter.id} value={waiter.id}>
                             {waiter.name}
                           </option>
