@@ -118,19 +118,20 @@ export default function BusserPage() {
               >
                 {/* Table Header */}
                 <div className="p-3 bg-gradient-to-r from-orange-500/10 to-transparent">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center shrink-0">
                         <span className="text-xl font-bold text-orange-400">{table.number}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{table.sectionName || 'Main Hall'}</p>
-                        <p className="text-xs text-text-muted flex items-center gap-1 mt-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <span className="text-sm font-medium text-text-primary truncate">{table.sectionName || 'Main Hall'}</span>
+                        <span className="text-text-muted text-xs shrink-0">•</span>
+                        <span className="text-xs text-text-muted shrink-0 flex items-center gap-0.5">
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          {table.capacity} seats
-                        </p>
+                          {table.capacity}
+                        </span>
                       </div>
                     </div>
                     <div className="px-2 py-1 bg-orange-500/20 rounded-full shrink-0">
