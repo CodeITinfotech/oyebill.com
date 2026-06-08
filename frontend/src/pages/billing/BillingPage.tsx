@@ -72,6 +72,10 @@ export function BillingPage() {
   const [previewContent, setPreviewContent] = useState<{type: 'kot' | 'bill', content: any} | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Pending cleaning modal state
+  const [showPendingCleaningModal, setShowPendingCleaningModal] = useState(false);
+  const [pendingCleaningTable, setPendingCleaningTable] = useState<Table | null>(null);
+
   // Online order state
   const [onlineOrder, setOnlineOrder] = useState<{
     onlineOrderId: string;
@@ -240,7 +244,7 @@ export function BillingPage() {
       setCart([...cart, newItem]);
       setLastAddedItemId(newItem.id);
     }
-    toast('success', `Added ${product.name} to order`);
+    // No toast on successful add - only show toast on failure
   };
 
   // Focus on quantity input when item is added
@@ -277,22 +281,10 @@ export function BillingPage() {
   const handleTableSelect = async (table: Table) => {
     // Check if table is pending cleaning
     if (table.status === 'pending_cleaning') {
-      // Show warning but allow selection
-      const confirmed = window.confirm(
-        `Table ${table.number} is pending cleaning.\n\nDo you want to proceed and mark it as available for new customers?\n\nClick OK to continue billing (table will be set to available).\nClick Cancel to go back.`
-      );
-      if (!confirmed) {
-        return;
-      }
-      // Update table status to available before proceeding
-      try {
-        await api.put(`/tables/${table.id}`, { status: 'available' });
-        toast('success', `Table ${table.number} marked as available`);
-      } catch (error) {
-        console.error('Failed to update table status:', error);
-        toast('error', 'Failed to update table status');
-        return;
-      }
+      // Show app-based modal instead of browser confirm
+      setPendingCleaningTable(table);
+      setShowPendingCleaningModal(true);
+      return;
     }
 
     setSelectedTable(table);
@@ -323,6 +315,53 @@ export function BillingPage() {
       setCart([]);
       setDiscountAmount('');
       setDiscountReason('');
+    }
+  };
+
+  // Confirm pending cleaning modal
+  const handleConfirmPendingCleaning = async () => {
+    if (!pendingCleaningTable) return;
+
+    try {
+      // Update table status to available
+      await api.put(`/tables/${pendingCleaningTable.id}`, { status: 'available' });
+      toast('success', `Table ${pendingCleaningTable.number} marked as available`);
+      
+      // Close modal
+      setShowPendingCleaningModal(false);
+      
+      // Select the table (will now proceed normally since status is 'available')
+      setSelectedTable(pendingCleaningTable);
+      
+      // Check for existing order
+      const response = await api.getOrderByTable(pendingCleaningTable.id);
+      if (response.success && response.data) {
+        const existingOrder = response.data;
+        setCurrentOrderId(existingOrder.id);
+        
+        const existingItems: CartItem[] = existingOrder.items
+          .filter((item: any) => item.isKot)
+          .map((item: any) => ({ ...item, isKot: true, isNew: false }));
+        
+        const newItems: CartItem[] = existingOrder.items
+          .filter((item: any) => !item.isKot)
+          .map((item: any) => ({ ...item, isNew: false }));
+        
+        setCart([...existingItems, ...newItems]);
+        
+        if (existingOrder.discountAmount > 0) {
+          setDiscountAmount(String(existingOrder.discountAmount));
+          setDiscountReason(existingOrder.discountReason);
+        }
+      } else {
+        setCurrentOrderId(null);
+        setCart([]);
+        setDiscountAmount('');
+        setDiscountReason('');
+      }
+    } catch (error) {
+      console.error('Failed to update table status:', error);
+      toast('error', 'Failed to update table status');
     }
   };
 
@@ -1581,6 +1620,47 @@ export function BillingPage() {
               onClick={handleApplyCoupon}
             >
               Apply Coupon
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Pending Cleaning Confirmation Modal */}
+      <Modal
+        isOpen={showPendingCleaningModal}
+        onClose={() => setShowPendingCleaningModal(false)}
+        title="Pending Cleaning"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="text-center">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-orange-500/20 flex items-center justify-center">
+              <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-text-primary font-medium mb-2">
+              Table {pendingCleaningTable?.number} is pending cleaning.
+            </p>
+            <p className="text-sm text-text-muted">
+              Do you want to still start billing? The table will be marked as available.
+            </p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setShowPendingCleaningModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              className="flex-1"
+              onClick={handleConfirmPendingCleaning}
+            >
+              OK
             </Button>
           </div>
         </div>
