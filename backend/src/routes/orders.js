@@ -126,14 +126,17 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
 });
 
 // Update order's table (for table switching)
-router.patch('/:id/table', authenticateToken, (req, res) => {
+router.put('/:id/table', authenticateToken, (req, res) => {
   try {
     const { tableId } = req.body;
     const { db } = req;
 
+    console.log('PUT /orders/:id/table called:', req.params.id, tableId);
+
     // Get the order
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
     if (!order) {
+      console.log('Order not found:', req.params.id);
       return res.status(404).json({ error: 'Order not found' });
     }
 
@@ -158,6 +161,7 @@ router.patch('/:id/table', authenticateToken, (req, res) => {
     db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', order.table_id);
     db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', tableId);
 
+    console.log('Order moved successfully');
     res.json({ success: true, message: 'Order moved successfully' });
   } catch (error) {
     console.error('Update order table error:', error);

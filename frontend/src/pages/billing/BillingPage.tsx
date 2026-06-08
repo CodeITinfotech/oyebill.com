@@ -2067,11 +2067,13 @@ export function BillingPage() {
                         // 1. If we have a current order, update it to the new table
                         if (currentOrderId) {
                           // Update the existing order's table_id directly in database
+                          console.log('Moving order:', currentOrderId, 'to table:', table.id);
                           const updateResponse = await api.put(`/orders/${currentOrderId}/table`, {
                             tableId: table.id
                           });
+                          console.log('Update response:', updateResponse);
                           if (!updateResponse.success) {
-                            toast('error', 'Failed to move items to new table');
+                            toast('error', updateResponse.error || 'Failed to move items to new table');
                             return;
                           }
                         } else if (cart.length > 0) {
@@ -2082,9 +2084,11 @@ export function BillingPage() {
                             waiterId: selectedWaiter || undefined,
                             customerId: selectedCustomer?.id
                           };
+                          console.log('Creating order for table switch:', orderData);
                           const createResponse = await api.createOrder(orderData);
+                          console.log('Create response:', createResponse);
                           if (!createResponse.success) {
-                            toast('error', 'Failed to move items to new table');
+                            toast('error', createResponse.error || 'Failed to move items to new table');
                             return;
                           }
                           setCurrentOrderId(createResponse.data?.id);
