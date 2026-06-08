@@ -125,6 +125,46 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
   }
 });
 
+// Update order's table (for table switching)
+router.patch('/:id/table', authenticateToken, (req, res) => {
+  try {
+    const { tableId } = req.body;
+    const { db } = req;
+
+    // Get the order
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    if (order.status === 'billed') {
+      return res.status(400).json({ error: 'Cannot move billed order' });
+    }
+
+    // Check if target table has an active order
+    const existingOrder = db.prepare(`
+      SELECT id FROM orders WHERE table_id = ? AND status != 'billed' AND id != ?
+    `).get(tableId, req.params.id);
+
+    if (existingOrder) {
+      return res.status(400).json({ error: 'Target table already has an active order' });
+    }
+
+    // Update the order's table
+    db.prepare('UPDATE orders SET table_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(tableId, req.params.id);
+
+    // Update the tables
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', order.table_id);
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', tableId);
+
+    res.json({ success: true, message: 'Order moved successfully' });
+  } catch (error) {
+    console.error('Update order table error:', error);
+    res.status(500).json({ error: 'Failed to update order table' });
+  }
+});
+
 // Delete order
 router.delete('/:id', authenticateToken, (req, res) => {
   try {
@@ -279,6 +319,9 @@ router.put('/:id', authenticateToken, (req, res) => {
     db.prepare(`
       UPDATE orders SET subtotal = ?, tax_amount = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).run(subtotal, taxAmount, total, req.params.id);
+
+    // Update table status to occupied when items are added
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', order.table_id);
 
     // Return updated order
     const updatedOrder = db.prepare(`

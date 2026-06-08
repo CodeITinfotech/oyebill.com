@@ -240,7 +240,7 @@ export function BillingPage() {
   }, [cart, discountAmount, discountType, appliedCoupon, products, selectedCustomer]);
 
   // Add product to cart
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
     // Get the appropriate price - use section-specific price if available
     let unitPrice = product.sellingPrice;
     if (selectedSection && product.sectionPrices && product.sectionPrices.length > 0) {
@@ -251,15 +251,14 @@ export function BillingPage() {
     }
 
     const existingIndex = cart.findIndex(item => item.productId === product.id && !item.isKot);
+    let newCart = [...cart];
     
     if (existingIndex >= 0) {
-      const updated = [...cart];
-      updated[existingIndex].quantity += 1;
-      updated[existingIndex].taxAmount = unitPrice * (product.taxRate / 100);
-      updated[existingIndex].total = updated[existingIndex].quantity * (unitPrice + updated[existingIndex].taxAmount);
-      updated[existingIndex].unitPrice = unitPrice;
-      setCart(updated);
-      setLastAddedItemId(updated[existingIndex].id);
+      newCart[existingIndex].quantity += 1;
+      newCart[existingIndex].taxAmount = unitPrice * (product.taxRate / 100);
+      newCart[existingIndex].total = newCart[existingIndex].quantity * (unitPrice + newCart[existingIndex].taxAmount);
+      newCart[existingIndex].unitPrice = unitPrice;
+      setLastAddedItemId(newCart[existingIndex].id);
     } else {
       const taxPerUnit = unitPrice * (product.taxRate / 100);
       const newItem: CartItem = {
@@ -274,10 +273,23 @@ export function BillingPage() {
         isKot: false,
         isNew: true,
       };
-      setCart([...cart, newItem]);
+      newCart.push(newItem);
       setLastAddedItemId(newItem.id);
     }
-    // No toast on successful add - only show toast on failure
+    
+    setCart(newCart);
+    
+    // Update table status to occupied when items are added (only if table is available)
+    if (selectedTable && selectedTable.status === 'available') {
+      try {
+        await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+        setSelectedTable({ ...selectedTable, status: 'occupied' });
+        // Refresh tables to update UI
+        store.fetchTables(selectedSection || undefined);
+      } catch (error) {
+        console.error('Failed to update table status:', error);
+      }
+    }
   };
 
   // Focus on quantity input when item is added
@@ -288,6 +300,30 @@ export function BillingPage() {
       setLastAddedItemId(null);
     }
   }, [lastAddedItemId]);
+
+  // Update table status when cart becomes empty (set to available if no active order)
+  useEffect(() => {
+    const updateTableStatusOnEmptyCart = async () => {
+      if (!selectedTable) return;
+      
+      // If cart is empty and table is occupied, check if there's an active order
+      if (cart.length === 0 && selectedTable.status === 'occupied') {
+        try {
+          const response = await api.getOrderByTable(selectedTable.id);
+          // If no active order, mark table as available
+          if (response.success && !response.data) {
+            await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+            setSelectedTable({ ...selectedTable, status: 'available' });
+            store.fetchTables(selectedSection || undefined);
+          }
+        } catch (error) {
+          console.error('Failed to check order status:', error);
+        }
+      }
+    };
+    
+    updateTableStatusOnEmptyCart();
+  }, [cart.length]);
 
   // Update item quantity
   const updateQuantity = (itemId: string, delta: number) => {
@@ -2028,41 +2064,41 @@ export function BillingPage() {
                       if (!selectedTable) return;
                       
                       try {
-                        // Move items to new table
-                        // 1. Create new order for target table with current cart items
-                        if (cart.length > 0) {
+                        // 1. If we have a current order, update it to the new table
+                        if (currentOrderId) {
+                          // Update the existing order's table_id directly in database
+                          const updateResponse = await api.put(`/orders/${currentOrderId}/table`, {
+                            tableId: table.id
+                          });
+                          if (!updateResponse.success) {
+                            toast('error', 'Failed to move items to new table');
+                            return;
+                          }
+                        } else if (cart.length > 0) {
+                          // No existing order but have items in cart - create new order for target table
                           const orderData = {
                             tableId: table.id,
                             items: cart,
                             waiterId: selectedWaiter || undefined,
                             customerId: selectedCustomer?.id
                           };
-                          const response = await api.createOrder(orderData);
-                          if (!response.success) {
+                          const createResponse = await api.createOrder(orderData);
+                          if (!createResponse.success) {
                             toast('error', 'Failed to move items to new table');
                             return;
                           }
+                          setCurrentOrderId(createResponse.data?.id);
                         }
                         
-                        // 2. Delete old order if exists
-                        if (currentOrderId) {
-                          await api.deleteOrder(currentOrderId);
-                        }
-                        
-                        // 3. Mark old table as available
+                        // 2. Mark old table as available
                         await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                         
-                        // 4. Update local state
-                        const newTable = tables.find(t => t.id === table.id);
-                        if (newTable) {
-                          setSelectedTable({ ...newTable, status: 'occupied' });
-                        }
-                        setCurrentOrderId(null);
-                        setCart([]);
-                        setDiscountAmount('');
-                        setDiscountReason('');
-                        setAppliedCoupon(null);
+                        // 3. Refresh tables list to update UI
+                        store.fetchTables(selectedSection || undefined);
                         
+                        // 4. Update local state
+                        const newTable = { ...table, status: 'occupied' as const };
+                        setSelectedTable(newTable);
                         setShowSwitchTableModal(false);
                         toast('success', `Items moved to Table ${table.number}`);
                       } catch (error) {
