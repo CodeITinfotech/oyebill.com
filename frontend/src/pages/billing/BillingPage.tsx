@@ -1378,21 +1378,64 @@ export function BillingPage() {
                         <Ticket className="w-3 h-3" />
                         <span>Coupon</span>
                       </button>
-                      <button
-                        onClick={() => {
-                          setCart([]);
-                          setDiscountAmount('');
-                          setDiscountReason('');
-                          setAppliedCoupon(null);
-                          setShowMoreDropdown(false);
-                          toast('info', 'Cart cleared');
-                        }}
-                        disabled={cart.length === 0}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50 text-red-400"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>Clear Cart</span>
-                      </button>
+                      {/* Cancel KOT - only show when KOT items exist */}
+                      {cart.some(item => item.isKot) && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Are you sure you want to cancel KOT? This will clear all items and free the table.')) {
+                              setShowMoreDropdown(false);
+                              return;
+                            }
+                            
+                            try {
+                              // Delete the current order if exists
+                              if (currentOrderId) {
+                                await api.deleteOrder(currentOrderId);
+                              }
+                              
+                              // Clear all cart items
+                              setCart([]);
+                              setCurrentOrderId(null);
+                              setDiscountAmount('');
+                              setDiscountReason('');
+                              setAppliedCoupon(null);
+                              
+                              // Mark table as available
+                              if (selectedTable) {
+                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                              }
+                              
+                              setShowMoreDropdown(false);
+                              toast('success', 'KOT cancelled, table is now free');
+                            } catch (error) {
+                              console.error('Error cancelling KOT:', error);
+                              toast('error', 'Failed to cancel KOT');
+                            }
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors text-orange-400"
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Cancel KOT</span>
+                        </button>
+                      )}
+                      {/* Clear Cart - only show when no KOT items */}
+                      {!cart.some(item => item.isKot) && (
+                        <button
+                          onClick={() => {
+                            setCart([]);
+                            setDiscountAmount('');
+                            setDiscountReason('');
+                            setAppliedCoupon(null);
+                            setShowMoreDropdown(false);
+                            toast('info', 'Cart cleared');
+                          }}
+                          disabled={cart.length === 0}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50 text-red-400"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Clear Cart</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

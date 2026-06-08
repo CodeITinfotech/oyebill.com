@@ -125,6 +125,29 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
   }
 });
 
+// Delete order
+router.delete('/:id', authenticateToken, (req, res) => {
+  try {
+    const { db } = req;
+    const { id } = req.params;
+
+    // Delete order items first
+    db.prepare('DELETE FROM order_items WHERE order_id = ?').run(id);
+
+    // Delete the order
+    const result = db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    res.json({ success: true, message: 'Order deleted successfully' });
+  } catch (error) {
+    console.error('Delete order error:', error);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
 // Create order
 router.post('/', authenticateToken, (req, res) => {
   try {
