@@ -2117,6 +2117,35 @@ export function BillingPage() {
                 const isPendingCleaning = table.status === 'pending_cleaning';
                 const isPendingPrint = table.status === 'pending_printing';
                 
+                // Get custom colors from settings or use defaults
+                const customColors = store.settings?.tableStatusColors || {};
+                
+                // Default colors mapping
+                const colorMap: Record<string, { dot: string; label: string }> = {
+                  available: { dot: customColors.available?.color || 'text-success', label: customColors.available?.label || 'Available' },
+                  active: { dot: customColors.active?.color || 'text-accent', label: customColors.active?.label || 'Active' },
+                  occupied: { dot: customColors.occupied?.color || 'text-red-500', label: customColors.occupied?.label || 'Occupied' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Cleaning' },
+                  pending_printing: { dot: customColors.pending_printing?.color || 'text-orange-500', label: customColors.pending_printing?.label || 'Pending' },
+                };
+                
+                let statusDot = colorMap.available.dot;
+                let statusLabel = colorMap.available.label;
+                
+                if (isActive) {
+                  statusDot = colorMap.active.dot;
+                  statusLabel = colorMap.active.label;
+                } else if (isOccupied) {
+                  statusDot = colorMap.occupied.dot;
+                  statusLabel = colorMap.occupied.label;
+                } else if (isPendingCleaning) {
+                  statusDot = colorMap.pending_cleaning.dot;
+                  statusLabel = colorMap.pending_cleaning.label;
+                } else if (isPendingPrint) {
+                  statusDot = colorMap.pending_printing.dot;
+                  statusLabel = colorMap.pending_printing.label;
+                }
+                
                 return (
                   <button
                     key={table.id}
@@ -2190,11 +2219,7 @@ export function BillingPage() {
                   >
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
-                    {isAvailable && <span className="text-[10px] text-success">Available</span>}
-                    {isActive && <span className="text-[10px] text-accent">Active - KOT</span>}
-                    {isOccupied && <span className="text-[10px] text-red-500">Occupied - Billing</span>}
-                    {isPendingCleaning && <span className="text-[10px] text-gray-400">Cleaning - Pending</span>}
-                    {isPendingPrint && <span className="text-[10px] text-orange-500">Pending</span>}
+                    <span className={`text-[10px] ${statusDot}`}>{statusLabel}</span>
                   </button>
                 );
               })}
