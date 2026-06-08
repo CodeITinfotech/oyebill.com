@@ -6,6 +6,7 @@ import { PageHeader } from '../../components/layout';
 import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../components/ui';
 import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { jsPDF } from 'jspdf';
 import type { Product, Table, OrderItem } from '../../types';
 
 interface CartItem extends OrderItem {
@@ -97,6 +98,23 @@ export function BillingPage() {
   // Pending cleaning modal state
   const [showPendingCleaningModal, setShowPendingCleaningModal] = useState(false);
   const [pendingCleaningTable, setPendingCleaningTable] = useState<Table | null>(null);
+
+  // Bill generated state for COLLECT/PUSH buttons
+  const [billGenerated, setBillGenerated] = useState(false);
+  const [billOrderId, setBillOrderId] = useState<string | null>(null);
+
+  // Collect payment modal state
+  const [showCollectModal, setShowCollectModal] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'cash' | 'gpay' | 'card'>('cash');
+  const [cashAmount, setCashAmount] = useState('');
+  const [gpayAmount, setGpayAmount] = useState('');
+  const [cardAmount, setCardAmount] = useState('');
+  const [customerGpayNumber, setCustomerGpayNumber] = useState('');
+
+  // PUSH payment modal state
+  const [showPushModal, setShowPushModal] = useState(false);
+  const [pushMethod, setPushMethod] = useState<'gpay' | 'pos'>('gpay');
+  const [pushGpayNumber, setPushGpayNumber] = useState('');
 
   // Online order state
   const [onlineOrder, setOnlineOrder] = useState<{
@@ -552,6 +570,143 @@ export function BillingPage() {
     }
   };
 
+  // Handle Collect Payment
+  const handleCollectPayment = async () => {
+    if (!selectedTable || !billOrderId) {
+      toast('error', 'No table or order selected');
+      return;
+    }
+
+    // Validate amount based on payment mode
+    let amount = 0;
+    if (paymentMode === 'cash' && !cashAmount) {
+      toast('error', 'Please enter cash amount');
+      return;
+    }
+    if (paymentMode === 'gpay' && (!customerGpayNumber || !gpayAmount)) {
+      toast('error', 'Please enter GPay number and amount');
+      return;
+    }
+    if (paymentMode === 'card' && !cardAmount) {
+      toast('error', 'Please enter card amount');
+      return;
+    }
+
+    if (paymentMode === 'cash') {
+      amount = parseFloat(cashAmount) || total;
+    } else if (paymentMode === 'gpay') {
+      amount = parseFloat(gpayAmount) || total;
+    } else if (paymentMode === 'card') {
+      amount = parseFloat(cardAmount) || total;
+    }
+
+    try {
+      // Update order status to paid
+      await api.updateOrder(billOrderId, { 
+        status: 'paid',
+        paymentMode: paymentMode,
+        paymentAmount: amount,
+        paidAt: new Date().toISOString()
+      });
+
+      // Send busser notification for cleaning
+      await api.post('/busser/notify', {
+        tableId: selectedTable.id,
+        tableNumber: selectedTable.number,
+        message: `Table ${selectedTable.number} needs cleaning - Payment collected (${paymentMode.toUpperCase()})`
+      });
+
+      // Update table status to pending_cleaning
+      await api.put(`/tables/${selectedTable.id}`, { status: 'pending_cleaning' });
+
+      toast('success', `Payment collected via ${paymentMode.toUpperCase()}`);
+      
+      // Close modal and reset
+      setShowCollectModal(false);
+      setBillGenerated(false);
+      setBillOrderId(null);
+      
+      // Reset table and cart
+      setSelectedTable(null);
+      setCart([]);
+      setCurrentOrderId(null);
+      setDiscountAmount('');
+      setDiscountReason('');
+      setSelectedCustomer(null);
+      setCashAmount('');
+      setGpayAmount('');
+      setCardAmount('');
+      setCustomerGpayNumber('');
+      
+      // Refresh tables
+      store.fetchTables(selectedSection || undefined);
+    } catch (error) {
+      console.error('Error collecting payment:', error);
+      toast('error', 'Failed to process payment');
+    }
+  };
+
+  // Handle Push Payment
+  const handlePushPayment = async () => {
+    if (!selectedTable || !billOrderId) {
+      toast('error', 'No table or order selected');
+      return;
+    }
+
+    if (pushMethod === 'gpay' && !pushGpayNumber) {
+      toast('error', 'Please enter GPay number or UPI ID');
+      return;
+    }
+
+    try {
+      // Update order status to paid (pending_push for GPay)
+      await api.updateOrder(billOrderId, { 
+        status: 'paid',
+        paymentMode: pushMethod === 'gpay' ? 'gpay_push' : 'pos_push',
+        paymentAmount: total,
+        paidAt: new Date().toISOString(),
+        pushMethod: pushMethod,
+        pushTarget: pushMethod === 'gpay' ? pushGpayNumber : 'POS Machine'
+      });
+
+      // Send busser notification for cleaning
+      await api.post('/busser/notify', {
+        tableId: selectedTable.id,
+        tableNumber: selectedTable.number,
+        message: `Table ${selectedTable.number} needs cleaning - Payment pushed (${pushMethod.toUpperCase()})`
+      });
+
+      // Update table status to pending_cleaning
+      await api.put(`/tables/${selectedTable.id}`, { status: 'pending_cleaning' });
+
+      if (pushMethod === 'gpay') {
+        toast('success', `Payment of ₹${total.toFixed(2)} pushed to ${pushGpayNumber}`);
+      } else {
+        toast('success', `Payment pushed to POS Machine`);
+      }
+      
+      // Close modal and reset
+      setShowPushModal(false);
+      setBillGenerated(false);
+      setBillOrderId(null);
+      
+      // Reset table and cart
+      setSelectedTable(null);
+      setCart([]);
+      setCurrentOrderId(null);
+      setDiscountAmount('');
+      setDiscountReason('');
+      setSelectedCustomer(null);
+      setPushGpayNumber('');
+      
+      // Refresh tables
+      store.fetchTables(selectedSection || undefined);
+    } catch (error) {
+      console.error('Error pushing payment:', error);
+      toast('error', 'Failed to push payment');
+    }
+  };
+
   // Select table
   const handleTableSelect = async (table: Table) => {
     // Check if table is pending cleaning
@@ -889,6 +1044,435 @@ export function BillingPage() {
     return result;
   };
 
+  // Generate PDF Bill
+  const generatePDFBill = (billData: any): string => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Restaurant Name
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(settings?.restaurant?.name || 'Restaurant', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Restaurant details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    if (settings?.restaurant?.address) {
+      doc.text(settings.restaurant.address, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+    if (settings?.restaurant?.phone) {
+      doc.text(`Phone: ${settings.restaurant.phone}`, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+
+    y += 5;
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Bill Header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILL', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Bill details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Bill No: ${billData.orderId}`, margin, y);
+    y += 6;
+    doc.text(`Table: ${billData.tableNumber}`, margin, y);
+    y += 6;
+    doc.text(`Date: ${billData.dateTime}`, margin, y);
+    y += 6;
+    doc.text(`Waiter: ${billData.waiterName}`, margin, y);
+    y += 10;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Items Header
+    doc.setFont('helvetica', 'bold');
+    doc.text('Item', margin, y);
+    doc.text('Qty', pageWidth - 60, y);
+    doc.text('Price', pageWidth - 40, y);
+    doc.text('Total', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    // Items
+    doc.setFont('helvetica', 'normal');
+    billData.items.forEach((item: any) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+      const itemTotal = (item.unitPrice * item.quantity).toFixed(2);
+      doc.text(item.productName.substring(0, 30), margin, y);
+      doc.text(String(item.quantity), pageWidth - 60, y);
+      doc.text(`₹${item.unitPrice.toFixed(2)}`, pageWidth - 40, y);
+      doc.text(`₹${itemTotal}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    });
+
+    y += 5;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Totals
+    doc.text('Subtotal:', margin, y);
+    doc.text(`₹${billData.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    doc.text('Tax:', margin, y);
+    doc.text(`₹${billData.taxAmount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    if (billData.discount > 0) {
+      doc.text('Discount:', margin, y);
+      doc.text(`-₹${billData.discount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    if (billData.loyaltyDiscount > 0) {
+      doc.text('Loyalty Discount:', margin, y);
+      doc.text(`-₹${billData.loyaltyDiscount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    y += 3;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL:', margin, y);
+    doc.text(`₹${billData.total.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 8;
+
+    // Total in words
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Amount in Words: ${billData.totalInWords}`, margin, y);
+    y += 15;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Thank you for dining with us!', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Please visit again!', pageWidth / 2, y, { align: 'center' });
+
+    // Return as data URL for sharing
+    return doc.output('dataurlstring');
+  };
+
+  // Share PDF via WhatsApp
+  const sharePDFViaWhatsApp = (billData: any) => {
+    // Create and download PDF
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Restaurant Name
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(settings?.restaurant?.name || 'Restaurant', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Restaurant details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    if (settings?.restaurant?.address) {
+      doc.text(settings.restaurant.address, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+    if (settings?.restaurant?.phone) {
+      doc.text(`Phone: ${settings.restaurant.phone}`, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+
+    y += 5;
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Bill Header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILL', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Bill details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Bill No: ${billData.orderId}`, margin, y);
+    y += 6;
+    doc.text(`Table: ${billData.tableNumber}`, margin, y);
+    y += 6;
+    doc.text(`Date: ${billData.dateTime}`, margin, y);
+    y += 6;
+    doc.text(`Waiter: ${billData.waiterName}`, margin, y);
+    y += 10;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Items Header
+    doc.setFont('helvetica', 'bold');
+    doc.text('Item', margin, y);
+    doc.text('Qty', pageWidth - 60, y);
+    doc.text('Price', pageWidth - 40, y);
+    doc.text('Total', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    // Items
+    doc.setFont('helvetica', 'normal');
+    billData.items.forEach((item: any) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+      const itemTotal = (item.unitPrice * item.quantity).toFixed(2);
+      doc.text(item.productName.substring(0, 30), margin, y);
+      doc.text(String(item.quantity), pageWidth - 60, y);
+      doc.text(`₹${item.unitPrice.toFixed(2)}`, pageWidth - 40, y);
+      doc.text(`₹${itemTotal}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    });
+
+    y += 5;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Totals
+    doc.text('Subtotal:', margin, y);
+    doc.text(`₹${billData.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    doc.text('Tax:', margin, y);
+    doc.text(`₹${billData.taxAmount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    if (billData.discount > 0) {
+      doc.text('Discount:', margin, y);
+      doc.text(`-₹${billData.discount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    if (billData.loyaltyDiscount > 0) {
+      doc.text('Loyalty Discount:', margin, y);
+      doc.text(`-₹${billData.loyaltyDiscount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    y += 3;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL:', margin, y);
+    doc.text(`₹${billData.total.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 8;
+
+    // Total in words
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Amount in Words: ${billData.totalInWords}`, margin, y);
+    y += 15;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Thank you for dining with us!', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Please visit again!', pageWidth / 2, y, { align: 'center' });
+
+    // Save PDF
+    doc.save(`Bill_${billData.orderId}.pdf`);
+    
+    // Open WhatsApp with message
+    const message = encodeURIComponent(
+      `Your bill from ${settings?.restaurant?.name || 'Restaurant'}\n\n` +
+      `Bill No: ${billData.orderId}\n` +
+      `Total: ₹${billData.total.toFixed(2)}\n\n` +
+      `PDF bill has been downloaded. Please check.`
+    );
+    
+    const phoneNumber = billData.customerPhone?.replace(/\D/g, '') || '';
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+    
+    toast('info', 'PDF downloaded and WhatsApp opened');
+  };
+
+  // Share PDF via Email
+  const sharePDFViaEmail = (billData: any) => {
+    // Create PDF
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Restaurant Name
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(settings?.restaurant?.name || 'Restaurant', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Restaurant details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    if (settings?.restaurant?.address) {
+      doc.text(settings.restaurant.address, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+    if (settings?.restaurant?.phone) {
+      doc.text(`Phone: ${settings.restaurant.phone}`, pageWidth / 2, y, { align: 'center' });
+      y += 5;
+    }
+
+    y += 5;
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Bill Header
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('BILL', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+
+    // Bill details
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Bill No: ${billData.orderId}`, margin, y);
+    y += 6;
+    doc.text(`Table: ${billData.tableNumber}`, margin, y);
+    y += 6;
+    doc.text(`Date: ${billData.dateTime}`, margin, y);
+    y += 6;
+    doc.text(`Waiter: ${billData.waiterName}`, margin, y);
+    y += 10;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Items Header
+    doc.setFont('helvetica', 'bold');
+    doc.text('Item', margin, y);
+    doc.text('Qty', pageWidth - 60, y);
+    doc.text('Price', pageWidth - 40, y);
+    doc.text('Total', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 5;
+
+    // Items
+    doc.setFont('helvetica', 'normal');
+    billData.items.forEach((item: any) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+      const itemTotal = (item.unitPrice * item.quantity).toFixed(2);
+      doc.text(item.productName.substring(0, 30), margin, y);
+      doc.text(String(item.quantity), pageWidth - 60, y);
+      doc.text(`₹${item.unitPrice.toFixed(2)}`, pageWidth - 40, y);
+      doc.text(`₹${itemTotal}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    });
+
+    y += 5;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Totals
+    doc.text('Subtotal:', margin, y);
+    doc.text(`₹${billData.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    doc.text('Tax:', margin, y);
+    doc.text(`₹${billData.taxAmount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    if (billData.discount > 0) {
+      doc.text('Discount:', margin, y);
+      doc.text(`-₹${billData.discount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    if (billData.loyaltyDiscount > 0) {
+      doc.text('Loyalty Discount:', margin, y);
+      doc.text(`-₹${billData.loyaltyDiscount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      y += 6;
+    }
+
+    y += 3;
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    // Total
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('TOTAL:', margin, y);
+    doc.text(`₹${billData.total.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    y += 8;
+
+    // Total in words
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Amount in Words: ${billData.totalInWords}`, margin, y);
+    y += 15;
+
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // Footer
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Thank you for dining with us!', pageWidth / 2, y, { align: 'center' });
+    y += 5;
+    doc.text('Please visit again!', pageWidth / 2, y, { align: 'center' });
+
+    // Save PDF
+    doc.save(`Bill_${billData.orderId}.pdf`);
+    
+    // Open email
+    const subject = encodeURIComponent(`Bill from ${settings?.restaurant?.name || 'Restaurant'} - ${billData.orderId}`);
+    const body = encodeURIComponent(
+      `Dear Customer,\n\n` +
+      `Thank you for dining with us!\n\n` +
+      `Bill No: ${billData.orderId}\n` +
+      `Total: ₹${billData.total.toFixed(2)}\n\n` +
+      `PDF bill has been downloaded. Please check.\n\n` +
+      `Thank you for visiting!\n` +
+      `${settings?.restaurant?.name || 'Restaurant'}`
+    );
+    window.open(`mailto:${billData.customerEmail}?subject=${subject}&body=${body}`, '_blank');
+    
+    toast('info', 'PDF downloaded and Email opened');
+  };
+
   // Generate Bill
   const handleBill = async () => {
     // Check for items
@@ -998,23 +1582,35 @@ export function BillingPage() {
       }
     }
 
+    // Only proceed if we have a valid orderId
     if (orderId) {
       // Apply any pending discount
       if (discountAmount && discountReason) {
         await applyDiscount(orderId, discountValue, discountReason);
       }
       await generateBill(orderId);
-    }
 
-    // Update table status to 'billed' when bill is generated
-    if (!isOnlineOrderMode && selectedTable) {
-      try {
-        await api.put(`/tables/${selectedTable.id}`, { status: 'billed' });
-        setSelectedTable({ ...selectedTable, status: 'billed' });
-        store.fetchTables(selectedSection || undefined);
-      } catch (error) {
-        console.error('Failed to update table status to billed:', error);
+      // Update table status to 'billed' when bill is generated
+      if (!isOnlineOrderMode && selectedTable) {
+        try {
+          await api.put(`/tables/${selectedTable.id}`, { status: 'billed' });
+          setSelectedTable({ ...selectedTable, status: 'billed' });
+          store.fetchTables(selectedSection || undefined);
+        } catch (error) {
+          console.error('Failed to update table status to billed:', error);
+        }
       }
+
+      // Store the order ID for Collect/PUSH
+      setBillOrderId(orderId);
+
+      // Set billGenerated to true to show COLLECT/PUSH buttons
+      setBillGenerated(true);
+    } else {
+      // No orderId - this shouldn't happen but handle gracefully
+      console.error('No orderId available for bill generation');
+      toast('error', 'Failed to generate bill - no order found');
+      return;
     }
 
     // For online orders, update status to ready
@@ -1028,6 +1624,8 @@ export function BillingPage() {
         
         // Reset online order state
         setOnlineOrder(null);
+        setBillGenerated(false);
+        setBillOrderId(null);
       } catch (error) {
         console.error('Error updating online order status:', error);
         toast('success', 'Bill Generated (Status update failed)');
@@ -1041,15 +1639,6 @@ export function BillingPage() {
       console.log('Bill Print triggered');
       toast('info', 'Bill sent to printer');
     }, 500);
-
-    // Reset
-    setSelectedTable(null);
-    setCart([]);
-    setCurrentOrderId(null);
-    setDiscountAmount('');
-    setDiscountReason('');
-    setSelectedCustomer(null);
-    fetchTables(selectedSection || undefined);
   };
 
   // Handle preview print action
@@ -1685,26 +2274,55 @@ export function BillingPage() {
 
             {/* Action Buttons - Mobile friendly */}
             <div className="grid grid-cols-3 gap-2">
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={handleKOT}
-                disabled={cart.filter(i => i.isNew).length === 0}
-                className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-              >
-                <Printer className="w-4 h-4" />
-                <span>KOT</span>
-              </Button>
-              <Button
-                variant="accent"
-                size="md"
-                onClick={handleBill}
-                disabled={cart.length === 0}
-                className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-              >
-                <Receipt className="w-4 h-4" />
-                <span>Bill</span>
-              </Button>
+              {billGenerated ? (
+                <>
+                  <Button
+                    variant="success"
+                    size="md"
+                    onClick={() => setShowCollectModal(true)}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>COLLECT</span>
+                  </Button>
+                  <Button
+                    variant="warning"
+                    size="md"
+                    onClick={() => setShowPushModal(true)}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                    <span>PUSH</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={handleKOT}
+                    disabled={cart.filter(i => i.isNew).length === 0}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>KOT</span>
+                  </Button>
+                  <Button
+                    variant="accent"
+                    size="md"
+                    onClick={handleBill}
+                    disabled={cart.length === 0}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    <span>Bill</span>
+                  </Button>
+                </>
+              )}
               <div className="relative">
                 <Button
                   variant="outline"
@@ -2695,27 +3313,19 @@ export function BillingPage() {
               {previewContent.type === 'bill' && previewContent.content.customerPhone && (
                 <Button
                   variant="success"
-                  onClick={() => {
-                    // Generate WhatsApp link
-                    const message = encodeURIComponent(`Your bill from ${settings?.restaurant?.name || 'Restaurant'}\n\nBill No: ${previewContent.content.orderId}\nTotal: ₹${previewContent.content.total.toFixed(2)}\n\nThank you!`);
-                    window.open(`https://wa.me/${previewContent.content.customerPhone.replace(/\D/g, '')}?text=${message}`, '_blank');
-                  }}
+                  onClick={() => sharePDFViaWhatsApp(previewContent.content)}
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  Send WhatsApp
+                  Send WhatsApp (PDF)
                 </Button>
               )}
               {previewContent.type === 'bill' && previewContent.content.customerEmail && (
                 <Button
                   variant="info"
-                  onClick={() => {
-                    const subject = encodeURIComponent(`Bill from ${settings?.restaurant?.name || 'Restaurant'} - ${previewContent.content.orderId}`);
-                    const body = encodeURIComponent(`Dear Customer,\n\nThank you for dining with us!\n\nBill Details:\nBill No: ${previewContent.content.orderId}\nTable: ${previewContent.content.tableNumber}\nDate: ${previewContent.content.dateTime}\n\nItems:\n${previewContent.content.items.map((i: any) => `${i.productName} x ${i.quantity} = ₹${(i.unitPrice * i.quantity).toFixed(2)}`).join('\n')}\n\nSubtotal: ₹${previewContent.content.subtotal.toFixed(2)}\nTax: ₹${previewContent.content.taxAmount.toFixed(2)}\n${previewContent.content.discount > 0 ? `Discount: -₹${previewContent.content.discount.toFixed(2)}\n` : ''}${previewContent.content.loyaltyDiscount > 0 ? `Loyalty Discount: -₹${previewContent.content.loyaltyDiscount.toFixed(2)}\n` : ''}\nTotal: ₹${previewContent.content.total.toFixed(2)}\n\nTotal in Words: ${previewContent.content.totalInWords}\n\nThank you for visiting!\n${settings?.restaurant?.name || 'Restaurant'}`);
-                    window.open(`mailto:${previewContent.content.customerEmail}?subject=${subject}&body=${body}`, '_blank');
-                  }}
+                  onClick={() => sharePDFViaEmail(previewContent.content)}
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  Send Email
+                  Send Email (PDF)
                 </Button>
               )}
               <Button
@@ -2850,6 +3460,237 @@ export function BillingPage() {
           >
             Decline
           </Button>
+        </div>
+      </Modal>
+
+      {/* Collect Payment Modal */}
+      <Modal
+        isOpen={showCollectModal}
+        onClose={() => setShowCollectModal(false)}
+        title="Collect Payment"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-accent/10 border border-accent/30 rounded-lg p-4 mb-4">
+            <div className="text-sm text-text-secondary mb-1">Total Amount</div>
+            <div className="text-2xl font-bold text-accent">{formatCurrency(total)}</div>
+          </div>
+
+          {/* Payment Mode Selection */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">Payment Mode</label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => setPaymentMode('cash')}
+                className={`p-3 rounded-lg border text-center transition-colors ${
+                  paymentMode === 'cash' 
+                    ? 'border-accent bg-accent/20 text-accent' 
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span className="text-xs">Cash</span>
+              </button>
+              <button
+                onClick={() => setPaymentMode('gpay')}
+                className={`p-3 rounded-lg border text-center transition-colors ${
+                  paymentMode === 'gpay' 
+                    ? 'border-accent bg-accent/20 text-accent' 
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <svg className="w-6 h-6 mx-auto mb-1 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.14 10.5c0 .57-.04 1.12-.11 1.67l-1.72 11.83c-.12.82-.84 1.4-1.66 1.4H5.22c-.82 0-1.54-.58-1.66-1.4L1.8 11.67c-.14-.55-.11-1.1-.11-1.67 0-.57.04-1.12.11-1.67l1.72-11.83c.12-.82.84-1.4 1.66-1.4h10.35c.82 0 1.54.58 1.66 1.4l1.72 11.83c.07.55.11 1.1.11 1.67z"/>
+                </svg>
+                <span className="text-xs">GPay</span>
+              </button>
+              <button
+                onClick={() => setPaymentMode('card')}
+                className={`p-3 rounded-lg border text-center transition-colors ${
+                  paymentMode === 'card' 
+                    ? 'border-accent bg-accent/20 text-accent' 
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                <span className="text-xs">Card</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Amount Fields */}
+          {paymentMode === 'cash' && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Cash Amount</label>
+              <Input
+                type="number"
+                value={cashAmount}
+                onChange={(e) => setCashAmount(e.target.value)}
+                placeholder={`Enter amount (Total: ₹${total.toFixed(2)})`}
+              />
+            </div>
+          )}
+          {paymentMode === 'gpay' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">GPay Number (UPI ID)</label>
+                <Input
+                  type="text"
+                  value={customerGpayNumber}
+                  onChange={(e) => setCustomerGpayNumber(e.target.value)}
+                  placeholder="Enter GPay number or UPI ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Amount</label>
+                <Input
+                  type="number"
+                  value={gpayAmount}
+                  onChange={(e) => setGpayAmount(e.target.value)}
+                  placeholder={`₹${total.toFixed(2)}`}
+                />
+              </div>
+            </div>
+          )}
+          {paymentMode === 'card' && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Card Amount</label>
+              <Input
+                type="number"
+                value={cardAmount}
+                onChange={(e) => setCardAmount(e.target.value)}
+                placeholder={`Enter amount (Total: ₹${total.toFixed(2)})`}
+              />
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowCollectModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="success"
+              onClick={handleCollectPayment}
+              className="flex-1"
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Confirm Collect
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* PUSH Payment Modal */}
+      <Modal
+        isOpen={showPushModal}
+        onClose={() => setShowPushModal(false)}
+        title="Push Payment"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-accent/10 border border-accent/30 rounded-lg p-4 mb-4">
+            <div className="text-sm text-text-secondary mb-1">Total Amount to Push</div>
+            <div className="text-2xl font-bold text-accent">{formatCurrency(total)}</div>
+          </div>
+
+          {/* Push Method Selection */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-2">Push To</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setPushMethod('gpay')}
+                className={`p-4 rounded-lg border text-center transition-colors ${
+                  pushMethod === 'gpay' 
+                    ? 'border-accent bg-accent/20 text-accent' 
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <svg className="w-8 h-8 mx-auto mb-2 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19.14 10.5c0 .57-.04 1.12-.11 1.67l-1.72 11.83c-.12.82-.84 1.4-1.66 1.4H5.22c-.82 0-1.54-.58-1.66-1.4L1.8 11.67c-.14-.55-.11-1.1-.11-1.67 0-.57.04-1.12.11-1.67l1.72-11.83c.12-.82.84-1.4 1.66-1.4h10.35c.82 0 1.54.58 1.66 1.4l1.72 11.83c.07.55.11 1.1.11 1.67z"/>
+                </svg>
+                <span className="text-sm font-medium">Customer GPay</span>
+                <p className="text-xs text-text-muted mt-1">Send payment link to customer</p>
+              </button>
+              <button
+                onClick={() => setPushMethod('pos')}
+                className={`p-4 rounded-lg border text-center transition-colors ${
+                  pushMethod === 'pos' 
+                    ? 'border-accent bg-accent/20 text-accent' 
+                    : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                <span className="text-sm font-medium">POS Machine</span>
+                <p className="text-xs text-text-muted mt-1">Push to configured POS device</p>
+              </button>
+            </div>
+          </div>
+
+          {/* GPay Number Input */}
+          {pushMethod === 'gpay' && (
+            <div>
+              <label className="block text-sm text-text-secondary mb-1">Customer GPay Number / UPI ID</label>
+              <Input
+                type="text"
+                value={pushGpayNumber}
+                onChange={(e) => setPushGpayNumber(e.target.value)}
+                placeholder="Enter GPay number or UPI ID"
+              />
+              <p className="text-xs text-text-muted mt-1">
+                Amount ₹{total.toFixed(2)} will be pushed to this number
+              </p>
+            </div>
+          )}
+
+          {pushMethod === 'pos' && (
+            <div className="bg-white/5 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-accent/20 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">POS Machine</p>
+                  <p className="text-xs text-text-muted">Push ₹{total.toFixed(2)} to configured POS</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowPushModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="warning"
+              onClick={handlePushPayment}
+              className="flex-1"
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+              </svg>
+              Push Payment
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

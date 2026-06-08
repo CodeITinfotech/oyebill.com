@@ -3,7 +3,7 @@ import { Loader2 } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'accent' | 'outline' | 'ghost' | 'danger' | 'warning' | 'success';
   size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
   children: ReactNode;
@@ -25,6 +25,8 @@ export function Button({
     outline: 'btn-outline',
     ghost: 'btn-ghost',
     danger: 'btn-danger',
+    warning: 'btn-warning',
+    success: 'btn-success',
   };
 
   const sizes = {

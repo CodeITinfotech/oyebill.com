@@ -2071,7 +2071,6 @@ export function SettingsPage() {
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-sm text-text-secondary mb-1">Table</label>
                       <select
-                        ref={el => { if (el) (window as any).__tableSelect = el; }}
                         value={selectedTableId}
                         onChange={(e) => setSelectedTableId(e.target.value)}
                         className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
@@ -2087,7 +2086,6 @@ export function SettingsPage() {
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-sm text-text-secondary mb-1">Waiter</label>
                       <select
-                        ref={el => { if (el) (window as any).__waiterSelect = el; }}
                         value={selectedWaiterId}
                         onChange={(e) => setSelectedWaiterId(e.target.value)}
                         className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
@@ -2101,15 +2099,14 @@ export function SettingsPage() {
                       </select>
                     </div>
                     <div className="flex items-end">
-                      {/* Debug: Show selected values */}
-                      <div className="text-xs text-text-muted mr-2">
-                        Table: {selectedTableId || 'none'} | Waiter: {selectedWaiterId || 'none'}
-                      </div>
+                      {selectedTableId && selectedWaiterId && (
+                        <div className="mr-2 text-sm text-text-secondary">
+                          {tables?.find(t => t.id === selectedTableId)?.number} → {users?.find(u => u.id === selectedWaiterId)?.name}
+                        </div>
+                      )}
                       <Button
                         onClick={async () => {
-                          console.log('Add button clicked', { selectedTableId, selectedWaiterId });
                           if (!selectedTableId || !selectedWaiterId) {
-                            console.log('Validation failed: missing selections');
                             toast('error', 'Please select both table and waiter');
                             return;
                           }
@@ -2123,9 +2120,7 @@ export function SettingsPage() {
                             return;
                           }
                           
-                          console.log('Creating allocation...');
                           const response = await api.createAllocation(selectedTableId, selectedWaiterId);
-                          console.log('API response:', response);
                           if (response.success) {
                             toast('success', 'Allocation created');
                             setSelectedTableId('');
@@ -2140,48 +2135,6 @@ export function SettingsPage() {
                         <Plus className="w-4 h-4 mr-1" />
                         Add
                       </Button>
-                      {/* Test button - remove after testing */}
-                      <button
-                        onClick={() => {
-                          // Get the first table and waiter IDs from the select options
-                          const tableSelect = (window as any).__tableSelect as HTMLSelectElement;
-                          const waiterSelect = (window as any).__waiterSelect as HTMLSelectElement;
-                          if (tableSelect && tableSelect.options.length > 1) {
-                            tableSelect.value = tableSelect.options[1].value;
-                            tableSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                          }
-                          if (waiterSelect && waiterSelect.options.length > 1) {
-                            waiterSelect.value = waiterSelect.options[1].value;
-                            waiterSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                          }
-                        }}
-                        className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                      >
-                        Auto-fill
-                      </button>
-                      {/* Test direct API button */}
-                      <button
-                        onClick={async () => {
-                          const tableSelect = (window as any).__tableSelect as HTMLSelectElement;
-                          const waiterSelect = (window as any).__waiterSelect as HTMLSelectElement;
-                          if (!tableSelect?.value || !waiterSelect?.value) {
-                            toast('error', 'Please select table and waiter first');
-                            return;
-                          }
-                          console.log('Creating allocation with:', tableSelect.value, waiterSelect.value);
-                          const response = await api.createAllocation(tableSelect.value, waiterSelect.value);
-                          console.log('API response:', response);
-                          if (response.success) {
-                            toast('success', 'Allocation created!');
-                            fetchAllocations();
-                          } else {
-                            toast('error', response.error || 'Failed');
-                          }
-                        }}
-                        className="ml-2 px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        Test API
-                      </button>
                     </div>
                   </div>
                 </div>

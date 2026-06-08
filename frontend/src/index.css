@@ -76,6 +76,14 @@
     @apply bg-error text-white hover:bg-red-600;
   }
   
+  .btn-warning {
+    @apply bg-warning text-white hover:bg-yellow-500;
+  }
+  
+  .btn-success {
+    @apply bg-success text-white hover:bg-green-500;
+  }
+  
   .btn-sm {
     @apply px-3 py-1.5 text-sm;
   }
