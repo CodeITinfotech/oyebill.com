@@ -304,4 +304,235 @@ router.post('/register-restaurant', async (req, res) => {
   }
 });
 
+// PIN Login (for waiters and bussers only)
+router.post('/pin-login', async (req, res) => {
+  try {
+    const { pin, restaurantId } = req.body;
+    const { db } = req;
+
+    if (!pin || pin.length !== 4) {
+      return res.status(400).json({ error: 'PIN must be 4 digits' });
+    }
+
+    // Find user with matching PIN and role (waiter/busser only)
+    const user = db.prepare(`
+      SELECT * FROM users 
+      WHERE pin = ? 
+        AND role IN ('waiter', 'busser') 
+        AND is_active = 1
+        AND pin_failed_attempts < 3
+        AND restaurant_id = ?
+    `).get(pin, restaurantId);
+
+    if (!user) {
+      // Check if PIN exists but user is locked
+      const lockedUser = db.prepare(`
+        SELECT * FROM users 
+        WHERE pin = ? 
+          AND role IN ('waiter', 'busser')
+          AND is_active = 1
+          AND pin_failed_attempts >= 3
+          AND restaurant_id = ?
+      `).get(pin, restaurantId);
+
+      if (lockedUser) {
+        return res.status(423).json({ 
+          error: 'Account locked. Please login with password to unlock.',
+          requiresPassword: true,
+          userId: lockedUser.id
+        });
+      }
+
+      return res.status(401).json({ error: 'Invalid PIN' });
+    }
+
+    // Reset failed attempts on successful login
+    db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(user.id);
+
+    // Get restaurant
+    const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(user.restaurant_id);
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, restaurantId: user.restaurant_id },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    const userResponse = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      restaurantId: user.restaurant_id,
+      pinEnabled: true,
+      isActive: user.is_active === 1,
+    };
+
+    res.json({
+      user: userResponse,
+      token,
+      restaurant: restaurant ? {
+        id: restaurant.id,
+        name: restaurant.name,
+        address: restaurant.address,
+        phone: restaurant.phone,
+        email: restaurant.email,
+        gstNumber: restaurant.gst_number,
+        fssaiNumber: restaurant.fssai_number,
+        logo: restaurant.logo,
+      } : null,
+      pinLogin: true
+    });
+  } catch (error) {
+    console.error('PIN login error:', error);
+    res.status(500).json({ error: 'PIN login failed' });
+  }
+});
+
+// Set PIN (after first password login)
+router.post('/set-pin', authenticateToken, (req, res) => {
+  try {
+    const { pin } = req.body;
+    const { db } = req;
+
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ error: 'PIN must be exactly 4 digits' });
+    }
+
+    // Only allow for waiters and bussers
+    if (!['waiter', 'busser'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'PIN can only be set for waiters and bussers' });
+    }
+
+    // Check if PIN is already used by another user
+    const existingUser = db.prepare(`
+      SELECT * FROM users 
+      WHERE pin = ? AND id != ? AND restaurant_id = ?
+    `).get(pin, req.user.id, req.user.restaurantId);
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'PIN already in use by another user' });
+    }
+
+    db.prepare('UPDATE users SET pin = ?, pin_failed_attempts = 0 WHERE id = ?')
+      .run(pin, req.user.id);
+
+    res.json({ message: 'PIN set successfully' });
+  } catch (error) {
+    console.error('Set PIN error:', error);
+    res.status(500).json({ error: 'Failed to set PIN' });
+  }
+});
+
+// Reset PIN (requires password login)
+router.post('/reset-pin', authenticateToken, (req, res) => {
+  try {
+    const { password, newPin } = req.body;
+    const { db } = req;
+
+    if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      return res.status(400).json({ error: 'New PIN must be exactly 4 digits' });
+    }
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify password
+    const validPassword = bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Check if new PIN is already used by another user
+    const existingUser = db.prepare(`
+      SELECT * FROM users 
+      WHERE pin = ? AND id != ? AND restaurant_id = ?
+    `).get(newPin, req.user.id, req.user.restaurantId);
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'PIN already in use by another user' });
+    }
+
+    db.prepare('UPDATE users SET pin = ?, pin_failed_attempts = 0 WHERE id = ?')
+      .run(newPin, req.user.id);
+
+    res.json({ message: 'PIN reset successfully' });
+  } catch (error) {
+    console.error('Reset PIN error:', error);
+    res.status(500).json({ error: 'Failed to reset PIN' });
+  }
+});
+
+// Unlock PIN after 3 failed attempts (requires password)
+router.post('/unlock-pin', authenticateToken, async (req, res) => {
+  try {
+    const { password } = req.body;
+    const { db } = req;
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid password' });
+    }
+
+    // Reset failed attempts
+    db.prepare('UPDATE users SET pin_failed_attempts = 0 WHERE id = ?').run(user.id);
+
+    res.json({ message: 'PIN unlocked successfully', pin: user.pin });
+  } catch (error) {
+    console.error('Unlock PIN error:', error);
+    res.status(500).json({ error: 'Failed to unlock PIN' });
+  }
+});
+
+// Track failed PIN attempts
+router.post('/pin-failed', (req, res) => {
+  try {
+    const { pin, restaurantId } = req.body;
+    const { db } = req;
+
+    const user = db.prepare(`
+      SELECT * FROM users 
+      WHERE pin = ? 
+        AND role IN ('waiter', 'busser') 
+        AND is_active = 1
+        AND restaurant_id = ?
+    `).get(pin, restaurantId);
+
+    if (user) {
+      const newAttempts = user.pin_failed_attempts + 1;
+      db.prepare('UPDATE users SET pin_failed_attempts = ? WHERE id = ?')
+        .run(newAttempts, user.id);
+      
+      if (newAttempts >= 3) {
+        return res.json({ 
+          locked: true, 
+          attempts: newAttempts,
+          message: 'Account locked. Please login with password to unlock.'
+        });
+      }
+      
+      return res.json({ 
+        locked: false, 
+        attempts: newAttempts,
+        remaining: 3 - newAttempts
+      });
+    }
+    
+    res.json({ error: 'User not found' });
+  } catch (error) {
+    console.error('PIN failed error:', error);
+    res.status(500).json({ error: 'Failed to track PIN attempt' });
+  }
+});
+
 export default router;

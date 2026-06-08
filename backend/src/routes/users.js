@@ -11,7 +11,7 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
     const { db } = req;
     
     const users = db.prepare(`
-      SELECT u.id, u.name, u.email, u.role, u.restaurant_id, u.must_reset_password, u.is_active, u.created_at
+      SELECT u.id, u.name, u.email, u.role, u.restaurant_id, u.must_reset_password, u.is_active, u.created_at, u.pin
       FROM users u
       WHERE u.restaurant_id = ?
       ORDER BY u.created_at DESC
@@ -26,6 +26,7 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
       mustResetPassword: u.must_reset_password === 1,
       isActive: u.is_active === 1,
       createdAt: u.created_at,
+      pin: u.pin || null,
     })));
   } catch (error) {
     console.error('Get users error:', error);

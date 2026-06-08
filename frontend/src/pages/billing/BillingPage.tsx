@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { api } from '../../api';
 import { PageHeader } from '../../components/layout';
 import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../components/ui';
-import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag } from 'lucide-react';
+import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Product, Table, OrderItem } from '../../types';
 
@@ -34,9 +34,11 @@ export function BillingPage() {
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWaiter, setSelectedWaiter] = useState<string>('');
-  const [waiters, setWaiters] = useState<{id: string; name: string; role: string}[]>([]);
+  const [waiters, setWaiters] = useState<{id: string; name: string; role: string; pin?: string}[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [waiterPinInput, setWaiterPinInput] = useState('');
+  const [showWaiterDropdown, setShowWaiterDropdown] = useState(false);
   
   // Mobile state
   const [mobileView, setMobileView] = useState<'menu' | 'cart'>('menu');
@@ -842,16 +844,99 @@ export function BillingPage() {
 
             {/* Waiter & Customer - Horizontal on mobile */}
             <div className="grid grid-cols-2 gap-2">
-              <select
-                value={selectedWaiter}
-                onChange={(e) => setSelectedWaiter(e.target.value)}
-                className="px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent"
-              >
-                <option value="">Waiter</option>
-                {waiters.map((waiter) => (
-                  <option key={waiter.id} value={waiter.id}>{waiter.name}</option>
-                ))}
-              </select>
+              {/* Waiter Selection with PIN */}
+              <div className="relative">
+                {waiterPinInput.length > 0 ? (
+                  // PIN input mode
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="password"
+                      maxLength={4}
+                      value={waiterPinInput}
+                      onChange={(e) => {
+                        const pin = e.target.value.replace(/\D/g, '').slice(0, 4);
+                        setWaiterPinInput(pin);
+                        
+                        // Auto-filter when 4 digits entered
+                        if (pin.length === 4) {
+                          const matchedWaiter = waiters.find(w => w.pin === pin);
+                          if (matchedWaiter) {
+                            setSelectedWaiter(matchedWaiter.id);
+                            setWaiterPinInput('');
+                          } else {
+                            setTimeout(() => setWaiterPinInput(''), 500);
+                          }
+                        }
+                      }}
+                      placeholder="PIN"
+                      className="w-full px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => { setWaiterPinInput(''); setShowWaiterDropdown(false); }}
+                      className="p-1.5 text-text-muted hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : selectedWaiter ? (
+                  // Show selected waiter with clear option
+                  <div className="flex items-center justify-between px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-accent font-medium">
+                        {waiters.find(w => w.id === selectedWaiter)?.name || 'Waiter'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setSelectedWaiter('')}
+                      className="text-text-muted hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // Show waiter dropdown
+                  <div
+                    onClick={() => setShowWaiterDropdown(!showWaiterDropdown)}
+                    className="px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-muted flex items-center justify-between cursor-pointer hover:border-accent/50"
+                  >
+                    <span>Select Waiter</span>
+                    <Key className="w-4 h-4" />
+                  </div>
+                )}
+
+                {/* Waiter Dropdown */}
+                {showWaiterDropdown && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {waiters.length > 0 ? (
+                      waiters.map((waiter) => (
+                        <button
+                          key={waiter.id}
+                          onClick={() => {
+                            setSelectedWaiter(waiter.id);
+                            setShowWaiterDropdown(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs hover:bg-accent/10 flex items-center justify-between"
+                        >
+                          <span className="text-text-primary">{waiter.name}</span>
+                          {waiter.pin && <span className="text-text-muted text-[10px]">****</span>}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3 text-xs text-text-muted text-center">No waiters found</div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowWaiterDropdown(false);
+                        setWaiterPinInput('');
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 border-t border-white/10 flex items-center gap-2"
+                    >
+                      <Key className="w-3 h-3" /> Use PIN
+                    </button>
+                  </div>
+                )}
+              </div>
               {/* Searchable Customer Dropdown */}
               <div className="relative">
                 <input
