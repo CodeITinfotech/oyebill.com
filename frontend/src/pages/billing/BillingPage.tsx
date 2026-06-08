@@ -301,13 +301,13 @@ export function BillingPage() {
     }
   }, [lastAddedItemId]);
 
-  // Real-time refresh tables every 10 seconds
+  // Real-time refresh tables every 5 seconds
   useEffect(() => {
     const refreshInterval = setInterval(() => {
       if (selectedSection) {
         store.fetchTables(selectedSection);
       }
-    }, 10000); // Refresh every 10 seconds
+    }, 5000); // Refresh every 5 seconds
 
     return () => clearInterval(refreshInterval);
   }, [selectedSection]);

@@ -202,17 +202,7 @@ const store = create<DataState>((set, get) => ({
   tablesLoading: false,
   
   fetchTables: async (sectionId?: string) => {
-    const cacheKey = `tables_${sectionId || 'all'}`;
-    const cached = getCached<Table[]>(cacheKey);
-    
-    if (cached && sectionId) {
-      // Always fetch fresh data for section-specific queries to get latest status
-      set({ tablesLoading: true });
-    } else if (cached) {
-      set({ tables: cached, tablesLoading: false });
-      return;
-    }
-    
+    // Tables need real-time updates, no caching
     set({ tablesLoading: true });
     const response = await api.getTables(sectionId);
     if (response.success && Array.isArray(response.data)) {
@@ -224,7 +214,6 @@ const store = create<DataState>((set, get) => ({
         capacity: t.capacity,
         status: t.status,
       }));
-      setCache(cacheKey, transformedTables);
       set({ tables: transformedTables, tablesLoading: false });
     } else {
       set({ tablesLoading: false });
