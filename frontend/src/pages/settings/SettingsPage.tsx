@@ -16,7 +16,7 @@ export function SettingsPage() {
   const { settings, tables, fetchSettings, updateSettings, fetchTables } = useDataStore();
   
   const urlTab = searchParams.get('tab');
-  const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons'].includes(urlTab) 
+  const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons', 'tableStatus', 'tableAllocations'].includes(urlTab) 
     ? urlTab as SettingsTab 
     : 'restaurant';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -915,7 +915,7 @@ export function SettingsPage() {
                 )}
 
                 <div className="space-y-3">
-                  {users.filter(u => u.id !== user?.id).map((u) => (
+                  {(users || []).filter(u => u.id !== user?.id).map((u) => (
                     <div key={u.id} className="flex items-center justify-between p-4 rounded-lg bg-background-secondary border border-white/10">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
@@ -2070,31 +2070,33 @@ export function SettingsPage() {
                   <div className="flex flex-wrap gap-3">
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-sm text-text-secondary mb-1">Table</label>
-                      <Select
+                      <select
                         value={selectedTableId}
                         onChange={(e) => setSelectedTableId(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
                       >
                         <option value="">Select Table</option>
-                        {(!tables ? [] : tables).map(table => (
+                        {(tables || []).map(table => (
                           <option key={table.id} value={table.id}>
                             Table {table.number}
                           </option>
                         ))}
-                      </Select>
+                      </select>
                     </div>
                     <div className="flex-1 min-w-[150px]">
                       <label className="block text-sm text-text-secondary mb-1">Waiter</label>
-                      <Select
+                      <select
                         value={selectedWaiterId}
                         onChange={(e) => setSelectedWaiterId(e.target.value)}
+                        className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
                       >
                         <option value="">Select Waiter</option>
-                        {(!users ? [] : users).filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
+                        {(users || []).filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
                           <option key={waiter.id} value={waiter.id}>
                             {waiter.name}
                           </option>
                         ))}
-                      </Select>
+                      </select>
                     </div>
                     <div className="flex items-end">
                       <Button
@@ -2149,8 +2151,8 @@ export function SettingsPage() {
                   ) : (
                     <div className="space-y-2">
                       {/* Group by waiter */}
-                      {Array.from(new Set(allocations.map(a => a.waiter_id))).map(waiterId => {
-                        const waiterAllocations = allocations.filter(a => a.waiter_id === waiterId);
+                      {(allocations || []).length > 0 && Array.from(new Set((allocations || []).map(a => a.waiter_id))).map(waiterId => {
+                        const waiterAllocations = (allocations || []).filter(a => a.waiter_id === waiterId);
                         const waiterName = waiterAllocations[0]?.waiter_name;
                         
                         return (

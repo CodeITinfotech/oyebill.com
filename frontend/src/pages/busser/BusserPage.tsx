@@ -81,12 +81,12 @@ export default function BusserPage() {
         {/* Stats Bar */}
         <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
           <div className="px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-center gap-3">
-            <p className="text-2xl font-bold text-orange-400">{tables.length}</p>
+            <p className="text-2xl font-bold text-orange-400">{(tables || []).length}</p>
             <p className="text-sm text-text-muted">Pending</p>
           </div>
           <div className="px-4 py-2 bg-background-secondary rounded-lg flex items-center gap-3">
             <p className="text-2xl font-bold text-text-primary">
-              {tables.reduce((sum, t) => sum + t.capacity, 0)}
+              {(tables || []).reduce((sum, t) => sum + t.capacity, 0)}
             </p>
             <p className="text-sm text-text-muted">Total Seats</p>
           </div>
@@ -99,7 +99,7 @@ export default function BusserPage() {
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full" />
           </div>
-        ) : tables.length === 0 ? (
+        ) : (!tables || tables.length === 0) ? (
           <div className="flex flex-col items-center justify-center h-64">
             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
               <svg className="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">

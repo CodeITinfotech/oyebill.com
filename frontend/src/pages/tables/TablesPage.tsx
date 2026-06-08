@@ -279,7 +279,7 @@ export function TablesPage() {
 
       {/* Mobile Tables List */}
       <div className="lg:hidden p-4 space-y-3">
-        {filteredTables.length === 0 ? (
+        {(!filteredTables || filteredTables.length === 0) ? (
           <div className="text-center py-12 text-text-muted">
             <p>No tables found</p>
           </div>

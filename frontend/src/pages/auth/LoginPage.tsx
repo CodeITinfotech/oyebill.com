@@ -174,7 +174,7 @@ export function LoginPage() {
         {loginMode === 'pin' && (
           <form onSubmit={handlePinSubmit} className="space-y-5">
             {/* Restaurant Selection */}
-            {restaurants.length > 1 && (
+            {(restaurants && restaurants.length > 1) && (
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-2">
                   Select Restaurant

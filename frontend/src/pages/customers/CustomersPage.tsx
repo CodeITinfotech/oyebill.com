@@ -408,7 +408,7 @@ export function CustomersPage() {
                     )}
                   </div>
                 ))}
-                {filteredCustomers.length === 0 && (
+                {(!filteredCustomers || filteredCustomers.length === 0) && (
                   <p className="text-center text-text-muted py-8">No customers found. Add your first customer!</p>
                 )}
               </div>
@@ -418,7 +418,7 @@ export function CustomersPage() {
 
         {/* Mobile Customer List */}
         <div className="lg:hidden p-4 space-y-3">
-          {filteredCustomers.length === 0 ? (
+          {(!filteredCustomers || filteredCustomers.length === 0) ? (
             <div className="text-center py-12 text-text-muted">
               <p>No customers found</p>
             </div>

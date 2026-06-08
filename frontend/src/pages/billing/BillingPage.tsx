@@ -1481,7 +1481,7 @@ export function BillingPage() {
                 )}
                 {showCustomerDropdown && !selectedCustomer && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                    {filteredCustomers.length > 0 ? (
+                    {(filteredCustomers && filteredCustomers.length > 0) ? (
                       filteredCustomers.map((c) => (
                         <button
                           key={c.id}
