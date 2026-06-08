@@ -559,12 +559,32 @@ export function BillingPage() {
   const executeBill = async () => {
     const isOnlineOrderMode = onlineOrder !== null;
 
-    if (currentOrderId) {
+    let orderId = currentOrderId;
+
+    // If no order exists but we have items in cart, create an order first
+    if (!orderId && !isOnlineOrderMode && selectedTable && cart.length > 0) {
+      try {
+        // Create order via API directly to get the order ID
+        const orderResponse = await api.createOrder({
+          tableId: selectedTable.id,
+          items: cart,
+          waiterId: selectedWaiter || undefined,
+          customerId: selectedCustomer?.id
+        });
+        if (orderResponse.success && orderResponse.data?.id) {
+          orderId = orderResponse.data.id;
+        }
+      } catch (error) {
+        console.error('Error creating order for bill:', error);
+      }
+    }
+
+    if (orderId) {
       // Apply any pending discount
       if (discountAmount && discountReason) {
-        await applyDiscount(currentOrderId, discountValue, discountReason);
+        await applyDiscount(orderId, discountValue, discountReason);
       }
-      await generateBill(currentOrderId);
+      await generateBill(orderId);
     }
 
     // For online orders, update status to ready
