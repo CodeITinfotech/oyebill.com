@@ -1492,20 +1492,20 @@ export function BillingPage() {
                 const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
                 const isCurrentlySelected = selectedTable?.id === table.id;
                 
-                // Status colors - highlight selected table
+                // Status colors
                 let statusColor = 'bg-success';
                 let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
                 
                 if (isCurrentlySelected) {
                   statusColor = 'bg-accent';
                   statusBgClass = 'border-accent bg-accent/20 ring-2 ring-accent/50';
-                } else if (isPendingCleaning) {
-                  statusColor = 'bg-red-900';
-                  statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
-                } else if (isPendingPrint) {
+                } else if (isOccupied) {
                   statusColor = 'bg-red-500';
                   statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
-                } else if (isOccupied) {
+                } else if (isPendingCleaning) {
+                  statusColor = 'bg-gray-500';
+                  statusBgClass = 'border-gray-500/50 bg-gray-500/10 hover:border-gray-500 cursor-pointer';
+                } else if (isPendingPrint) {
                   statusColor = 'bg-orange-500';
                   statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
                 }
@@ -1526,20 +1526,20 @@ export function BillingPage() {
             {/* Legend - Desktop only */}
             <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
               <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
-                <span>Active</span>
-              </div>
-              <div className="flex items-center gap-1">
                 <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
                 <span>Available</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-orange-500"></span>
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
                 <span>Occupied</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-900"></span>
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
                 <span>Cleaning</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
+                <span>Active</span>
               </div>
             </div>
           </div>
@@ -2005,8 +2005,8 @@ export function BillingPage() {
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
                     {isAvailable && <span className="text-[10px] text-success">Available</span>}
-                    {isOccupied && <span className="text-[10px] text-orange-500">Occupied</span>}
-                    {isPendingCleaning && <span className="text-[10px] text-red-500">Cleaning</span>}
+                    {isOccupied && <span className="text-[10px] text-red-500">Occupied</span>}
+                    {isPendingCleaning && <span className="text-[10px] text-gray-400">Cleaning</span>}
                   </button>
                 );
               })}
