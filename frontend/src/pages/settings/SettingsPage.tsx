@@ -549,7 +549,7 @@ export function SettingsPage() {
       if (!foundPrinters || foundPrinters.length === 0) {
         setDetectionStatus('No printers detected. Make sure your printer is connected and powered on.');
       } else {
-        setDetectionStatus(`Found ${foundPrinters.length} printer(s)`);
+        setDetectionStatus(`Found ${foundPrinters?.length || 0} printer(s)`);
         setDetectedPrinters(foundPrinters);
       }
     } catch (error: any) {
@@ -2075,7 +2075,7 @@ export function SettingsPage() {
                         onChange={(e) => setSelectedTableId(e.target.value)}
                       >
                         <option value="">Select Table</option>
-                        {(tables || []).map(table => (
+                        {(!tables ? [] : tables).map(table => (
                           <option key={table.id} value={table.id}>
                             Table {table.number}
                           </option>
@@ -2089,7 +2089,7 @@ export function SettingsPage() {
                         onChange={(e) => setSelectedWaiterId(e.target.value)}
                       >
                         <option value="">Select Waiter</option>
-                        {(users || []).filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
+                        {(!users ? [] : users).filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
                           <option key={waiter.id} value={waiter.id}>
                             {waiter.name}
                           </option>
@@ -2105,7 +2105,7 @@ export function SettingsPage() {
                           }
                           
                           // Check if already allocated
-                          const existing = allocations.find(
+                          const existing = (allocations || []).find(
                             a => a.table_id === selectedTableId && a.waiter_id === selectedWaiterId
                           );
                           if (existing) {
@@ -2161,11 +2161,11 @@ export function SettingsPage() {
                                 <span className="font-medium">{waiterName}</span>
                               </div>
                               <span className="text-xs text-text-muted">
-                                {waiterAllocations.length} table{waiterAllocations.length !== 1 ? 's' : ''}
+                                {(waiterAllocations || []).length} table{(waiterAllocations || []).length !== 1 ? 's' : ''}
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {waiterAllocations.map(alloc => (
+                              {(waiterAllocations || []).map(alloc => (
                                 <div
                                   key={alloc.id}
                                   className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm"
