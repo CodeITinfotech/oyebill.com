@@ -301,6 +301,17 @@ export function BillingPage() {
     }
   }, [lastAddedItemId]);
 
+  // Real-time refresh tables every 10 seconds
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (selectedSection) {
+        store.fetchTables(selectedSection);
+      }
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [selectedSection]);
+
   // Update table status when cart becomes empty (set to available if no active order)
   useEffect(() => {
     const updateTableStatusOnEmptyCart = async () => {

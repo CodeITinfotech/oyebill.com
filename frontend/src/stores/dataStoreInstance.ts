@@ -5,6 +5,39 @@ import { create } from 'zustand';
 import { api } from '../api';
 import type { Category, Section, Table, Product, Order, Settings } from '../types';
 
+// Simple cache with TTL
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const DEFAULT_TTL = 30000; // 30 seconds cache
+const cache = new Map<string, CacheEntry<any>>();
+
+const getCached = <T>(key: string, ttl: number = DEFAULT_TTL): T | null => {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.timestamp < ttl) {
+    return entry.data as T;
+  }
+  return null;
+};
+
+const setCache = <T>(key: string, data: T): void => {
+  cache.set(key, { data, timestamp: Date.now() });
+};
+
+const invalidateCache = (prefix?: string): void => {
+  if (prefix) {
+    for (const key of cache.keys()) {
+      if (key.startsWith(prefix)) {
+        cache.delete(key);
+      }
+    }
+  } else {
+    cache.clear();
+  }
+};
+
 interface DataState {
   // Categories
   categories: Category[];
@@ -167,6 +200,14 @@ const store = create<DataState>((set, get) => ({
   tablesLoading: false,
   
   fetchTables: async (sectionId?: string) => {
+    const cacheKey = `tables_${sectionId || 'all'}`;
+    const cached = getCached<Table[]>(cacheKey);
+    
+    if (cached) {
+      set({ tables: cached, tablesLoading: false });
+      return;
+    }
+    
     set({ tablesLoading: true });
     const response = await api.getTables(sectionId);
     if (response.success && Array.isArray(response.data)) {
@@ -178,6 +219,7 @@ const store = create<DataState>((set, get) => ({
         capacity: t.capacity,
         status: t.status,
       }));
+      setCache(cacheKey, transformedTables);
       set({ tables: transformedTables, tablesLoading: false });
     } else {
       set({ tablesLoading: false });
@@ -192,6 +234,7 @@ const store = create<DataState>((set, get) => ({
     };
     const response = await api.createTable(apiData);
     if (response.success) {
+      invalidateCache('tables_');
       await get().fetchTables();
       return true;
     }
@@ -206,6 +249,7 @@ const store = create<DataState>((set, get) => ({
     };
     const response = await api.updateTable(id, apiData);
     if (response.success) {
+      invalidateCache('tables_');
       await get().fetchTables();
       return true;
     }
@@ -215,6 +259,7 @@ const store = create<DataState>((set, get) => ({
   deleteTable: async (id) => {
     const response = await api.deleteTable(id);
     if (response.success) {
+      invalidateCache('tables_');
       set({ tables: get().tables.filter(t => t.id !== id) });
       return true;
     }
@@ -226,6 +271,14 @@ const store = create<DataState>((set, get) => ({
   productsLoading: false,
   
   fetchProducts: async (categoryId?: string) => {
+    const cacheKey = `products_${categoryId || 'all'}`;
+    const cached = getCached<Product[]>(cacheKey, 60000); // 60 second cache for products
+    
+    if (cached) {
+      set({ products: cached, productsLoading: false });
+      return;
+    }
+    
     set({ productsLoading: true });
     const response = await api.getProducts(categoryId);
     if (response.success && Array.isArray(response.data)) {
@@ -242,6 +295,7 @@ const store = create<DataState>((set, get) => ({
         enableOnline: p.enableOnline !== undefined ? p.enableOnline : Boolean(p.enable_online),
         sectionPrices: p.sectionPrices || p.section_prices || [],
       }));
+      setCache(cacheKey, transformedProducts);
       set({ products: transformedProducts, productsLoading: false });
     } else {
       set({ productsLoading: false });
@@ -262,6 +316,7 @@ const store = create<DataState>((set, get) => ({
     };
     const response = await api.createProduct(apiData);
     if (response.success) {
+      invalidateCache('products_');
       await get().fetchProducts();
       return true;
     }
@@ -281,6 +336,7 @@ const store = create<DataState>((set, get) => ({
     if (data.sectionPrices !== undefined) apiData.sectionPrices = data.sectionPrices;
     const response = await api.updateProduct(id, apiData);
     if (response.success) {
+      invalidateCache('products_');
       await get().fetchProducts();
       return true;
     }
@@ -290,6 +346,7 @@ const store = create<DataState>((set, get) => ({
   deleteProduct: async (id) => {
     const response = await api.deleteProduct(id);
     if (response.success) {
+      invalidateCache('products_');
       set({ products: get().products.filter(p => p.id !== id) });
       return true;
     }
