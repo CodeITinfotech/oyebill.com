@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Toggle, Table, Modal, toast } from '../../components/ui';
-import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Search } from 'lucide-react';
 import type { Table as TableType } from '../../types';
 
 export function TablesPage() {
@@ -11,6 +11,7 @@ export function TablesPage() {
   const [editingTable, setEditingTable] = useState<TableType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filterSection, setFilterSection] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
     number: '',
@@ -24,7 +25,14 @@ export function TablesPage() {
     fetchSections();
   }, [filterSection, sections]);
 
-  const filteredTables = tables;
+  const filteredTables = tables.filter(t => {
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      return t.number.toLowerCase().includes(search) ||
+        t.sectionName?.toLowerCase().includes(search);
+    }
+    return true;
+  });
 
   const handleOpenModal = (table?: TableType) => {
     if (table) {
@@ -142,20 +150,50 @@ export function TablesPage() {
   ];
 
   return (
-    <div>
-      <PageHeader
-        title="Tables"
-        subtitle="Manage restaurant tables and seating"
-        actions={
-          <Button onClick={() => handleOpenModal()}>
-            <Plus className="w-4 h-4" />
-            Add Table
-          </Button>
-        }
-      />
+    <div className="relative">
+      {/* Mobile Header */}
+      <div className="lg:hidden p-4 border-b border-white/10">
+        <h1 className="text-xl font-bold text-center mb-3">Tables</h1>
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search tables..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary placeholder-text-muted"
+            />
+          </div>
+        </div>
+        <select
+          value={filterSection}
+          onChange={(e) => setFilterSection(e.target.value)}
+          className="w-full mt-2 px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary"
+        >
+          <option value="">All Sections</option>
+          {sections.filter(s => s.isActive).map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </div>
 
-      {/* Filter */}
-      <div className="card p-4 mb-6">
+      {/* Desktop Header */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Tables"
+          subtitle="Manage restaurant tables and seating"
+          actions={
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="w-4 h-4" />
+              Add Table
+            </Button>
+          }
+        />
+      </div>
+
+      {/* Desktop Filter */}
+      <div className="hidden lg:block card p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1">
             <Select
@@ -171,8 +209,8 @@ export function TablesPage() {
         </div>
       </div>
 
-      {/* Visual Grid View */}
-      <div className="card p-6 mb-6">
+      {/* Desktop Visual Grid View */}
+      <div className="hidden lg:block card p-6 mb-6">
         <h3 className="text-sm font-medium text-text-secondary mb-4">Visual Layout</h3>
         <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
           {filteredTables.map((table) => {
@@ -181,18 +219,17 @@ export function TablesPage() {
             const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
             const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
             
-            // Status colors - same as BillingPage
-            let statusColor = 'bg-success'; // Green - Available
+            let statusColor = 'bg-success';
             let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
             
             if (isPendingCleaning) {
-              statusColor = 'bg-red-900'; // Maroon - Pending Cleaning
+              statusColor = 'bg-red-900';
               statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
             } else if (isPendingPrint) {
-              statusColor = 'bg-red-500'; // Red - Pending Printing
+              statusColor = 'bg-red-500';
               statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
             } else if (isOccupied) {
-              statusColor = 'bg-orange-500'; // Orange - Occupied (Before KOT)
+              statusColor = 'bg-orange-500';
               statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
             }
             
@@ -204,18 +241,11 @@ export function TablesPage() {
               >
                 <span className="text-lg font-bold leading-tight">{table.number}</span>
                 <span className="text-[7px] text-text-muted">{table.capacity}</span>
-                {/* Status indicator dot below table */}
-                <span className={`absolute bottom-0.5 w-2 h-2 rounded-full ${statusColor}`} title={
-                  isAvailable ? 'Available' : 
-                  isPendingCleaning ? 'Pending Cleaning' :
-                  isPendingPrint ? 'Pending Printing' :
-                  'Occupied (Before KOT)'
-                } />
+                <span className={`absolute bottom-0.5 w-2 h-2 rounded-full ${statusColor}`} />
               </button>
             );
           })}
         </div>
-        {/* Legend - same as BillingPage */}
         <div className="flex flex-wrap gap-4 mt-3 text-xs text-text-muted">
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-success"></span>
@@ -223,7 +253,7 @@ export function TablesPage() {
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-            <span>Occupied (Before KOT)</span>
+            <span>Occupied</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-red-500"></span>
@@ -236,14 +266,82 @@ export function TablesPage() {
         </div>
       </div>
 
-      {/* Table View */}
-      <Table
-        columns={columns}
-        data={filteredTables}
-        emptyMessage="No tables found. Add tables to start taking orders."
-        loading={false}
-        onRowClick={(table) => handleOpenModal(table)}
-      />
+      {/* Desktop Table View */}
+      <div className="hidden lg:block">
+        <Table
+          columns={columns}
+          data={filteredTables}
+          emptyMessage="No tables found. Add tables to start taking orders."
+          loading={false}
+          onRowClick={(table) => handleOpenModal(table)}
+        />
+      </div>
+
+      {/* Mobile Tables List */}
+      <div className="lg:hidden p-4 space-y-3">
+        {filteredTables.length === 0 ? (
+          <div className="text-center py-12 text-text-muted">
+            <p>No tables found</p>
+          </div>
+        ) : (
+          filteredTables.map((table) => {
+            const getStatusBadge = (status: string) => {
+              switch (status) {
+                case 'available':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-success/20 text-success">Available</span>;
+                case 'occupied':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-orange-500/20 text-orange-400">Occupied</span>;
+                case 'reserved':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-info/20 text-info">Reserved</span>;
+                default:
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">{status}</span>;
+              }
+            };
+            
+            return (
+              <div key={table.id} className="bg-background-secondary rounded-lg border border-white/10 overflow-hidden">
+                <div className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h3 className="font-bold text-lg text-text-primary">T-{table.number}</h3>
+                      <p className="text-xs text-text-muted">{table.sectionName || 'No Section'}</p>
+                    </div>
+                    {getStatusBadge(table.status)}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1 text-sm text-text-secondary">
+                      <Users className="w-4 h-4" />
+                      <span>{table.capacity} seats</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleOpenModal(table)}
+                        className="p-2 hover:bg-accent/20 rounded-lg transition-colors"
+                      >
+                        <Pencil className="w-4 h-4 text-accent" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(table)}
+                        className="p-2 hover:bg-error/20 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 text-error" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Floating Add Button - Mobile Only */}
+      <button
+        onClick={() => handleOpenModal()}
+        className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-accent hover:bg-accent/80 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition-all active:scale-95"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
 
       {/* Modal */}
       <Modal

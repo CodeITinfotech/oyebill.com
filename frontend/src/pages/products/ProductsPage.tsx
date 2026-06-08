@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Textarea, Toggle, Table, Modal, toast } from '../../components/ui';
-import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight, Settings, X } from 'lucide-react';
 import type { Product } from '../../types';
 
 const TAX_RATES = [
@@ -21,6 +21,7 @@ export function ProductsPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -41,14 +42,12 @@ export function ProductsPage() {
     fetchSettings();
   }, []);
 
-  // Set default tax rate from settings when modal opens
   useEffect(() => {
     if (showModal && settings?.defaultTaxRate && !editingProduct) {
       setFormData(prev => ({ ...prev, taxRate: String(settings.defaultTaxRate) }));
     }
   }, [showModal, settings, editingProduct]);
 
-  // Re-initialize section prices when sections load
   useEffect(() => {
     if (sections.length > 0 && formData.sectionPrices.length === 0 && showModal) {
       const sectionPrices = sections.map(s => ({ sectionId: s.id, price: '' }));
@@ -161,6 +160,11 @@ export function ProductsPage() {
     return product.sellingPrice;
   };
 
+  const getCategoryName = (categoryId: string) => {
+    const cat = categories.find(c => c.id === categoryId);
+    return cat?.name || 'Uncategorized';
+  };
+
   const columns = [
     { key: 'name' as const, label: 'Product Name' },
     { key: 'categoryName' as const, label: 'Category' },
@@ -196,20 +200,73 @@ export function ProductsPage() {
   ];
 
   return (
-    <div>
-      <PageHeader
-        title="Products"
-        subtitle="Manage your restaurant menu items"
-        actions={
-          <Button onClick={() => handleOpenModal()}>
-            <Plus className="w-4 h-4" />
-            Add Product
-          </Button>
-        }
-      />
+    <div className="relative">
+      {/* Mobile Header */}
+      <div className="lg:hidden p-4 border-b border-white/10">
+        <h1 className="text-xl font-bold text-center">Products</h1>
+        {/* Mobile Search */}
+        <div className="flex gap-2 mt-3">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary placeholder-text-muted"
+            />
+          </div>
+          <button
+            onClick={() => setShowMobileFilters(!showMobileFilters)}
+            className={`p-2 rounded-lg ${showMobileFilters ? 'bg-accent text-white' : 'bg-background-secondary text-text-secondary'}`}
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
 
-      {/* Filters */}
-      <div className="card p-4 mb-6">
+        {/* Mobile Filters */}
+        {showMobileFilters && (
+          <div className="mt-3 p-3 bg-background-secondary rounded-lg space-y-2">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm text-text-primary"
+            >
+              <option value="">All Categories</option>
+              {categories.filter(c => c.isActive).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={filterSection}
+              onChange={(e) => setFilterSection(e.target.value)}
+              className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm text-text-primary"
+            >
+              <option value="all">All Sections</option>
+              {sections.filter(s => s.isActive).map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Header */}
+      <div className="hidden lg:block">
+        <PageHeader
+          title="Products"
+          subtitle="Manage your restaurant menu items"
+          actions={
+            <Button onClick={() => handleOpenModal()}>
+              <Plus className="w-4 h-4" />
+              Add Product
+            </Button>
+          }
+        />
+      </div>
+
+      {/* Desktop Filters */}
+      <div className="hidden lg:block card p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
@@ -244,14 +301,76 @@ export function ProductsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <Table
-        columns={columns}
-        data={filteredProducts}
-        emptyMessage="No products found. Add your first product to get started."
-        loading={false}
-        onRowClick={(product) => handleOpenModal(product)}
-      />
+      {/* Desktop Table */}
+      <div className="hidden lg:block">
+        <Table
+          columns={columns}
+          data={filteredProducts}
+          emptyMessage="No products found. Add your first product to get started."
+          loading={false}
+          onRowClick={(product) => handleOpenModal(product)}
+        />
+      </div>
+
+      {/* Mobile Product Grid */}
+      <div className="lg:hidden p-4">
+        {filteredProducts.length === 0 ? (
+          <div className="text-center py-12 text-text-muted">
+            <p>No products found</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => handleOpenModal(product)}
+                className={`bg-background-secondary rounded-lg border overflow-hidden ${
+                  product.isActive ? 'border-white/10' : 'border-error/30'
+                }`}
+              >
+                <div className="p-3">
+                  <div className="w-full aspect-square bg-gradient-to-br from-accent/20 to-primary/20 rounded-lg mb-2 flex items-center justify-center">
+                    <span className="text-3xl">🍽️</span>
+                  </div>
+                  <h3 className="font-medium text-sm truncate">{product.name}</h3>
+                  <p className="text-xs text-text-muted truncate">{getCategoryName(product.categoryId)}</p>
+                  <p className="text-accent font-bold mt-1">₹{product.sellingPrice}</p>
+                </div>
+                <div className="flex border-t border-white/10">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleOpenModal(product); }}
+                    className="flex-1 py-2 text-center text-xs text-accent hover:bg-accent/10 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(product); }}
+                    className="flex-1 py-2 text-center text-xs text-error hover:bg-error/10 transition-colors border-l border-white/10"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Floating Add Button - Mobile Only */}
+      <button
+        onClick={() => handleOpenModal()}
+        className="lg:hidden fixed bottom-6 right-6 w-14 h-14 bg-accent hover:bg-accent/80 text-white rounded-full shadow-lg flex items-center justify-center z-40 transition-all active:scale-95"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Desktop Add Button */}
+      <div className="hidden lg:block fixed bottom-6 right-6">
+        <Button onClick={() => handleOpenModal()}>
+          <Plus className="w-4 h-4" />
+          Add Product
+        </Button>
+      </div>
 
       {/* Modal */}
       <Modal
@@ -309,7 +428,6 @@ export function ProductsPage() {
             />
           </div>
 
-          {/* Section-wise Pricing */}
           {sections.length > 0 && sections.some(s => s.isActive) && (
             <div className="border-t border-white/10 pt-4 mt-4">
               <h4 className="font-medium mb-3">Section-wise Pricing</h4>
