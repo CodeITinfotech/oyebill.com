@@ -174,74 +174,181 @@ export function CustomersPage() {
       </div>
 
       <div className="space-y-6">
-        {/* New Customer Form */}
+        {/* Desktop Customer Form */}
+        <div className="hidden lg:block">
+          {showNewCustomerForm && user?.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold">{editingCustomer ? 'Edit Customer' : 'Create New Customer'}</h2>
+              </CardHeader>
+              <CardBody>
+                <div className="mb-6 p-4 rounded-lg bg-background-secondary border border-white/10 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="Customer Name *"
+                      value={newCustomerForm.name}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                      placeholder="Enter customer name"
+                    />
+                    <Input
+                      label="Phone Number"
+                      value={newCustomerForm.phone}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                      placeholder="Enter phone number"
+                    />
+                    <Input
+                      label="Email Address"
+                      type="email"
+                      value={newCustomerForm.email}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                      placeholder="Enter email address"
+                    />
+                    <Input
+                      label="Place / Address"
+                      value={newCustomerForm.place}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, place: e.target.value })}
+                      placeholder="Enter place or address"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Select
+                      label="Food Preference"
+                      value={newCustomerForm.foodPreference}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, foodPreference: e.target.value as 'veg' | 'non-veg' | 'both' })}
+                      options={[
+                        { value: 'both', label: 'Both' },
+                        { value: 'veg', label: 'Vegetarian' },
+                        { value: 'non-veg', label: 'Non-Vegetarian' },
+                      ]}
+                    />
+                    <Input
+                      label="Loyalty Discount (%)"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={newCustomerForm.loyaltyDiscount}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, loyaltyDiscount: e.target.value })}
+                      placeholder="e.g., 5 for 5% discount"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button onClick={editingCustomer ? handleUpdateCustomer : handleCreateCustomer} loading={isSubmitting}>
+                      {editingCustomer ? 'Update Customer' : 'Create Customer'}
+                    </Button>
+                    <Button variant="ghost" onClick={cancelForm}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+        </div>
+
+        {/* Mobile Customer Form - Modal Style */}
         {showNewCustomerForm && user?.role === 'admin' && (
-          <Card>
-            <CardHeader>
-              <h2 className="font-semibold">{editingCustomer ? 'Edit Customer' : 'Create New Customer'}</h2>
-            </CardHeader>
-            <CardBody>
-              <div className="mb-6 p-4 rounded-lg bg-background-secondary border border-white/10 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    label="Customer Name *"
-                    value={newCustomerForm.name}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
-                    placeholder="Enter customer name"
-                  />
-                  <Input
-                    label="Phone Number"
-                    value={newCustomerForm.phone}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                    placeholder="Enter phone number"
-                  />
-                  <Input
-                    label="Email Address"
-                    type="email"
-                    value={newCustomerForm.email}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
-                    placeholder="Enter email address"
-                  />
-                  <Input
-                    label="Place / Address"
-                    value={newCustomerForm.place}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, place: e.target.value })}
-                    placeholder="Enter place or address"
-                  />
+          <div className="lg:hidden fixed inset-0 z-50 bg-black/60 flex items-end">
+            <div className="w-full bg-background-primary rounded-t-3xl max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="sticky top-0 bg-background-primary border-b border-white/10 p-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold">{editingCustomer ? 'Edit Customer' : 'Create New Customer'}</h2>
+                <button onClick={cancelForm} className="p-2 hover:bg-white/10 rounded-full">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Form Content */}
+              <div className="p-4 space-y-4">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Customer Name *</label>
+                    <input
+                      type="text"
+                      value={newCustomerForm.name}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                      placeholder="Enter customer name"
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={newCustomerForm.phone}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                      placeholder="Enter phone number"
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      value={newCustomerForm.email}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                      placeholder="Enter email address"
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Place / Address</label>
+                    <input
+                      type="text"
+                      value={newCustomerForm.place}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, place: e.target.value })}
+                      placeholder="Enter place or address"
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Food Preference</label>
+                    <select
+                      value={newCustomerForm.foodPreference}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, foodPreference: e.target.value as 'veg' | 'non-veg' | 'both' })}
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                    >
+                      <option value="both">Both</option>
+                      <option value="veg">Vegetarian</option>
+                      <option value="non-veg">Non-Vegetarian</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1.5">Loyalty Discount (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={newCustomerForm.loyaltyDiscount}
+                      onChange={(e) => setNewCustomerForm({ ...newCustomerForm, loyaltyDiscount: e.target.value })}
+                      placeholder="e.g., 5 for 5% discount"
+                      className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Select
-                    label="Food Preference"
-                    value={newCustomerForm.foodPreference}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, foodPreference: e.target.value as 'veg' | 'non-veg' | 'both' })}
-                    options={[
-                      { value: 'both', label: 'Both' },
-                      { value: 'veg', label: 'Vegetarian' },
-                      { value: 'non-veg', label: 'Non-Vegetarian' },
-                    ]}
-                  />
-                  <Input
-                    label="Loyalty Discount (%)"
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.5"
-                    value={newCustomerForm.loyaltyDiscount}
-                    onChange={(e) => setNewCustomerForm({ ...newCustomerForm, loyaltyDiscount: e.target.value })}
-                    placeholder="e.g., 5 for 5% discount"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <Button onClick={editingCustomer ? handleUpdateCustomer : handleCreateCustomer} loading={isSubmitting}>
-                    {editingCustomer ? 'Update Customer' : 'Create Customer'}
-                  </Button>
-                  <Button variant="ghost" onClick={cancelForm}>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={editingCustomer ? handleUpdateCustomer : handleCreateCustomer}
+                    disabled={isSubmitting}
+                    className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Create Customer')}
+                  </button>
+                  <button
+                    onClick={cancelForm}
+                    className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
+                  >
                     Cancel
-                  </Button>
+                  </button>
                 </div>
               </div>
-            </CardBody>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Desktop Customer List */}

@@ -372,113 +372,275 @@ export function ProductsPage() {
         </Button>
       </div>
 
-      {/* Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingProduct ? 'Edit Product' : 'Add Product'}
-        size="lg"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Product Name *"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-            <Select
-              label="Category *"
-              options={categories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
-              value={formData.categoryId}
-              onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-              placeholder="Select category"
-              required
-            />
-          </div>
-
-          <Textarea
-            label="Description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Product description..."
-          />
-
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Selling Price *"
-              type="number"
-              step="0.01"
-              value={formData.sellingPrice}
-              onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
-              required
-            />
-            <Input
-              label="MRP"
-              type="number"
-              step="0.01"
-              value={formData.mrp}
-              onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
-            />
-            <Select
-              label="GST/Tax Rate *"
-              options={TAX_RATES}
-              value={formData.taxRate}
-              onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-            />
-          </div>
-
-          {sections.length > 0 && sections.some(s => s.isActive) && (
-            <div className="border-t border-white/10 pt-4 mt-4">
-              <h4 className="font-medium mb-3">Section-wise Pricing</h4>
-              <p className="text-sm text-text-muted mb-3">Set different prices for each section (optional)</p>
-              <div className="grid grid-cols-2 gap-3">
-                {sections.filter(s => s.isActive).map((section) => {
-                  const sectionPrice = formData.sectionPrices.find(sp => sp.sectionId === section.id);
-                  return (
-                    <div key={section.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
-                      <label className="text-sm font-medium w-28 truncate">{section.name}</label>
-                      <div className="flex-1 relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={sectionPrice?.price || ''}
-                          onChange={(e) => handleSectionPriceChange(section.id, e.target.value)}
-                          placeholder={formData.sellingPrice || '0.00'}
-                          className="input pl-7 w-full"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      {/* Desktop Modal */}
+      <div className="hidden lg:block">
+        <Modal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          title={editingProduct ? 'Edit Product' : 'Add Product'}
+          size="lg"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Product Name *"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+              <Select
+                label="Category *"
+                options={categories.filter(c => c.isActive).map(c => ({ value: c.id, label: c.name }))}
+                value={formData.categoryId}
+                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                placeholder="Select category"
+                required
+              />
             </div>
-          )}
 
-          <div className="flex gap-6">
-            <Toggle
-              checked={formData.isActive}
-              onChange={(checked) => setFormData({ ...formData, isActive: checked })}
-              label="Active"
+            <Textarea
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Product description..."
             />
-            <Toggle
-              checked={formData.enableOnline}
-              onChange={(checked) => setFormData({ ...formData, enableOnline: checked })}
-              label="Enable Online Ordering"
-            />
-          </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-              {editingProduct ? 'Update Product' : 'Add Product'}
-            </Button>
+            <div className="grid grid-cols-3 gap-4">
+              <Input
+                label="Selling Price *"
+                type="number"
+                step="0.01"
+                value={formData.sellingPrice}
+                onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                required
+              />
+              <Input
+                label="MRP"
+                type="number"
+                step="0.01"
+                value={formData.mrp}
+                onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
+              />
+              <Select
+                label="GST/Tax Rate *"
+                options={TAX_RATES}
+                value={formData.taxRate}
+                onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
+              />
+            </div>
+
+            {sections.length > 0 && sections.some(s => s.isActive) && (
+              <div className="border-t border-white/10 pt-4 mt-4">
+                <h4 className="font-medium mb-3">Section-wise Pricing</h4>
+                <p className="text-sm text-text-muted mb-3">Set different prices for each section (optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {sections.filter(s => s.isActive).map((section) => {
+                    const sectionPrice = formData.sectionPrices.find(sp => sp.sectionId === section.id);
+                    return (
+                      <div key={section.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                        <label className="text-sm font-medium w-28 truncate">{section.name}</label>
+                        <div className="flex-1 relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={sectionPrice?.price || ''}
+                            onChange={(e) => handleSectionPriceChange(section.id, e.target.value)}
+                            placeholder={formData.sellingPrice || '0.00'}
+                            className="input pl-7 w-full"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-6">
+              <Toggle
+                checked={formData.isActive}
+                onChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                label="Active"
+              />
+              <Toggle
+                checked={formData.enableOnline}
+                onChange={(checked) => setFormData({ ...formData, enableOnline: checked })}
+                label="Enable Online Ordering"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
+                {editingProduct ? 'Update Product' : 'Add Product'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      </div>
+
+      {/* Mobile Product Modal - Bottom Sheet */}
+      {showModal && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/60">
+          <div className="absolute inset-0" onClick={() => setShowModal(false)} />
+          <div className="absolute bottom-0 w-full bg-background-primary rounded-t-3xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-background-primary border-b border-white/10 p-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-semibold">{editingProduct ? 'Edit Product' : 'Add Product'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 rounded-full">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Form Content */}
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Product Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Enter product name"
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Category *</label>
+                <select
+                  value={formData.categoryId}
+                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  required
+                >
+                  <option value="">Select category</option>
+                  {categories.filter(c => c.isActive).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Product description..."
+                  rows={2}
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent resize-none"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Selling Price *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.sellingPrice}
+                    onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">MRP</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.mrp}
+                    onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
+                    placeholder="0.00"
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Tax Rate</label>
+                  <select
+                    value={formData.taxRate}
+                    onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  >
+                    {TAX_RATES.map(rate => (
+                      <option key={rate.value} value={rate.value}>{rate.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {sections.length > 0 && sections.some(s => s.isActive) && (
+                <div className="border-t border-white/10 pt-4">
+                  <h4 className="font-medium mb-3">Section-wise Pricing</h4>
+                  <div className="space-y-2">
+                    {sections.filter(s => s.isActive).map((section) => {
+                      const sectionPrice = formData.sectionPrices.find(sp => sp.sectionId === section.id);
+                      return (
+                        <div key={section.id} className="flex items-center gap-3 p-3 rounded-lg bg-white/5">
+                          <label className="text-sm font-medium w-24 truncate">{section.name}</label>
+                          <div className="flex-1 relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">₹</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={sectionPrice?.price || ''}
+                              onChange={(e) => handleSectionPriceChange(section.id, e.target.value)}
+                              placeholder={formData.sellingPrice || '0.00'}
+                              className="w-full pl-7 pr-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="w-5 h-5 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                  />
+                  <span className="text-sm">Active</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.enableOnline}
+                    onChange={(e) => setFormData({ ...formData, enableOnline: e.target.checked })}
+                    className="w-5 h-5 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                  />
+                  <span className="text-sm">Enable Online</span>
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : (editingProduct ? 'Update Product' : 'Add Product')}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

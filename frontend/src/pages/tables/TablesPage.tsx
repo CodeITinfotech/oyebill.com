@@ -343,69 +343,174 @@ export function TablesPage() {
         <Plus className="w-6 h-6" />
       </button>
 
-      {/* Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingTable ? `Edit Table ${editingTable.number}` : 'Add Table'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Table Number *"
-              value={formData.number}
-              onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-              placeholder="e.g., 1, 2A, VIP-3"
+      {/* Desktop Modal */}
+      <div className="hidden lg:block">
+        <Modal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          title={editingTable ? `Edit Table ${editingTable.number}` : 'Add Table'}
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Table Number *"
+                value={formData.number}
+                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                placeholder="e.g., 1, 2A, VIP-3"
+                required
+              />
+              <Input
+                label="Capacity *"
+                type="number"
+                min="1"
+                max="50"
+                value={formData.capacity}
+                onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                required
+              />
+            </div>
+
+            <Select
+              label="Section *"
+              options={sections.filter(s => s.isActive).map(s => ({ value: s.id, label: s.name }))}
+              value={formData.sectionId}
+              onChange={(e) => setFormData({ ...formData, sectionId: e.target.value })}
+              placeholder="Select section"
               required
             />
-            <Input
-              label="Capacity *"
-              type="number"
-              min="1"
-              max="50"
-              value={formData.capacity}
-              onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-              required
+
+            <Toggle
+              checked={formData.isActive}
+              onChange={(checked) => setFormData({ ...formData, isActive: checked })}
+              label="Active"
             />
-          </div>
 
-          <Select
-            label="Section *"
-            options={sections.filter(s => s.isActive).map(s => ({ value: s.id, label: s.name }))}
-            value={formData.sectionId}
-            onChange={(e) => setFormData({ ...formData, sectionId: e.target.value })}
-            placeholder="Select section"
-            required
-          />
-
-          <Toggle
-            checked={formData.isActive}
-            onChange={(checked) => setFormData({ ...formData, isActive: checked })}
-            label="Active"
-          />
-
-          <div className="flex gap-3 pt-4">
-            {editingTable && (
-              <Button
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  setShowModal(false);
-                  handleDelete(editingTable);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
+            <div className="flex gap-3 pt-4">
+              {editingTable && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={() => {
+                    setShowModal(false);
+                    handleDelete(editingTable);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
+                Cancel
               </Button>
-            )}
-            <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-              {editingTable ? 'Update Table' : 'Add Table'}
-            </Button>
+              <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
+                {editingTable ? 'Update Table' : 'Add Table'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      </div>
+
+      {/* Mobile Table Modal - Bottom Sheet */}
+      {showModal && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/60">
+          <div className="absolute inset-0" onClick={() => setShowModal(false)} />
+          <div className="absolute bottom-0 w-full bg-background-primary rounded-t-3xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-background-primary border-b border-white/10 p-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-semibold">{editingTable ? `Edit Table ${editingTable.number}` : 'Add Table'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 rounded-full">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Form Content */}
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Table Number *</label>
+                  <input
+                    type="text"
+                    value={formData.number}
+                    onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                    placeholder="e.g., 1, 2A, VIP-3"
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Capacity *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={formData.capacity}
+                    onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Section *</label>
+                <select
+                  value={formData.sectionId}
+                  onChange={(e) => setFormData({ ...formData, sectionId: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  required
+                >
+                  <option value="">Select section</option>
+                  {sections.filter(s => s.isActive).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActiveToggleMobile"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="w-5 h-5 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                />
+                <label htmlFor="isActiveToggleMobile" className="text-sm text-text-secondary cursor-pointer">
+                  Active
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2 pb-4">
+                {editingTable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      handleDelete(editingTable);
+                    }}
+                    className="px-4 py-3 bg-error/20 hover:bg-error/30 text-error font-medium rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : (editingTable ? 'Update Table' : 'Add Table')}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

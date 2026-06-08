@@ -636,9 +636,28 @@ export function SettingsPage() {
 
   return (
     <div>
-      {/* Mobile Header */}
-      <div className="lg:hidden p-4 border-b border-white/10">
-        <h1 className="text-xl font-bold text-center">Settings</h1>
+      {/* Mobile Header with Tabs */}
+      <div className="lg:hidden">
+        <div className="p-4 border-b border-white/10">
+          <h1 className="text-xl font-bold text-center">Settings</h1>
+        </div>
+        {/* Mobile Tab Bar */}
+        <div className="flex overflow-x-auto gap-1 p-2 border-b border-white/10 -mx-2 px-2 scrollbar-hide">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as SettingsTab)}
+              className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'bg-accent text-white'
+                  : 'bg-background-secondary text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Desktop Header */}

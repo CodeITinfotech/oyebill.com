@@ -269,51 +269,126 @@ export function CategoriesPage() {
         <Plus className="w-6 h-6" />
       </button>
 
-      {/* Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingCategory ? 'Edit Category' : 'Add Category'}
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Category Name *"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="e.g., Starters, Main Course, Beverages"
-            required
-          />
-
-          <Textarea
-            label="Description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Brief description of this category..."
-          />
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="isActiveToggle"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="w-5 h-5"
+      {/* Desktop Modal */}
+      <div className="hidden lg:block">
+        <Modal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          title={editingCategory ? 'Edit Category' : 'Add Category'}
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label="Category Name *"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g., Starters, Main Course, Beverages"
+              required
             />
-            <label htmlFor="isActiveToggle" className="text-sm text-text-secondary cursor-pointer">
-              Active (visible to users)
-            </label>
-          </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-              {editingCategory ? 'Update Category' : 'Add Category'}
-            </Button>
+            <Textarea
+              label="Description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Brief description of this category..."
+            />
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isActiveToggle"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-5 h-5"
+              />
+              <label htmlFor="isActiveToggle" className="text-sm text-text-secondary cursor-pointer">
+                Active (visible to users)
+              </label>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
+                {editingCategory ? 'Update Category' : 'Add Category'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      </div>
+
+      {/* Mobile Category Modal - Bottom Sheet */}
+      {showModal && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/60">
+          <div className="absolute inset-0" onClick={() => setShowModal(false)} />
+          <div className="absolute bottom-0 w-full bg-background-primary rounded-t-3xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="sticky top-0 bg-background-primary border-b border-white/10 p-4 flex items-center justify-between z-10">
+              <h2 className="text-lg font-semibold">{editingCategory ? 'Edit Category' : 'Add Category'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 rounded-full">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Form Content */}
+            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Category Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g., Starters, Main Course, Beverages"
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Brief description of this category..."
+                  rows={3}
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent resize-none"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="isActiveToggleMobile"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  className="w-5 h-5 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                />
+                <label htmlFor="isActiveToggleMobile" className="text-sm text-text-secondary cursor-pointer">
+                  Active (visible to users)
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }
