@@ -1224,32 +1224,32 @@ export function BillingPage() {
             <div className="grid grid-cols-3 gap-2">
               <Button
                 variant="secondary"
-                size="sm"
+                size="md"
                 onClick={handleKOT}
                 disabled={cart.filter(i => i.isNew).length === 0}
-                className="flex items-center justify-center gap-1 text-xs"
+                className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
               >
-                <Printer className="w-3 lg:w-4 h-3 lg:h-4" />
+                <Printer className="w-4 h-4" />
                 <span>KOT</span>
               </Button>
               <Button
                 variant="accent"
-                size="sm"
+                size="md"
                 onClick={handleBill}
                 disabled={cart.length === 0}
-                className="flex items-center justify-center gap-1 text-xs"
+                className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
               >
-                <Receipt className="w-3 lg:w-4 h-3 lg:h-4" />
+                <Receipt className="w-4 h-4" />
                 <span>Bill</span>
               </Button>
               <div className="relative">
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="md"
                   onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                  className="w-full flex items-center justify-center gap-1 text-xs"
+                  className="w-full flex items-center justify-center gap-2 h-12 text-sm font-medium"
                 >
-                  <MoreHorizontal className="w-3 lg:w-4 h-3 lg:h-4" />
+                  <MoreHorizontal className="w-4 h-4" />
                   <span className="hidden sm:inline">More</span>
                 </Button>
                 {/* Dropdown */}
@@ -1651,9 +1651,23 @@ export function BillingPage() {
             <Button
               variant="ghost"
               className="flex-1"
-              onClick={() => setShowPendingCleaningModal(false)}
+              onClick={() => {
+                // Send notification to bussers
+                if (pendingCleaningTable) {
+                  api.post('/busser/notify', {
+                    tableId: pendingCleaningTable.id,
+                    tableNumber: pendingCleaningTable.number,
+                    message: `Table ${pendingCleaningTable.number} needs cleaning immediately!`
+                  }).then(() => {
+                    toast('info', `Notification sent to bussers for Table ${pendingCleaningTable.number}`);
+                  }).catch(() => {
+                    toast('error', 'Failed to send notification');
+                  });
+                }
+                setShowPendingCleaningModal(false);
+              }}
             >
-              Cancel
+              Notify
             </Button>
             <Button
               variant="accent"

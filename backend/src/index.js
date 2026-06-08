@@ -16,6 +16,7 @@ import userRoutes from './routes/users.js';
 import setupRoutes from './routes/setup.js';
 import customerRoutes from './routes/customers.js';
 import onlineOrderRoutes from './routes/online-orders.js';
+import busserRoutes from './routes/busser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,6 +46,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
+app.use('/api/busser', busserRoutes);
 app.use('/api/setup', setupRoutes);
 
 // Health check
