@@ -10,6 +10,18 @@ const db = new Database(join(__dirname, 'oyebill.db'));
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
+// Migration: Add table_status_colors column if it doesn't exist
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
+  const hasColumn = tableInfo.some(col => col.name === 'table_status_colors');
+  if (!hasColumn) {
+    db.exec("ALTER TABLE settings ADD COLUMN table_status_colors TEXT");
+    console.log('Added table_status_colors column to settings table');
+  }
+} catch (err) {
+  console.log('Migration note:', err.message);
+}
+
 // Create tables
 db.exec(`
   -- Restaurants table
@@ -142,6 +154,7 @@ db.exec(`
     kot_printer TEXT,
     bill_printer TEXT,
     print_copies INTEGER DEFAULT 1,
+    table_status_colors TEXT,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
   );
 
