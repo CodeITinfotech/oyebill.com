@@ -2078,9 +2078,20 @@ export function BillingPage() {
                           }
                         } else if (cart.length > 0) {
                           // No existing order but have items in cart - create new order for target table
+                          // Clean cart items to remove extra fields that aren't needed
+                          const cleanItems = cart.map(item => ({
+                            productId: item.productId,
+                            productName: item.productName,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            taxRate: item.taxRate,
+                            taxAmount: item.taxAmount,
+                            total: item.total,
+                            isKot: item.isKot || false
+                          }));
                           const orderData = {
                             tableId: table.id,
-                            items: cart,
+                            items: cleanItems,
                             waiterId: selectedWaiter || undefined,
                             customerId: selectedCustomer?.id
                           };
