@@ -1561,50 +1561,57 @@ export function BillingPage() {
             </div>
             {/* Legend - Desktop only */}
             <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
-              {customColors.available?.label ? (
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.available.color || 'bg-success'}`}></span>
-                  <span>{customColors.available.label}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
-                  <span>Available</span>
-                </div>
-              )}
-              {customColors.active?.label ? (
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.active.color || 'bg-accent'}`}></span>
-                  <span>{customColors.active.label}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
-                  <span>Active - KOT</span>
-                </div>
-              )}
-              {customColors.occupied?.label ? (
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.occupied.color || 'bg-red-500'}`}></span>
-                  <span>{customColors.occupied.label}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
-                  <span>Occupied - Billing</span>
-                </div>
-              )}
-              {customColors.pending_cleaning?.label ? (
-                <div className="flex items-center gap-1">
-                  <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_cleaning.color || 'bg-gray-500'}`}></span>
-                  <span>{customColors.pending_cleaning.label}</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
-                  <span>Cleaning - Pending</span>
-                </div>
-              )}
+              {(() => {
+                const customColors = store.settings?.tableStatusColors || {};
+                return (
+                  <>
+                    {customColors.available?.label ? (
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.available.color || 'bg-success'}`}></span>
+                        <span>{customColors.available.label}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
+                        <span>Available</span>
+                      </div>
+                    )}
+                    {customColors.active?.label ? (
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.active.color || 'bg-accent'}`}></span>
+                        <span>{customColors.active.label}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
+                        <span>Active - KOT</span>
+                      </div>
+                    )}
+                    {customColors.occupied?.label ? (
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.occupied.color || 'bg-red-500'}`}></span>
+                        <span>{customColors.occupied.label}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
+                        <span>Occupied - Billing</span>
+                      </div>
+                    )}
+                    {customColors.pending_cleaning?.label ? (
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_cleaning.color || 'bg-gray-500'}`}></span>
+                        <span>{customColors.pending_cleaning.label}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
+                        <span>Cleaning - Pending</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
