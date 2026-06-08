@@ -38,6 +38,8 @@ const invalidateCache = (prefix?: string): void => {
   }
 };
 
+export { invalidateCache };
+
 interface DataState {
   // Categories
   categories: Category[];
@@ -203,7 +205,10 @@ const store = create<DataState>((set, get) => ({
     const cacheKey = `tables_${sectionId || 'all'}`;
     const cached = getCached<Table[]>(cacheKey);
     
-    if (cached) {
+    if (cached && sectionId) {
+      // Always fetch fresh data for section-specific queries to get latest status
+      set({ tablesLoading: true });
+    } else if (cached) {
       set({ tables: cached, tablesLoading: false });
       return;
     }

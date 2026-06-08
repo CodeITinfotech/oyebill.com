@@ -2,5 +2,6 @@
 export {
   dataStore,
   useDataStore,
+  invalidateCache,
 } from './dataStoreInstance';
 export type { } from './dataStoreInstance';

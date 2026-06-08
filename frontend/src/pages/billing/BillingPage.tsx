@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useDataStore } from '../../stores/dataStore';
+import { useDataStore, invalidateCache } from '../../stores/dataStore';
 import { useAuthStore } from '../../stores/authStore';
 import { api } from '../../api';
 import { PageHeader } from '../../components/layout';
@@ -416,7 +416,12 @@ export function BillingPage() {
     }
 
     // Refresh tables to get latest status before selecting
+    // Invalidate cache first to ensure fresh data
+    invalidateCache('tables_');
     await store.fetchTables(selectedSection || undefined);
+    
+    // Force update store tables to trigger re-render
+    const updatedTables = [...store.tables];
     
     // Check if we have a saved cart for this table
     const savedCart = tableCarts[table.id];
@@ -466,6 +471,15 @@ export function BillingPage() {
       setAppliedCoupon(null);
       setSelectedWaiter('');
       setSelectedCustomer(null);
+    }
+    
+    // Final refresh to ensure UI shows latest status
+    await store.fetchTables(selectedSection || undefined);
+    
+    // Force re-render by updating state with fresh data
+    const finalTable = store.tables.find(t => t.id === table.id);
+    if (finalTable) {
+      setSelectedTable({ ...finalTable });
     }
   };
 
