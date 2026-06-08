@@ -21,6 +21,17 @@ export function BillingPage() {
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
+  
+  // Per-table cart storage - key is tableId, value is cart data for that table
+  const [tableCarts, setTableCarts] = useState<Record<string, {
+    items: CartItem[];
+    orderId: string | null;
+    discountAmount: string;
+    discountReason: string;
+    appliedCoupon: any;
+    selectedWaiter: string;
+    selectedCustomer: any;
+  }>>({});
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [discountAmount, setDiscountAmount] = useState('');
@@ -287,11 +298,41 @@ export function BillingPage() {
       return;
     }
 
+    // Save current cart state before switching
+    if (selectedTable && cart.length > 0) {
+      setTableCarts(prev => ({
+        ...prev,
+        [selectedTable.id]: {
+          items: cart,
+          orderId: currentOrderId,
+          discountAmount,
+          discountReason,
+          appliedCoupon,
+          selectedWaiter,
+          selectedCustomer
+        }
+      }));
+    }
+
+    // Check if we have a saved cart for this table
+    const savedCart = tableCarts[table.id];
+    
     setSelectedTable(table);
     
-    // Check if there's an existing order
+    // Check if there's an existing order OR saved cart
     const response = await api.getOrderByTable(table.id);
-    if (response.success && response.data) {
+    
+    if (savedCart && savedCart.items.length > 0) {
+      // Restore saved cart data
+      setCart(savedCart.items);
+      setCurrentOrderId(savedCart.orderId);
+      setDiscountAmount(savedCart.discountAmount);
+      setDiscountReason(savedCart.discountReason);
+      setAppliedCoupon(savedCart.appliedCoupon);
+      setSelectedWaiter(savedCart.selectedWaiter);
+      setSelectedCustomer(savedCart.selectedCustomer);
+    } else if (response.success && response.data) {
+      // Load from server
       const existingOrder = response.data;
       setCurrentOrderId(existingOrder.id);
       
@@ -311,10 +352,14 @@ export function BillingPage() {
         setDiscountReason(existingOrder.discountReason);
       }
     } else {
+      // New table, no saved cart, no existing order
       setCurrentOrderId(null);
       setCart([]);
       setDiscountAmount('');
       setDiscountReason('');
+      setAppliedCoupon(null);
+      setSelectedWaiter('');
+      setSelectedCustomer(null);
     }
   };
 
@@ -323,6 +368,22 @@ export function BillingPage() {
     if (!pendingCleaningTable) return;
 
     try {
+      // Save current cart before switching
+      if (selectedTable && cart.length > 0) {
+        setTableCarts(prev => ({
+          ...prev,
+          [selectedTable.id]: {
+            items: cart,
+            orderId: currentOrderId,
+            discountAmount,
+            discountReason,
+            appliedCoupon,
+            selectedWaiter,
+            selectedCustomer
+          }
+        }));
+      }
+
       // Update table status to available
       await api.put(`/tables/${pendingCleaningTable.id}`, { status: 'available' });
       toast('success', `Table ${pendingCleaningTable.number} marked as available`);
@@ -330,12 +391,22 @@ export function BillingPage() {
       // Close modal
       setShowPendingCleaningModal(false);
       
-      // Select the table (will now proceed normally since status is 'available')
+      // Check for saved cart or existing order
+      const savedCart = tableCarts[pendingCleaningTable.id];
+      const response = await api.getOrderByTable(pendingCleaningTable.id);
+      
       setSelectedTable(pendingCleaningTable);
       
-      // Check for existing order
-      const response = await api.getOrderByTable(pendingCleaningTable.id);
-      if (response.success && response.data) {
+      if (savedCart && savedCart.items.length > 0) {
+        // Restore saved cart data
+        setCart(savedCart.items);
+        setCurrentOrderId(savedCart.orderId);
+        setDiscountAmount(savedCart.discountAmount);
+        setDiscountReason(savedCart.discountReason);
+        setAppliedCoupon(savedCart.appliedCoupon);
+        setSelectedWaiter(savedCart.selectedWaiter);
+        setSelectedCustomer(savedCart.selectedCustomer);
+      } else if (response.success && response.data) {
         const existingOrder = response.data;
         setCurrentOrderId(existingOrder.id);
         
@@ -358,6 +429,9 @@ export function BillingPage() {
         setCart([]);
         setDiscountAmount('');
         setDiscountReason('');
+        setAppliedCoupon(null);
+        setSelectedWaiter('');
+        setSelectedCustomer(null);
       }
     } catch (error) {
       console.error('Failed to update table status:', error);
@@ -1290,6 +1364,21 @@ export function BillingPage() {
                       >
                         <Ticket className="w-3 h-3" />
                         <span>Coupon</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCart([]);
+                          setDiscountAmount('');
+                          setDiscountReason('');
+                          setAppliedCoupon(null);
+                          setShowMoreDropdown(false);
+                          toast('info', 'Cart cleared');
+                        }}
+                        disabled={cart.length === 0}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50 text-red-400"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Clear Cart</span>
                       </button>
                     </div>
                   </div>
