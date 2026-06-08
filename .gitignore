@@ -28,6 +28,7 @@ Thumbs.db
 *.bak
 *~
 
-# Database (use oyebill.db.tar.gz instead)
+# Database (use oyebill.db.tar.gz for backups)
 *.db
 !backend/database/oyebill.db
+!backend/database/oyebill.db.tar.gz
