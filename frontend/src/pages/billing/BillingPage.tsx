@@ -32,6 +32,9 @@ export function BillingPage() {
     selectedWaiter: string;
     selectedCustomer: any;
   }>>({});
+  
+  // Switch table mode
+  const [showTableSwitch, setShowTableSwitch] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [discountAmount, setDiscountAmount] = useState('');
@@ -312,7 +315,22 @@ export function BillingPage() {
           selectedCustomer
         }
       }));
+      
+      // Mark previous table as available (only if it was being used for billing)
+      // Only if there's no active KOT on that table
+      try {
+        const prevOrderResponse = await api.getOrderByTable(selectedTable.id);
+        if (prevOrderResponse.success && !prevOrderResponse.data) {
+          // No active order on previous table, mark as available
+          await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+        }
+      } catch (error) {
+        console.error('Failed to update previous table status:', error);
+      }
     }
+
+    // Close switch mode if active
+    setShowTableSwitch(false);
 
     // Check if we have a saved cart for this table
     const savedCart = tableCarts[table.id];
@@ -1406,12 +1424,30 @@ export function BillingPage() {
 
         {/* Right: Product Selection - Desktop only, hidden on mobile when cart view is active */}
         <div className={`flex flex-col ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
-          {/* Table Tiles */}
-          {!selectedTable && (
+          {/* Table Tiles - Only show when no table selected OR when switch mode is active */}
+          {(!selectedTable || showTableSwitch) && (
             <div className="mb-3 lg:mb-4">
-              <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Select Table</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs lg:text-sm font-medium text-text-secondary">
+                  {selectedTable ? 'Switch Table' : 'Select Table'}
+                </h3>
+                {selectedTable && (
+                  <button
+                    onClick={() => setShowTableSwitch(false)}
+                    className="text-xs text-accent hover:text-accent/80"
+                  >
+                    ← Back to {selectedTable.number}
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
-                {tables.map((table) => {
+                {tables
+                  .filter(table => {
+                    // Don't show current table in switch list
+                    if (selectedTable && !showTableSwitch) return true;
+                    return table.id !== selectedTable?.id;
+                  })
+                  .map((table) => {
                   const isAvailable = table.status === 'available';
                   const isPendingCleaning = table.status === 'pending_cleaning';
                   const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
@@ -1464,6 +1500,19 @@ export function BillingPage() {
                   <span>Cleaning</span>
                 </div>
               </div>
+            </div>
+          )}
+          
+          {/* Show Switch Table button when table is selected */}
+          {selectedTable && !showTableSwitch && (
+            <div className="mb-3 lg:mb-4">
+              <button
+                onClick={() => setShowTableSwitch(true)}
+                className="w-full py-2 px-3 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-secondary hover:border-accent/50 hover:text-accent transition-all flex items-center justify-center gap-2"
+              >
+                <span>Switch Table</span>
+                <span className="text-accent font-medium">←</span>
+              </button>
             </div>
           )}
 
