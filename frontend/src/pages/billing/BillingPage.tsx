@@ -312,6 +312,26 @@ export function BillingPage() {
     return () => clearInterval(refreshInterval);
   }, [selectedSection]);
 
+  // Sync table status with cart - ensure occupied tables show red when they have items
+  useEffect(() => {
+    const syncTableStatusWithCart = async () => {
+      if (!selectedTable || !selectedSection) return;
+      
+      // If table is available but has cart items, update status to occupied
+      if (selectedTable.status === 'available' && cart.length > 0) {
+        try {
+          await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+          setSelectedTable({ ...selectedTable, status: 'occupied' });
+          store.fetchTables(selectedSection || undefined);
+        } catch (error) {
+          console.error('Failed to sync table status:', error);
+        }
+      }
+    };
+    
+    syncTableStatusWithCart();
+  }, [cart.length, selectedTable?.id]);
+
   // Update table status when cart becomes empty (set to available if no active order)
   useEffect(() => {
     const updateTableStatusOnEmptyCart = async () => {
@@ -395,13 +415,18 @@ export function BillingPage() {
       }
     }
 
+    // Refresh tables to get latest status before selecting
+    await store.fetchTables(selectedSection || undefined);
+    
     // Check if we have a saved cart for this table
     const savedCart = tableCarts[table.id];
     
-    setSelectedTable(table);
+    // Find the latest table data from store (in case status was updated)
+    const latestTable = store.tables.find(t => t.id === table.id) || table;
+    setSelectedTable(latestTable);
     
     // Check if there's an existing order OR saved cart
-    const response = await api.getOrderByTable(table.id);
+    const response = await api.getOrderByTable(latestTable.id);
     
     if (savedCart && savedCart.items.length > 0) {
       // Restore saved cart data
