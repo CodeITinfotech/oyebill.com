@@ -49,13 +49,64 @@ router.get('/generate-qr', (req, res) => {
       url: `${baseUrl}/order/${table.number}`
     }));
     
-    // Return JSON response with QR codes data
-    res.json({
-      success: true,
-      count: qrCodes.length,
-      qrCodes: qrCodes,
-      message: 'QR codes generated successfully. Use a QR code generator to create printable codes.'
-    });
+    // Check if client accepts HTML (browser request)
+    const acceptHeader = req.get('Accept') || '';
+    const wantsHtml = acceptHeader.includes('text/html');
+    
+    if (wantsHtml) {
+      // Return HTML page for printing
+      const qrCodeItems = qrCodes.map(qr => `
+        <div class="qr-card">
+          <div class="qr-code">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qr.url)}" alt="QR Code for Table ${qr.tableNumber}" />
+          </div>
+          <div class="qr-info">
+            <h2>Table ${qr.tableNumber}</h2>
+            <p>${qr.section} | ${qr.capacity} seats</p>
+          </div>
+        </div>
+      `).join('\n');
+      
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Table QR Codes</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+            h1 { text-align: center; margin-bottom: 20px; color: #333; }
+            .container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; max-width: 1200px; margin: 0 auto; }
+            .qr-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+            .qr-code { margin-bottom: 15px; }
+            .qr-code img { width: 180px; height: 180px; border-radius: 8px; }
+            .qr-info h2 { font-size: 1.5rem; color: #333; margin-bottom: 5px; }
+            .qr-info p { color: #666; font-size: 0.9rem; }
+            .print-btn { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); }
+            .print-btn:hover { background: #2563eb; }
+            @media print { .print-btn { display: none; } .container { display: grid; grid-template-columns: repeat(3, 1fr); } }
+          </style>
+        </head>
+        <body>
+          <h1>Table QR Codes</h1>
+          <div class="container">
+            ${qrCodeItems}
+          </div>
+          <button class="print-btn" onclick="window.print()">Print QR Codes</button>
+        </body>
+        </html>
+      `);
+    } else {
+      // Return JSON for API clients
+      res.json({
+        success: true,
+        count: qrCodes.length,
+        qrCodes: qrCodes,
+        message: 'QR codes generated successfully. Use a QR code generator to create printable codes.'
+      });
+    }
   } catch (error) {
     console.error('Generate QR error:', error);
     res.status(500).json({ error: 'Failed to generate QR codes' });
