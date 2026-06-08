@@ -2739,7 +2739,7 @@ export function BillingPage() {
       >
         {/* Pending Orders */}
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
-          {pendingOrders.length === 0 ? (
+          {(!pendingOrders || pendingOrders.length === 0) ? (
             <div className="text-center py-8 text-text-muted">
               <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No pending customer orders</p>
@@ -2806,7 +2806,7 @@ export function BillingPage() {
         </div>
         
         {/* Mark all read button */}
-        {notifications.length > 0 && (
+        {(notifications && notifications.length > 0) && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <Button
               variant="ghost"

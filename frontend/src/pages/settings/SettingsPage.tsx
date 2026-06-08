@@ -955,7 +955,7 @@ export function SettingsPage() {
                       </div>
                     </div>
                   ))}
-                  {!users || users.filter(u => u.id !== user?.id).length === 0 && (
+                  {!users || (users || []).filter(u => u.id !== user?.id).length === 0 && (
                     <p className="text-center text-text-muted py-8">No other users found</p>
                   )}
                 </div>
