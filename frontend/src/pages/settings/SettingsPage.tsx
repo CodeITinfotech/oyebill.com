@@ -546,7 +546,7 @@ export function SettingsPage() {
       // This is a placeholder - actual implementation would use electron-serial
       // For now, we'll add some common thermal printer detection logic
       
-      if (foundPrinters.length === 0) {
+      if (!foundPrinters || foundPrinters.length === 0) {
         setDetectionStatus('No printers detected. Make sure your printer is connected and powered on.');
       } else {
         setDetectionStatus(`Found ${foundPrinters.length} printer(s)`);
@@ -955,7 +955,7 @@ export function SettingsPage() {
                       </div>
                     </div>
                   ))}
-                  {users.filter(u => u.id !== user?.id).length === 0 && (
+                  {!users || users.filter(u => u.id !== user?.id).length === 0 && (
                     <p className="text-center text-text-muted py-8">No other users found</p>
                   )}
                 </div>
@@ -1399,12 +1399,12 @@ export function SettingsPage() {
                       </div>
                       
                       {detectionStatus && (
-                        <div className={`text-sm mb-3 ${detectedPrinters.length > 0 ? 'text-success' : 'text-text-muted'}`}>
+                        <div className={`text-sm mb-3 ${detectedPrinters && detectedPrinters.length > 0 ? 'text-success' : 'text-text-muted'}`}>
                           {detectionStatus}
                         </div>
                       )}
                       
-                      {detectedPrinters.length > 0 && (
+                      {detectedPrinters && detectedPrinters.length > 0 && (
                         <div className="space-y-2">
                           <p className="text-sm font-medium text-text-secondary">Detected Printers:</p>
                           {detectedPrinters.map((printer, idx) => (
