@@ -23,6 +23,45 @@ router.get('/status', (req, res) => {
   }
 });
 
+// Generate QR codes for all tables
+router.get('/generate-qr', (req, res) => {
+  try {
+    const { db } = req;
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    
+    // Get all tables with their section info
+    const tables = db.prepare(`
+      SELECT t.id, t.number, t.capacity, s.name as section_name
+      FROM tables t
+      LEFT JOIN sections s ON t.section_id = s.id
+      ORDER BY t.number
+    `).all();
+    
+    if (tables.length === 0) {
+      return res.status(404).json({ error: 'No tables found' });
+    }
+    
+    // Generate QR code URLs for each table
+    const qrCodes = tables.map(table => ({
+      tableNumber: table.number,
+      section: table.section_name || 'General',
+      capacity: table.capacity,
+      url: `${baseUrl}/order/${table.number}`
+    }));
+    
+    // Return JSON response with QR codes data
+    res.json({
+      success: true,
+      count: qrCodes.length,
+      qrCodes: qrCodes,
+      message: 'QR codes generated successfully. Use a QR code generator to create printable codes.'
+    });
+  } catch (error) {
+    console.error('Generate QR error:', error);
+    res.status(500).json({ error: 'Failed to generate QR codes' });
+  }
+});
+
 // Initial setup
 router.post('/initial', async (req, res) => {
   try {
