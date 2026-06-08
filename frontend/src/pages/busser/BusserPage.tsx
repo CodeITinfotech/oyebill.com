@@ -80,15 +80,15 @@ export default function BusserPage() {
 
         {/* Stats Bar */}
         <div className="flex gap-4 mt-4 overflow-x-auto pb-2">
-          <div className="px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+          <div className="px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-lg flex items-center gap-3">
             <p className="text-2xl font-bold text-orange-400">{tables.length}</p>
-            <p className="text-xs text-text-muted">Pending</p>
+            <p className="text-sm text-text-muted">Pending</p>
           </div>
-          <div className="px-4 py-2 bg-background-secondary rounded-lg">
+          <div className="px-4 py-2 bg-background-secondary rounded-lg flex items-center gap-3">
             <p className="text-2xl font-bold text-text-primary">
               {tables.reduce((sum, t) => sum + t.capacity, 0)}
             </p>
-            <p className="text-xs text-text-muted">Total Seats</p>
+            <p className="text-sm text-text-muted">Total Seats</p>
           </div>
         </div>
       </div>
@@ -140,16 +140,16 @@ export default function BusserPage() {
                 </div>
 
                 {/* Table Info */}
-                <div className="p-3">
-                  <div className="flex items-center justify-between text-xs text-text-muted mb-3">
-                    <span>Waiting: {getTimeSince(table.lastBillTime)}</span>
-                    <span className="px-2 py-0.5 bg-background-tertiary rounded">Pending</span>
+                <div className="p-3 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-muted">Waiting: {getTimeSince(table.lastBillTime)}</span>
+                    <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs">Pending</span>
                   </div>
 
                   <button
                     onClick={() => handleMarkCleaned(table.id)}
                     disabled={processingId === table.id}
-                    className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-800 disabled:opacity-50 text-white text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
                   >
                     {processingId === table.id ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
