@@ -672,6 +672,17 @@ export function BillingPage() {
     await generateKOT(currentOrderId || (isOnlineOrderMode ? 'ONLINE-KOT' : ''));
     toast('success', isOnlineOrderMode ? 'Online Order KOT Generated' : 'KOT Generated successfully');
     
+    // Update table status to active (KOT generated)
+    if (!isOnlineOrderMode && selectedTable) {
+      try {
+        await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+        setSelectedTable({ ...selectedTable, status: 'active' });
+        store.fetchTables(selectedSection || undefined);
+      } catch (error) {
+        console.error('Failed to update table status to active:', error);
+      }
+    }
+    
     // Print KOT (simulated)
     setTimeout(() => {
       console.log('KOT Print triggered');
