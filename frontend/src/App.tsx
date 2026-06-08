@@ -9,6 +9,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SetupPage } from './pages/auth/SetupPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { BillingPage } from './pages/billing/BillingPage';
+import OnlineOrdersPage from './pages/online-orders/OnlineOrdersPage';
 import { ProductsPage } from './pages/products/ProductsPage';
 import { CategoriesPage } from './pages/categories/CategoriesPage';
 import { SectionsPage } from './pages/sections/SectionsPage';
@@ -144,6 +145,18 @@ function App() {
                 <Navigate to="/reset-password" replace />
               ) : (
                 <BillingPage />
+              )}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/online-orders"
+          element={
+            <ProtectedRoute>
+              {user?.mustResetPassword ? (
+                <Navigate to="/reset-password" replace />
+              ) : (
+                <OnlineOrdersPage />
               )}
             </ProtectedRoute>
           }

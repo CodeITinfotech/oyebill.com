@@ -326,6 +326,49 @@ class ApiClient {
     return this.request(`/customers/${id}`, { method: 'DELETE' });
   }
 
+  // Online Orders endpoints
+  async getOnlineOrders(params?: { status?: string; platform?: string; limit?: number }) {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.platform) queryParams.append('platform', params.platform);
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    const query = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    return this.request<any[]>(`/online-orders${query}`);
+  }
+
+  async getOnlineOrder(id: string) {
+    return this.request<any>(`/online-orders/${id}`);
+  }
+
+  async acceptOnlineOrder(id: string) {
+    return this.request<any>(`/online-orders/${id}/accept`, { method: 'POST' });
+  }
+
+  async declineOnlineOrder(id: string, reason?: string) {
+    return this.request<any>(`/online-orders/${id}/decline`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async updateOnlineOrderStatus(id: string, status: string) {
+    return this.request<any>(`/online-orders/${id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async linkOnlineOrderToBilling(id: string, orderId: string) {
+    return this.request<any>(`/online-orders/${id}/link-order`, {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId }),
+    });
+  }
+
+  async getOnlineOrderCounts() {
+    return this.request<{ new: number; accepted: number; preparing: number; ready: number; total: number }>('/online-orders/stats/counts');
+  }
+
   // Setup endpoints
   async checkSetup() {
     return this.request<{ needsSetup: boolean; restaurant?: any }>('/setup/status');

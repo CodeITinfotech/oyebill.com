@@ -25,6 +25,7 @@ import { useSidebar } from './SidebarContext';
 
 const navItems = [
   { to: '/billing', icon: FileText, label: 'Billing' },
+  { to: '/online-orders', icon: Store, label: 'Online Orders', mobileLabel: 'Orders' },
   { to: '/products', icon: Package, label: 'Products' },
   { to: '/categories', icon: Layers, label: 'Categories' },
   { to: '/sections', icon: Grid3X3, label: 'Sections' },
@@ -196,7 +197,7 @@ export function Sidebar() {
                   }
                 >
                   <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {showFullContent && <span>{item.label}</span>}
+                  {showFullContent && <span>{viewMode === 'mobile' && item.mobileLabel ? item.mobileLabel : item.label}</span>}
                 </NavLink>
               );
             }
@@ -213,7 +214,7 @@ export function Sidebar() {
                 }
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
-                {showFullContent && <span>{item.label}</span>}
+                {showFullContent && <span>{viewMode === 'mobile' && item.mobileLabel ? item.mobileLabel : item.label}</span>}
               </NavLink>
             );
           })}

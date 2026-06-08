@@ -171,6 +171,31 @@ db.exec(`
   
   CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
   CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+  
+  -- Online Orders table
+  CREATE TABLE IF NOT EXISTS online_orders (
+    id TEXT PRIMARY KEY,
+    external_order_id TEXT,
+    platform TEXT NOT NULL CHECK(platform IN ('swiggy', 'zomato', 'magicpin', 'other')),
+    customer_name TEXT,
+    customer_phone TEXT,
+    delivery_address TEXT,
+    order_data TEXT,
+    status TEXT DEFAULT 'new' CHECK(status IN ('new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled', 'declined')),
+    total_amount REAL DEFAULT 0,
+    items_count INTEGER DEFAULT 0,
+    estimated_time INTEGER,
+    restaurant_id TEXT,
+    linked_order_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+    FOREIGN KEY (linked_order_id) REFERENCES orders(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_online_orders_status ON online_orders(status);
+  CREATE INDEX IF NOT EXISTS idx_online_orders_platform ON online_orders(platform);
+  CREATE INDEX IF NOT EXISTS idx_online_orders_created ON online_orders(created_at);
 `);
 
 export default db;

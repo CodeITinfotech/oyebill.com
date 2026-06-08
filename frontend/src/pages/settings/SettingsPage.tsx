@@ -107,6 +107,16 @@ export function SettingsPage() {
     showQrOnKot: false,
   });
 
+  // Online Orders Integration form
+  const [onlineOrdersForm, setOnlineOrdersForm] = useState({
+    swiggyEnabled: false,
+    swiggyApiKey: '',
+    swiggySecret: '',
+    zomatoEnabled: false,
+    zomatoApiKey: '',
+    zomatoClientSecret: '',
+  });
+
   // User Rights state
   const [userRights, setUserRights] = useState({
     waiter: {
@@ -215,6 +225,18 @@ export function SettingsPage() {
           merchantName: settings.payment.merchantName || restaurant?.name || '',
           showQrOnBill: settings.payment.showQrOnBill !== false,
           showQrOnKot: Boolean(settings.payment.showQrOnKot),
+        });
+      }
+      
+      // Load Online Orders settings
+      if (settings.onlineOrders) {
+        setOnlineOrdersForm({
+          swiggyEnabled: settings.onlineOrders.swiggyEnabled || false,
+          swiggyApiKey: settings.onlineOrders.swiggyApiKey || '',
+          swiggySecret: settings.onlineOrders.swiggySecret || '',
+          zomatoEnabled: settings.onlineOrders.zomatoEnabled || false,
+          zomatoApiKey: settings.onlineOrders.zomatoApiKey || '',
+          zomatoClientSecret: settings.onlineOrders.zomatoClientSecret || '',
         });
       }
     }
@@ -531,6 +553,27 @@ export function SettingsPage() {
       toast('success', 'Payment settings saved');
     } else {
       toast('error', 'Failed to save payment settings');
+    }
+  };
+
+  const handleSaveOnlineOrders = async () => {
+    setIsSubmitting(true);
+    const success = await updateSettings({
+      onlineOrders: {
+        swiggyEnabled: onlineOrdersForm.swiggyEnabled,
+        swiggyApiKey: onlineOrdersForm.swiggyApiKey,
+        swiggySecret: onlineOrdersForm.swiggySecret,
+        zomatoEnabled: onlineOrdersForm.zomatoEnabled,
+        zomatoApiKey: onlineOrdersForm.zomatoApiKey,
+        zomatoClientSecret: onlineOrdersForm.zomatoClientSecret,
+      },
+    });
+    setIsSubmitting(false);
+
+    if (success) {
+      toast('success', 'Online Orders settings saved');
+    } else {
+      toast('error', 'Failed to save Online Orders settings');
     }
   };
 
@@ -1465,6 +1508,107 @@ export function SettingsPage() {
                 <div className="pt-4 border-t border-white/10">
                   <Button onClick={handleSavePayment} loading={isSubmitting}>
                     Save Payment Settings
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Online Orders Integration */}
+          {activeTab === 'restaurant' && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold">Online Orders Integration</h2>
+                <p className="text-sm text-text-muted">Connect Swiggy and Zomato for online orders</p>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Swiggy Integration */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">S</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium">Swiggy Integration</h3>
+                      <label className="flex items-center gap-2 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={onlineOrdersForm.swiggyEnabled}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, swiggyEnabled: e.target.checked})}
+                          className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                        />
+                        <span className="text-sm text-text-secondary">Enable Swiggy</span>
+                      </label>
+                    </div>
+                  </div>
+                  {onlineOrdersForm.swiggyEnabled && (
+                    <div className="space-y-3 mt-4 pt-4 border-t border-white/10">
+                      <div>
+                        <label className="block text-sm text-text-secondary mb-1">API Key</label>
+                        <Input
+                          value={onlineOrdersForm.swiggyApiKey}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, swiggyApiKey: e.target.value})}
+                          placeholder="Enter Swiggy API Key"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-text-secondary mb-1">Secret Key</label>
+                        <Input
+                          type="password"
+                          value={onlineOrdersForm.swiggySecret}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, swiggySecret: e.target.value})}
+                          placeholder="Enter Swiggy Secret"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Zomato Integration */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-red-600 flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">Z</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium">Zomato Integration</h3>
+                      <label className="flex items-center gap-2 mt-1">
+                        <input
+                          type="checkbox"
+                          checked={onlineOrdersForm.zomatoEnabled}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, zomatoEnabled: e.target.checked})}
+                          className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent"
+                        />
+                        <span className="text-sm text-text-secondary">Enable Zomato</span>
+                      </label>
+                    </div>
+                  </div>
+                  {onlineOrdersForm.zomatoEnabled && (
+                    <div className="space-y-3 mt-4 pt-4 border-t border-white/10">
+                      <div>
+                        <label className="block text-sm text-text-secondary mb-1">API Key</label>
+                        <Input
+                          value={onlineOrdersForm.zomatoApiKey}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, zomatoApiKey: e.target.value})}
+                          placeholder="Enter Zomato API Key"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-text-secondary mb-1">Client Secret</label>
+                        <Input
+                          type="password"
+                          value={onlineOrdersForm.zomatoClientSecret}
+                          onChange={(e) => setOnlineOrdersForm({...onlineOrdersForm, zomatoClientSecret: e.target.value})}
+                          placeholder="Enter Zomato Client Secret"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-white/10">
+                  <Button onClick={handleSaveOnlineOrders} loading={isSubmitting}>
+                    Save Online Orders Settings
                   </Button>
                 </div>
               </CardBody>
