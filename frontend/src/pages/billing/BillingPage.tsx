@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { api } from '../../api';
 import { PageHeader } from '../../components/layout';
 import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../components/ui';
-import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key } from 'lucide-react';
+import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Product, Table, OrderItem } from '../../types';
 
@@ -77,6 +77,14 @@ export function BillingPage() {
       (c.phone && c.phone.includes(search))
     );
   });
+  
+  // Customer Orders (NFC/QR) notifications
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showOrdersPanel, setShowOrdersPanel] = useState(false);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineOrderId, setDeclineOrderId] = useState<string | null>(null);
   
   // Ref for quantity input focus
   const quantityInputRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -165,6 +173,44 @@ export function BillingPage() {
   useEffect(() => {
     store.fetchTables(selectedSection || undefined);
   }, [selectedSection]);
+
+  // Fetch customer orders and notifications for waiters/admins
+  useEffect(() => {
+    const fetchOrdersAndNotifications = async () => {
+      if (!user) return;
+      
+      // For waiters and admins, fetch pending orders
+      if (user.role === 'waiter' || user.role === 'admin') {
+        try {
+          // Fetch pending orders for this waiter
+          const ordersRes = await api.getWaiterPendingOrders(user.id);
+          if (ordersRes.success && Array.isArray(ordersRes.data)) {
+            setPendingOrders(ordersRes.data);
+          }
+          
+          // Fetch notifications
+          const notifRes = await api.getWaiterNotifications(user.id, false);
+          if (notifRes.success && Array.isArray(notifRes.data)) {
+            setNotifications(notifRes.data);
+          }
+          
+          // Get unread count
+          const countRes = await api.getUnreadCount(user.id);
+          if (countRes.success && countRes.data) {
+            setUnreadCount(countRes.data.count);
+          }
+        } catch (error) {
+          console.error('Error fetching orders/notifications:', error);
+        }
+      }
+    };
+    
+    fetchOrdersAndNotifications();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchOrdersAndNotifications, 10000);
+    return () => clearInterval(interval);
+  }, [user?.id, user?.role]);
 
   // Persist table carts to localStorage
   useEffect(() => {
@@ -423,6 +469,87 @@ export function BillingPage() {
   // Remove item from cart
   const removeFromCart = (itemId: string) => {
     setCart(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  // Accept customer order
+  const handleAcceptOrder = async (order: any) => {
+    if (!user) return;
+    
+    try {
+      const response = await api.acceptCustomerOrder(order.id, user.id);
+      if (response.success) {
+        toast('success', `Order from Table ${order.table_number} accepted`);
+        
+        // Add items to current cart for KOT generation
+        if (order.items && order.items.length > 0) {
+          const newCartItems: CartItem[] = order.items.map((item: any) => ({
+            id: uuidv4(),
+            productId: item.product_id,
+            productName: item.product_name,
+            quantity: item.quantity,
+            unitPrice: item.unit_price,
+            taxRate: item.tax_rate,
+            taxAmount: item.tax_amount,
+            total: item.total,
+            isKot: false,
+            isNew: true
+          }));
+          
+          // If a table is selected, add to cart; otherwise prompt to select table
+          if (selectedTable) {
+            setCart(prev => [...prev, ...newCartItems]);
+          } else {
+            // Find the table from pending orders
+            const tableInfo = tables.find(t => t.number === order.table_number);
+            if (tableInfo) {
+              handleTableSelect(tableInfo);
+              setTimeout(() => {
+                setCart(newCartItems);
+              }, 500);
+            }
+          }
+        }
+        
+        // Refresh orders
+        const ordersRes = await api.getWaiterPendingOrders(user.id);
+        if (ordersRes.success) {
+          setPendingOrders(ordersRes.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error accepting order:', error);
+      toast('error', 'Failed to accept order');
+    }
+  };
+
+  // Show decline modal
+  const handleDeclineOrder = (orderId: string) => {
+    setDeclineOrderId(orderId);
+    setShowDeclineModal(true);
+  };
+
+  // Confirm decline order
+  const handleConfirmDecline = async () => {
+    if (!user || !declineOrderId) return;
+    
+    try {
+      const response = await api.declineCustomerOrder(declineOrderId, user.id, 'Busy with other tables');
+      if (response.success) {
+        toast('info', 'Order declined');
+        
+        // Refresh orders
+        const ordersRes = await api.getWaiterPendingOrders(user.id);
+        if (ordersRes.success) {
+          setPendingOrders(ordersRes.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error declining order:', error);
+      toast('error', 'Failed to decline order');
+    } finally {
+      setShowDeclineModal(false);
+      setDeclineOrderId(null);
+    }
   };
 
   // Select table
@@ -1056,8 +1183,39 @@ export function BillingPage() {
       </div>
 
       {/* Desktop: Full page header */}
-      <div className="hidden lg:block mb-4">
+      <div className="hidden lg:flex items-center justify-between mb-4">
         <h1 className="text-2xl font-display font-bold text-text-primary">Billing</h1>
+        
+        {/* Notification Bell for Waiters/Admins */}
+        {(user?.role === 'waiter' || user?.role === 'admin') && (
+          <button
+            onClick={() => setShowOrdersPanel(true)}
+            className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+      <div className="lg:hidden mb-4 flex items-center justify-between">
+        <h1 className="text-xl font-display font-bold text-text-primary">Billing</h1>
+        {(user?.role === 'waiter' || user?.role === 'admin') && (
+          <button
+            onClick={() => setShowOrdersPanel(true)}
+            className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Desktop: Two column layout, Mobile: Single column with cart toggle */}
@@ -2571,6 +2729,129 @@ export function BillingPage() {
           </div>
         </div>
       )}
+
+      {/* Customer Orders Panel - NFC/QR Orders */}
+      <Modal
+        isOpen={showOrdersPanel}
+        onClose={() => setShowOrdersPanel(false)}
+        title="Customer Orders"
+        size="lg"
+      >
+        {/* Pending Orders */}
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          {pendingOrders.length === 0 ? (
+            <div className="text-center py-8 text-text-muted">
+              <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No pending customer orders</p>
+              <p className="text-sm">Orders from NFC/QR scans will appear here</p>
+            </div>
+          ) : (
+            pendingOrders.map(order => (
+              <div key={order.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-accent/20 text-accent text-xs rounded">
+                        Table {order.table_number}
+                      </span>
+                      <span className={`px-2 py-0.5 text-xs rounded ${
+                        order.order_source === 'nfc' ? 'bg-blue-500/20 text-blue-400' : 'bg-purple-500/20 text-purple-400'
+                      }`}>
+                        {order.order_source === 'nfc' ? 'NFC' : 'QR'}
+                      </span>
+                    </div>
+                    {order.customer_name && (
+                      <p className="text-sm text-text-muted mt-1">
+                        Customer: {order.customer_name}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-semibold text-lg">₹{order.total?.toFixed(2) || '0.00'}</span>
+                </div>
+                
+                {/* Order Items */}
+                <div className="space-y-2 mb-4">
+                  {order.items?.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+                      <span>{item.product_name}</span>
+                      <span className="text-text-muted">x{item.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="success"
+                    size="sm"
+                    onClick={() => handleAcceptOrder(order)}
+                    className="flex-1"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-1" />
+                    Accept
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleDeclineOrder(order.id)}
+                    className="flex-1"
+                  >
+                    <XCircle className="w-4 h-4 mr-1" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        
+        {/* Mark all read button */}
+        {notifications.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                if (user) {
+                  await api.markAllRead(user.id);
+                  setUnreadCount(0);
+                }
+              }}
+              className="w-full"
+            >
+              Mark All as Read
+            </Button>
+          </div>
+        )}
+      </Modal>
+
+      {/* Decline Confirmation Modal */}
+      <Modal
+        isOpen={showDeclineModal}
+        onClose={() => setShowDeclineModal(false)}
+        title="Decline Order"
+        size="sm"
+      >
+        <p className="text-text-secondary mb-4">
+          Are you sure you want to decline this order? The order will be marked as declined and an admin will be notified.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => setShowDeclineModal(false)}
+            className="flex-1"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleConfirmDecline}
+            className="flex-1"
+          >
+            Decline
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

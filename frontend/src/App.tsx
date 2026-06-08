@@ -18,6 +18,7 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 import { CustomersPage } from './pages/customers/CustomersPage';
 import BusserPage from './pages/busser/BusserPage';
 import { NotFoundPage } from './pages/error/ErrorPage';
+import NFCOrdering from './pages/nfc/NFCOrdering';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -244,6 +245,12 @@ function App() {
               )}
             </ProtectedRoute>
           }
+        />
+
+        {/* NFC/QR Customer Ordering - Public Route */}
+        <Route
+          path="/order/:tableNumber"
+          element={<NFCOrdering />}
         />
 
         {/* Default Redirect */}

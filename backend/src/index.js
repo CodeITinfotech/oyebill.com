@@ -17,6 +17,9 @@ import setupRoutes from './routes/setup.js';
 import customerRoutes from './routes/customers.js';
 import onlineOrderRoutes from './routes/online-orders.js';
 import busserRoutes from './routes/busser.js';
+import tableAllocationsRoutes from './routes/table-allocations.js';
+import customerOrdersRoutes from './routes/customer-orders.js';
+import notificationsRoutes from './routes/notifications.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,6 +51,9 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/online-orders', onlineOrderRoutes);
 app.use('/api/busser', busserRoutes);
 app.use('/api/setup', setupRoutes);
+app.use('/api/table-allocations', tableAllocationsRoutes);
+app.use('/api/customer-orders', customerOrdersRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

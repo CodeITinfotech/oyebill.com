@@ -412,6 +412,106 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Table-Waiter Allocations
+  async getTableAllocations(restaurantId?: string) {
+    return this.request<any[]>(`/table-allocations${restaurantId ? `?restaurantId=${restaurantId}` : ''}`);
+  }
+
+  async getWaiterTables(waiterId: string) {
+    return this.request<any[]>(`/table-allocations/waiter/${waiterId}`);
+  }
+
+  async getTableWaiters(tableId: string) {
+    return this.request<any[]>(`/table-allocations/table/${tableId}`);
+  }
+
+  async createAllocation(tableId: string, waiterId: string) {
+    return this.request<any>('/table-allocations', {
+      method: 'POST',
+      body: JSON.stringify({ tableId, waiterId }),
+    });
+  }
+
+  async deleteAllocation(id: string) {
+    return this.request(`/table-allocations/${id}`, { method: 'DELETE' });
+  }
+
+  async bulkAllocate(allocations: { tableId: string; waiterId: string }[]) {
+    return this.request('/table-allocations/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ allocations }),
+    });
+  }
+
+  // Customer Orders (NFC/QR)
+  async getTableByNumber(tableNumber: string) {
+    return this.request<any>(`/customer-orders/table/${tableNumber}`);
+  }
+
+  async createCustomerOrder(orderData: {
+    tableId: string;
+    tableNumber: string;
+    items: any[];
+    customerName?: string;
+    customerPhone?: string;
+    notes?: string;
+    restaurantId?: string;
+    orderSource?: string;
+  }) {
+    return this.request<any>('/customer-orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  async getWaiterPendingOrders(waiterId: string) {
+    return this.request<any[]>(`/customer-orders/waiter/${waiterId}/pending`);
+  }
+
+  async acceptCustomerOrder(orderId: string, waiterId: string) {
+    return this.request(`/customer-orders/${orderId}/accept`, {
+      method: 'PUT',
+      body: JSON.stringify({ waiterId }),
+    });
+  }
+
+  async declineCustomerOrder(orderId: string, waiterId: string, reason?: string) {
+    return this.request(`/customer-orders/${orderId}/decline`, {
+      method: 'PUT',
+      body: JSON.stringify({ waiterId, reason }),
+    });
+  }
+
+  async getCustomerOrder(orderId: string) {
+    return this.request<any>(`/customer-orders/${orderId}`);
+  }
+
+  async getAllCustomerOrders(restaurantId?: string, status?: string) {
+    let url = '/customer-orders';
+    const params = [];
+    if (restaurantId) params.push(`restaurantId=${restaurantId}`);
+    if (status) params.push(`status=${status}`);
+    if (params.length) url += '?' + params.join('&');
+    return this.request<any[]>(url);
+  }
+
+  // Notifications
+  async getWaiterNotifications(waiterId: string, unreadOnly?: boolean) {
+    return this.request<any[]>(`/notifications/waiter/${waiterId}${unreadOnly ? '?unreadOnly=true' : ''}`);
+  }
+
+  async getUnreadCount(waiterId: string) {
+    return this.request<{ count: number }>(`/notifications/waiter/${waiterId}/unread-count`);
+  }
+
+  async markNotificationRead(id: string) {
+    return this.request(`/notifications/${id}/read`, { method: 'PUT' });
+  }
+
+  async markAllRead(waiterId: string) {
+    return this.request(`/notifications/waiter/${waiterId}/read-all`, { method: 'PUT' });
+  }
 }
 
 export const api = new ApiClient();

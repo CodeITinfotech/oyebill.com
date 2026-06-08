@@ -4,10 +4,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
-import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus } from 'lucide-react';
+import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X } from 'lucide-react';
 import { api } from '../../api';
 
-type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus';
+type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations';
 type PrinterTab = 'kot' | 'bill' | 'setup';
 
 export function SettingsPage() {
@@ -21,6 +21,13 @@ export function SettingsPage() {
     : 'restaurant';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Table Allocations state
+  const [allocations, setAllocations] = useState<any[]>([]);
+  const [loadingAllocations, setLoadingAllocations] = useState(false);
+  const [selectedTableId, setSelectedTableId] = useState<string>('');
+  const [selectedWaiterId, setSelectedWaiterId] = useState<string>('');
+  const [editingMode, setEditingMode] = useState(false);
 
   // Restaurant form
   const [restaurantForm, setRestaurantForm] = useState({
@@ -177,6 +184,28 @@ export function SettingsPage() {
       fetchCustomers();
     }
   }, []);
+
+  // Fetch table allocations when tab changes
+  useEffect(() => {
+    if (activeTab === 'tableAllocations' && restaurant?.id) {
+      fetchAllocations();
+    }
+  }, [activeTab, restaurant?.id]);
+
+  const fetchAllocations = async () => {
+    setLoadingAllocations(true);
+    try {
+      const response = await api.getTableAllocations(restaurant?.id);
+      if (response.success) {
+        setAllocations(response.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching allocations:', error);
+      toast('error', 'Failed to load table allocations');
+    } finally {
+      setLoadingAllocations(false);
+    }
+  };
 
   useEffect(() => {
     if (settings) {
@@ -661,6 +690,7 @@ export function SettingsPage() {
       { id: 'payment', label: 'Payment', icon: Percent },
       { id: 'rights', label: 'User Rights', icon: Shield },
       { id: 'tableStatus', label: 'Table Status', icon: Tag },
+      { id: 'tableAllocations', label: 'Table-Waiter', icon: LayoutGrid },
     ] : []),
   ];
 
@@ -2005,6 +2035,179 @@ export function SettingsPage() {
                   <Button onClick={handleSaveTableStatus} loading={isSubmitting}>
                     Save Table Status Colors
                   </Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Table-Waiter Allocations */}
+          {activeTab === 'tableAllocations' && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold">Table-Waiter Allocations</h2>
+                    <p className="text-sm text-text-muted">Assign tables to waiters for NFC/QR order notifications</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-text-muted">Generate QR:</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.open('/api/setup/generate-qr', '_blank')}
+                    >
+                      <QrCode className="w-4 h-4 mr-1" />
+                      Generate All
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Add New Allocation */}
+                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                  <h3 className="font-medium mb-3">Add New Allocation</h3>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-sm text-text-secondary mb-1">Table</label>
+                      <Select
+                        value={selectedTableId}
+                        onChange={(e) => setSelectedTableId(e.target.value)}
+                      >
+                        <option value="">Select Table</option>
+                        {tables.map(table => (
+                          <option key={table.id} value={table.id}>
+                            Table {table.number}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                      <label className="block text-sm text-text-secondary mb-1">Waiter</label>
+                      <Select
+                        value={selectedWaiterId}
+                        onChange={(e) => setSelectedWaiterId(e.target.value)}
+                      >
+                        <option value="">Select Waiter</option>
+                        {waiters.filter(w => w.role === 'waiter' || w.role === 'busser').map(waiter => (
+                          <option key={waiter.id} value={waiter.id}>
+                            {waiter.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        onClick={async () => {
+                          if (!selectedTableId || !selectedWaiterId) {
+                            toast('error', 'Please select both table and waiter');
+                            return;
+                          }
+                          
+                          // Check if already allocated
+                          const existing = allocations.find(
+                            a => a.table_id === selectedTableId && a.waiter_id === selectedWaiterId
+                          );
+                          if (existing) {
+                            toast('info', 'This allocation already exists');
+                            return;
+                          }
+                          
+                          const response = await api.createAllocation(selectedTableId, selectedWaiterId);
+                          if (response.success) {
+                            toast('success', 'Allocation created');
+                            setSelectedTableId('');
+                            setSelectedWaiterId('');
+                            fetchAllocations();
+                          } else {
+                            toast('error', response.error || 'Failed to create allocation');
+                          }
+                        }}
+                        disabled={!selectedTableId || !selectedWaiterId}
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Existing Allocations */}
+                <div>
+                  <h3 className="font-medium mb-3">Current Allocations</h3>
+                  {loadingAllocations ? (
+                    <div className="text-center py-8">
+                      <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                      <p className="text-text-muted text-sm">Loading...</p>
+                    </div>
+                  ) : allocations.length === 0 ? (
+                    <div className="text-center py-8 text-text-muted">
+                      <LayoutGrid className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No allocations yet</p>
+                      <p className="text-sm">Assign tables to waiters above</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* Group by waiter */}
+                      {Array.from(new Set(allocations.map(a => a.waiter_id))).map(waiterId => {
+                        const waiterAllocations = allocations.filter(a => a.waiter_id === waiterId);
+                        const waiterName = waiterAllocations[0]?.waiter_name;
+                        
+                        return (
+                          <div key={waiterId} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-accent" />
+                                <span className="font-medium">{waiterName}</span>
+                              </div>
+                              <span className="text-xs text-text-muted">
+                                {waiterAllocations.length} table{waiterAllocations.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {waiterAllocations.map(alloc => (
+                                <div
+                                  key={alloc.id}
+                                  className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent/10 text-accent text-sm"
+                                >
+                                  <span>Table {alloc.table_number}</span>
+                                  <button
+                                    onClick={async () => {
+                                      const response = await api.deleteAllocation(alloc.id);
+                                      if (response.success) {
+                                        fetchAllocations();
+                                      }
+                                    }}
+                                    className="hover:text-red-400"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                {/* QR Code Instructions */}
+                <div className="p-4 rounded-lg border border-dashed border-white/20">
+                  <div className="flex items-start gap-3">
+                    <QrCode className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium mb-1">QR Code Setup</h4>
+                      <p className="text-sm text-text-muted mb-2">
+                        Each table should have a QR code that customers can scan to place orders directly.
+                      </p>
+                      <p className="text-sm text-text-muted">
+                        URL format: <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">/order/[TABLE_NUMBER]</code>
+                      </p>
+                      <p className="text-sm text-text-muted mt-1">
+                        Example: <code className="bg-white/10 px-1.5 py-0.5 rounded text-xs">{typeof window !== 'undefined' ? window.location.origin : ''}/order/101</code>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardBody>
             </Card>

@@ -274,6 +274,94 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_online_orders_status ON online_orders(status);
   CREATE INDEX IF NOT EXISTS idx_online_orders_platform ON online_orders(platform);
   CREATE INDEX IF NOT EXISTS idx_online_orders_created ON online_orders(created_at);
+  
+  -- Table Waiter Allocations (maps tables to assigned waiters)
+  CREATE TABLE IF NOT EXISTS table_waiter_allocations (
+    id TEXT PRIMARY KEY,
+    table_id TEXT NOT NULL,
+    waiter_id TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (table_id) REFERENCES tables(id),
+    FOREIGN KEY (waiter_id) REFERENCES users(id),
+    UNIQUE(table_id, waiter_id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_twa_table ON table_waiter_allocations(table_id);
+  CREATE INDEX IF NOT EXISTS idx_twa_waiter ON table_waiter_allocations(waiter_id);
+  CREATE INDEX IF NOT EXISTS idx_twa_active ON table_waiter_allocations(is_active);
+  
+  -- Customer Orders (direct orders via NFC/QR)
+  CREATE TABLE IF NOT EXISTS customer_orders (
+    id TEXT PRIMARY KEY,
+    table_id TEXT NOT NULL,
+    table_number TEXT NOT NULL,
+    customer_name TEXT,
+    customer_phone TEXT,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'declined', 'completed', 'cancelled')),
+    subtotal REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0,
+    total REAL DEFAULT 0,
+    items_count INTEGER DEFAULT 0,
+    order_source TEXT DEFAULT 'nfc' CHECK(order_source IN ('nfc', 'qr', 'direct')),
+    accepted_by TEXT,
+    accepted_at DATETIME,
+    declined_reason TEXT,
+    notes TEXT,
+    restaurant_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (table_id) REFERENCES tables(id),
+    FOREIGN KEY (accepted_by) REFERENCES users(id),
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_co_table ON customer_orders(table_id);
+  CREATE INDEX IF NOT EXISTS idx_co_status ON customer_orders(status);
+  CREATE INDEX IF NOT EXISTS idx_co_created ON customer_orders(created_at);
+  CREATE INDEX IF NOT EXISTS idx_co_waiter ON customer_orders(accepted_by);
+  
+  -- Customer Order Items
+  CREATE TABLE IF NOT EXISTS customer_order_items (
+    id TEXT PRIMARY KEY,
+    customer_order_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    unit_price REAL NOT NULL,
+    tax_rate REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0,
+    total REAL NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_order_id) REFERENCES customer_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_coi_order ON customer_order_items(customer_order_id);
+  CREATE INDEX IF NOT EXISTS idx_coi_product ON customer_order_items(product_id);
+  
+  -- Waiter Notifications
+  CREATE TABLE IF NOT EXISTS waiter_notifications (
+    id TEXT PRIMARY KEY,
+    waiter_id TEXT NOT NULL,
+    table_id TEXT,
+    table_number TEXT,
+    customer_order_id TEXT,
+    notification_type TEXT DEFAULT 'order' CHECK(notification_type IN ('order', 'accept', 'decline', 'system')),
+    title TEXT NOT NULL,
+    message TEXT,
+    is_read INTEGER DEFAULT 0,
+    is_acknowledged INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (waiter_id) REFERENCES users(id),
+    FOREIGN KEY (table_id) REFERENCES tables(id),
+    FOREIGN KEY (customer_order_id) REFERENCES customer_orders(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_wn_waiter ON waiter_notifications(waiter_id);
+  CREATE INDEX IF NOT EXISTS idx_wn_read ON waiter_notifications(is_read);
+  CREATE INDEX IF NOT EXISTS idx_wn_created ON waiter_notifications(created_at);
 `);
 
 export default db;
