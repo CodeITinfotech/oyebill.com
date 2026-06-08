@@ -1530,16 +1530,16 @@ export function BillingPage() {
                 <span>Available</span>
               </div>
               <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
+                <span>Active - KOT</span>
+              </div>
+              <div className="flex items-center gap-1">
                 <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
-                <span>Occupied</span>
+                <span>Occupied - Billing</span>
               </div>
               <div className="flex items-center gap-1">
                 <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-gray-500"></span>
-                <span>Cleaning</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
-                <span>Active</span>
+                <span>Cleaning - Pending</span>
               </div>
             </div>
           </div>
@@ -2005,8 +2005,8 @@ export function BillingPage() {
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
                     {isAvailable && <span className="text-[10px] text-success">Available</span>}
-                    {isOccupied && <span className="text-[10px] text-red-500">Occupied</span>}
-                    {isPendingCleaning && <span className="text-[10px] text-gray-400">Cleaning</span>}
+                    {isOccupied && <span className="text-[10px] text-red-500">Occupied - Billing</span>}
+                    {isPendingCleaning && <span className="text-[10px] text-gray-400">Cleaning - Pending</span>}
                   </button>
                 );
               })}
