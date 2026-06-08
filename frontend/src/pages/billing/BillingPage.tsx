@@ -1939,7 +1939,13 @@ export function BillingPage() {
                         // Move items to new table
                         // 1. Create new order for target table with current cart items
                         if (cart.length > 0) {
-                          const response = await api.createOrder(table.id, cart, selectedWaiter || undefined, selectedCustomer?.id);
+                          const orderData = {
+                            tableId: table.id,
+                            items: cart,
+                            waiterId: selectedWaiter || undefined,
+                            customerId: selectedCustomer?.id
+                          };
+                          const response = await api.createOrder(orderData);
                           if (!response.success) {
                             toast('error', 'Failed to move items to new table');
                             return;
