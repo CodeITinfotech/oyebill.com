@@ -1285,19 +1285,43 @@ export function BillingPage() {
               </div>
               {/* Searchable Customer Dropdown */}
               <div className="relative">
-                <input
-                  type="text"
-                  value={selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` (${selectedCustomer.phone})` : ''}` : customerSearch}
-                  onChange={(e) => {
-                    setCustomerSearch(e.target.value);
-                    setSelectedCustomer(null);
-                    setShowCustomerDropdown(true);
-                  }}
-                  onFocus={() => setShowCustomerDropdown(true)}
-                  placeholder="Customer"
-                  className="w-full px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
-                />
-                {showCustomerDropdown && (
+                {selectedCustomer ? (
+                  // Show selected customer with clear option
+                  <div className="flex items-center justify-between px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-3 h-3 text-accent" />
+                      <span className="text-xs text-accent font-medium truncate max-w-[100px]">
+                        {selectedCustomer.name}
+                      </span>
+                      {selectedCustomer.phone && (
+                        <span className="text-[10px] text-text-muted">({selectedCustomer.phone})</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setCustomerSearch('');
+                      }}
+                      className="text-text-muted hover:text-white flex-shrink-0"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      setSelectedCustomer(null);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    placeholder="Customer"
+                    className="w-full px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  />
+                )}
+                {showCustomerDropdown && !selectedCustomer && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.map((c) => (
@@ -1533,13 +1557,13 @@ export function BillingPage() {
                   <MoreHorizontal className="w-4 h-4" />
                   <span className="hidden sm:inline">More</span>
                 </Button>
-                {/* Dropdown */}
+                {/* Dropdown - opens upwards */}
                 {showMoreDropdown && (
                   <div 
-                    className="absolute bottom-full left-0 mb-1 z-20 more-dropdown"
+                    className="absolute bottom-full left-0 mb-1 z-50 more-dropdown"
                   >
                     <div 
-                      className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[120px]"
+                      className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
