@@ -51,6 +51,7 @@ export function BillingPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [waiterPinInput, setWaiterPinInput] = useState('');
+  const [waiterSearch, setWaiterSearch] = useState('');
   const [showWaiterDropdown, setShowWaiterDropdown] = useState(false);
   
   // Mobile state
@@ -1061,20 +1062,36 @@ export function BillingPage() {
                 {/* Waiter Dropdown */}
                 {showWaiterDropdown && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                    {waiters.length > 0 ? (
-                      waiters.map((waiter) => (
-                        <button
-                          key={waiter.id}
-                          onClick={() => {
-                            setSelectedWaiter(waiter.id);
-                            setShowWaiterDropdown(false);
-                          }}
-                          className="w-full px-3 py-2 text-left text-xs hover:bg-accent/10 flex items-center justify-between"
-                        >
-                          <span className="text-text-primary">{waiter.name}</span>
-                          {waiter.pin && <span className="text-text-muted text-[10px]">****</span>}
-                        </button>
-                      ))
+                    {/* Waiter Search Input */}
+                    <div className="p-2 border-b border-white/10">
+                      <input
+                        type="text"
+                        placeholder="Search waiter..."
+                        value={waiterSearch}
+                        onChange={(e) => setWaiterSearch(e.target.value)}
+                        className="w-full px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                        autoFocus
+                      />
+                    </div>
+                    {waiters.filter(w => 
+                      w.name.toLowerCase().includes(waiterSearch.toLowerCase())
+                    ).length > 0 ? (
+                      waiters
+                        .filter(w => w.name.toLowerCase().includes(waiterSearch.toLowerCase()))
+                        .map((waiter) => (
+                          <button
+                            key={waiter.id}
+                            onClick={() => {
+                              setSelectedWaiter(waiter.id);
+                              setShowWaiterDropdown(false);
+                              setWaiterSearch('');
+                            }}
+                            className="w-full px-3 py-2 text-left text-xs hover:bg-accent/10 flex items-center justify-between"
+                          >
+                            <span className="text-text-primary">{waiter.name}</span>
+                            {waiter.pin && <span className="text-text-muted text-[10px]">****</span>}
+                          </button>
+                        ))
                     ) : (
                       <div className="p-3 text-xs text-text-muted text-center">No waiters found</div>
                     )}
@@ -1082,6 +1099,7 @@ export function BillingPage() {
                       onClick={() => {
                         setShowWaiterDropdown(false);
                         setWaiterPinInput(' '); // Start with space to trigger PIN input
+                        setWaiterSearch('');
                       }}
                       className="w-full px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 border-t border-white/10 flex items-center gap-2"
                     >
