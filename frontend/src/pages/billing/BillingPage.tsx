@@ -872,10 +872,10 @@ export function BillingPage() {
                     <input
                       type="password"
                       maxLength={4}
-                      value={waiterPinInput}
+                      value={waiterPinInput.trim()}
                       onChange={(e) => {
                         const pin = e.target.value.replace(/\D/g, '').slice(0, 4);
-                        setWaiterPinInput(pin);
+                        setWaiterPinInput(pin || ' '); // Keep at least a space to show input
                         
                         // Auto-filter when 4 digits entered
                         if (pin.length === 4) {
@@ -886,6 +886,12 @@ export function BillingPage() {
                           } else {
                             setTimeout(() => setWaiterPinInput(''), 500);
                           }
+                        }
+                      }}
+                      onBlur={() => {
+                        // Clear if left empty
+                        if (waiterPinInput.trim() === '') {
+                          setWaiterPinInput('');
                         }
                       }}
                       placeholder="PIN"
@@ -948,7 +954,7 @@ export function BillingPage() {
                     <button
                       onClick={() => {
                         setShowWaiterDropdown(false);
-                        setWaiterPinInput('');
+                        setWaiterPinInput(' '); // Start with space to trigger PIN input
                       }}
                       className="w-full px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 border-t border-white/10 flex items-center gap-2"
                     >
