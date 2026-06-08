@@ -35,6 +35,7 @@ export function BillingPage() {
   
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
+  const [showSwitchTableModal, setShowSwitchTableModal] = useState(false);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountReason, setDiscountReason] = useState('');
@@ -977,10 +978,10 @@ export function BillingPage() {
                     <div className="flex items-center gap-2">
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
                       <button
-                        onClick={() => setSelectedTable(null)}
-                        className="text-xs text-accent hover:text-accent/80"
+                        onClick={() => setShowSwitchTableModal(true)}
+                        className="text-xs text-accent hover:text-accent/80 font-medium"
                       >
-                        Change
+                        Switch
                       </button>
                     </div>
                   </div>
@@ -1899,6 +1900,104 @@ export function BillingPage() {
                 setQuickCustomerName('');
                 setQuickCustomerPhone('');
               }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Switch Table Modal */}
+      <Modal
+        isOpen={showSwitchTableModal}
+        onClose={() => setShowSwitchTableModal(false)}
+        title="Switch Table"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Moving items from <span className="text-accent font-medium">Table {selectedTable?.number}</span> to a new table.
+            The old table will be freed.
+          </p>
+          
+          <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+            {tables
+              .filter(table => table.id !== selectedTable?.id)
+              .map((table) => {
+                const isAvailable = table.status === 'available';
+                const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
+                const isPendingCleaning = table.status === 'pending_cleaning';
+                
+                return (
+                  <button
+                    key={table.id}
+                    disabled={!isAvailable}
+                    onClick={async () => {
+                      if (!selectedTable) return;
+                      
+                      try {
+                        // Move items to new table
+                        // 1. Create new order for target table with current cart items
+                        if (cart.length > 0) {
+                          const response = await api.createOrder(table.id, cart, selectedWaiter || undefined, selectedCustomer?.id);
+                          if (!response.success) {
+                            toast('error', 'Failed to move items to new table');
+                            return;
+                          }
+                        }
+                        
+                        // 2. Delete old order if exists
+                        if (currentOrderId) {
+                          await api.deleteOrder(currentOrderId);
+                        }
+                        
+                        // 3. Mark old table as available
+                        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                        
+                        // 4. Update local state
+                        const newTable = tables.find(t => t.id === table.id);
+                        if (newTable) {
+                          setSelectedTable({ ...newTable, status: 'occupied' });
+                        }
+                        setCurrentOrderId(null);
+                        setCart([]);
+                        setDiscountAmount('');
+                        setDiscountReason('');
+                        setAppliedCoupon(null);
+                        
+                        setShowSwitchTableModal(false);
+                        toast('success', `Items moved to Table ${table.number}`);
+                      } catch (error) {
+                        console.error('Error switching table:', error);
+                        toast('error', 'Failed to switch table');
+                      }
+                    }}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                      isAvailable 
+                        ? 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10 cursor-pointer' 
+                        : 'border-white/10 bg-white/5 opacity-50 cursor-not-allowed'
+                    }`}
+                  >
+                    <span className="text-sm font-bold">{table.number}</span>
+                    <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
+                    {isAvailable && <span className="text-[10px] text-success">Available</span>}
+                    {isOccupied && <span className="text-[10px] text-orange-500">Occupied</span>}
+                    {isPendingCleaning && <span className="text-[10px] text-red-500">Cleaning</span>}
+                  </button>
+                );
+              })}
+          </div>
+          
+          {tables.filter(t => t.id !== selectedTable?.id && t.status === 'available').length === 0 && (
+            <p className="text-sm text-text-muted text-center py-4">
+              No available tables to switch to.
+            </p>
+          )}
+          
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowSwitchTableModal(false)}
             >
               Cancel
             </Button>
