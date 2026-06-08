@@ -10,13 +10,28 @@ const db = new Database(join(__dirname, 'oyebill.db'));
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
-// Migration: Add table_status_colors column if it doesn't exist
+// Migration: Add all missing columns to settings table if they don't exist
 try {
   const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
-  const hasColumn = tableInfo.some(col => col.name === 'table_status_colors');
-  if (!hasColumn) {
-    db.exec("ALTER TABLE settings ADD COLUMN table_status_colors TEXT");
-    console.log('Added table_status_colors column to settings table');
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  const columnsToAdd = [
+    'table_status_colors',
+    'skip_lines_before_cut',
+    'tax_name',
+    'is_active',
+    'kot_setup',
+    'bill_setup',
+    'user_rights',
+    'payment'
+  ];
+  
+  for (const col of columnsToAdd) {
+    if (!existingColumns.includes(col)) {
+      const colType = ['kot_setup', 'bill_setup', 'user_rights', 'payment', 'table_status_colors'].includes(col) ? 'TEXT' : 'INTEGER DEFAULT 0';
+      db.exec(`ALTER TABLE settings ADD COLUMN ${col} ${colType}`);
+      console.log(`Added ${col} column to settings table`);
+    }
   }
 } catch (err) {
   console.log('Migration note:', err.message);
