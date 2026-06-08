@@ -163,9 +163,10 @@ export function SettingsPage() {
   // Table Status Colors form
   const [tableStatusForm, setTableStatusForm] = useState({
     available: { color: 'bg-success', label: 'Available' },
+    occupied: { color: 'bg-red-500', label: 'Occupied' },
     active: { color: 'bg-accent', label: 'Active - KOT' },
-    occupied: { color: 'bg-red-500', label: 'Occupied - Billing' },
-    pending_cleaning: { color: 'bg-gray-500', label: 'Cleaning - Pending' },
+    billed: { color: 'bg-blue-500', label: 'Billed' },
+    pending_cleaning: { color: 'bg-gray-500', label: 'Cleaning' },
     pending_printing: { color: 'bg-orange-500', label: 'Pending' },
   });
 
@@ -1903,6 +1904,36 @@ export function SettingsPage() {
                           type="text"
                           value={tableStatusForm.occupied.label}
                           onChange={(e) => setTableStatusForm({...tableStatusForm, occupied: {...tableStatusForm.occupied, label: e.target.value}})}
+                          placeholder="Label"
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billed */}
+                <div className="p-4 rounded-lg border border-white/10">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.billed.color}`} />
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-2">Billed</h3>
+                      <div className="flex gap-4">
+                        <select
+                          value={tableStatusForm.billed.color}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, billed: {...tableStatusForm.billed, color: e.target.value}})}
+                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
+                        >
+                          <option value="bg-blue-500">Blue (Default)</option>
+                          <option value="bg-indigo-500">Indigo</option>
+                          <option value="bg-violet-500">Violet</option>
+                          <option value="bg-purple-500">Purple</option>
+                          <option value="bg-cyan-500">Cyan</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={tableStatusForm.billed.label}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, billed: {...tableStatusForm.billed, label: e.target.value}})}
                           placeholder="Label"
                           className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
                         />
