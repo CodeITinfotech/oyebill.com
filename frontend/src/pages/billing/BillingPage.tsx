@@ -33,8 +33,6 @@ export function BillingPage() {
     selectedCustomer: any;
   }>>({});
   
-  // Switch table mode
-  const [showTableSwitch, setShowTableSwitch] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [discountAmount, setDiscountAmount] = useState('');
@@ -328,9 +326,6 @@ export function BillingPage() {
         console.error('Failed to update previous table status:', error);
       }
     }
-
-    // Close switch mode if active
-    setShowTableSwitch(false);
 
     // Check if we have a saved cart for this table
     const savedCart = tableCarts[table.id];
@@ -1424,97 +1419,68 @@ export function BillingPage() {
 
         {/* Right: Product Selection - Desktop only, hidden on mobile when cart view is active */}
         <div className={`flex flex-col ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
-          {/* Table Tiles - Only show when no table selected OR when switch mode is active */}
-          {(!selectedTable || showTableSwitch) && (
-            <div className="mb-3 lg:mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-xs lg:text-sm font-medium text-text-secondary">
-                  {selectedTable ? 'Switch Table' : 'Select Table'}
-                </h3>
-                {selectedTable && (
+          {/* Table Tiles - Always show all tables */}
+          <div className="mb-3 lg:mb-4">
+            <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Tables</h3>
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
+              {tables.map((table) => {
+                const isAvailable = table.status === 'available';
+                const isPendingCleaning = table.status === 'pending_cleaning';
+                const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
+                const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
+                const isCurrentlySelected = selectedTable?.id === table.id;
+                
+                // Status colors - highlight selected table
+                let statusColor = 'bg-success';
+                let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
+                
+                if (isCurrentlySelected) {
+                  statusColor = 'bg-accent';
+                  statusBgClass = 'border-accent bg-accent/20 ring-2 ring-accent/50';
+                } else if (isPendingCleaning) {
+                  statusColor = 'bg-red-900';
+                  statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
+                } else if (isPendingPrint) {
+                  statusColor = 'bg-red-500';
+                  statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
+                } else if (isOccupied) {
+                  statusColor = 'bg-orange-500';
+                  statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
+                }
+                
+                return (
                   <button
-                    onClick={() => setShowTableSwitch(false)}
-                    className="text-xs text-accent hover:text-accent/80"
+                    key={table.id}
+                    onClick={() => handleTableSelect(table)}
+                    className={`h-12 lg:h-16 rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 relative px-1 ${statusBgClass}`}
                   >
-                    ← Back to {selectedTable.number}
+                    <span className="text-sm lg:text-lg font-bold leading-tight">{table.number}</span>
+                    <span className="text-[6px] lg:text-[7px] text-text-muted">{table.capacity}</span>
+                    <span className={`absolute bottom-0.5 w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${statusColor}`} />
                   </button>
-                )}
+                );
+              })}
+            </div>
+            {/* Legend - Desktop only */}
+            <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
+                <span>Active</span>
               </div>
-              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
-                {tables
-                  .filter(table => {
-                    // Don't show current table in switch list
-                    if (selectedTable && !showTableSwitch) return true;
-                    return table.id !== selectedTable?.id;
-                  })
-                  .map((table) => {
-                  const isAvailable = table.status === 'available';
-                  const isPendingCleaning = table.status === 'pending_cleaning';
-                  const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
-                  const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
-                  
-                  // Status colors
-                  let statusColor = 'bg-success';
-                  let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
-                  
-                  if (isPendingCleaning) {
-                    statusColor = 'bg-red-900';
-                    statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
-                  } else if (isPendingPrint) {
-                    statusColor = 'bg-red-500';
-                    statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
-                  } else if (isOccupied) {
-                    statusColor = 'bg-orange-500';
-                    statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
-                  }
-                  
-                  return (
-                    <button
-                      key={table.id}
-                      onClick={() => handleTableSelect(table)}
-                      className={`h-12 lg:h-16 rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 relative px-1 ${statusBgClass}`}
-                    >
-                      <span className="text-sm lg:text-lg font-bold leading-tight">{table.number}</span>
-                      <span className="text-[6px] lg:text-[7px] text-text-muted">{table.capacity}</span>
-                      <span className={`absolute bottom-0.5 w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${statusColor}`} />
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
+                <span>Available</span>
               </div>
-              {/* Legend - Desktop only */}
-              <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
-                  <span>Available</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-orange-500"></span>
-                  <span>Occupied</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
-                  <span>Pending</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-900"></span>
-                  <span>Cleaning</span>
-                </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-orange-500"></span>
+                <span>Occupied</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-900"></span>
+                <span>Cleaning</span>
               </div>
             </div>
-          )}
-          
-          {/* Show Switch Table button when table is selected */}
-          {selectedTable && !showTableSwitch && (
-            <div className="mb-3 lg:mb-4">
-              <button
-                onClick={() => setShowTableSwitch(true)}
-                className="w-full py-2 px-3 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-secondary hover:border-accent/50 hover:text-accent transition-all flex items-center justify-center gap-2"
-              >
-                <span>Switch Table</span>
-                <span className="text-accent font-medium">←</span>
-              </button>
-            </div>
-          )}
+          </div>
 
           {/* Search Input */}
           <div className="mb-2 lg:mb-4">
