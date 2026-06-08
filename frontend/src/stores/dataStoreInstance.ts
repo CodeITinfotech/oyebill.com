@@ -48,7 +48,7 @@ interface DataState {
   currentOrder: Order | null;
   currentOrderLoading: boolean;
   fetchOrderByTable: (tableId: string) => Promise<void>;
-  createOrder: (tableId: string, items: any[]) => Promise<boolean>;
+  createOrder: (tableId: string, items: any[], waiterId?: string, customerId?: string) => Promise<boolean>;
   updateOrder: (orderId: string, items: any[]) => Promise<boolean>;
   generateKOT: (orderId: string) => Promise<boolean>;
   generateBill: (orderId: string) => Promise<boolean>;
@@ -64,7 +64,7 @@ const store = create<DataState>((set, get) => ({
   fetchCategories: async () => {
     set({ categoriesLoading: true });
     const response = await api.getCategories();
-    if (response.success && response.data) {
+    if (response.success && Array.isArray(response.data)) {
       const transformedCategories = response.data.map((c: any) => ({
         id: c.id,
         name: c.name,
@@ -121,7 +121,7 @@ const store = create<DataState>((set, get) => ({
   fetchSections: async () => {
     set({ sectionsLoading: true });
     const response = await api.getSections();
-    if (response.success && response.data) {
+    if (response.success && Array.isArray(response.data)) {
       const transformedSections = response.data.map((s: any) => ({
         id: s.id,
         name: s.name,
@@ -169,7 +169,7 @@ const store = create<DataState>((set, get) => ({
   fetchTables: async (sectionId?: string) => {
     set({ tablesLoading: true });
     const response = await api.getTables(sectionId);
-    if (response.success && response.data) {
+    if (response.success && Array.isArray(response.data)) {
       const transformedTables = response.data.map((t: any) => ({
         id: t.id,
         number: t.number,
@@ -228,7 +228,7 @@ const store = create<DataState>((set, get) => ({
   fetchProducts: async (categoryId?: string) => {
     set({ productsLoading: true });
     const response = await api.getProducts(categoryId);
-    if (response.success && response.data) {
+    if (response.success && Array.isArray(response.data)) {
       const transformedProducts = response.data.map((p: any) => ({
         id: p.id,
         name: p.name,
@@ -333,8 +333,8 @@ const store = create<DataState>((set, get) => ({
     }
   },
   
-  createOrder: async (tableId: string, items: any[]) => {
-    const response = await api.createOrder({ tableId, items });
+  createOrder: async (tableId: string, items: any[], waiterId?: string, customerId?: string) => {
+    const response = await api.createOrder({ tableId, items, waiterId, customerId });
     if (response.success && response.data) {
       set({ currentOrder: response.data });
       return true;

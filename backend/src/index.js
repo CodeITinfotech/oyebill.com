@@ -14,6 +14,7 @@ import orderRoutes from './routes/orders.js';
 import settingsRoutes from './routes/settings.js';
 import userRoutes from './routes/users.js';
 import setupRoutes from './routes/setup.js';
+import customerRoutes from './routes/customers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,6 +42,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/customers', customerRoutes);
 app.use('/api/setup', setupRoutes);
 
 // Health check

@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
-import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag } from 'lucide-react';
+import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus } from 'lucide-react';
 import { api } from '../../api';
 
 type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons';
@@ -62,6 +62,11 @@ export function SettingsPage() {
   
   // Printer sub-tab
   const [printerTab, setPrinterTab] = useState<PrinterTab>('kot');
+  
+  // Printer detection state
+  const [detectedPrinters, setDetectedPrinters] = useState<{name: string; type: string; address: string}[]>([]);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectionStatus, setDetectionStatus] = useState<string>('');
   
   // KOT Setup form
   const [kotSetupForm, setKotSetupForm] = useState({
@@ -129,12 +134,27 @@ export function SettingsPage() {
     role: 'waiter' as 'waiter' | 'accountant' | 'busser',
     forceResetPassword: true,
   });
+  
   const [showNewUserForm, setShowNewUserForm] = useState(false);
+  
+  // Customer state
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    place: '',
+    foodPreference: 'both' as 'veg' | 'non-veg' | 'both',
+    loyaltyDiscount: '',
+  });
 
   useEffect(() => {
     fetchSettings();
     if (user?.role === 'admin') {
       fetchUsers();
+      fetchCustomers();
     }
   }, []);
 
@@ -165,9 +185,27 @@ export function SettingsPage() {
         setBillSetupForm(settings.bill_setup);
       }
       
-      // Load User Rights from settings
+      // Load User Rights from settings (with safe defaults)
       if (settings.userRights) {
-        setUserRights(settings.userRights);
+        setUserRights({
+          waiter: {
+            canCreateKOT: settings.userRights.waiter?.canCreateKOT ?? true,
+            canGenerateBills: settings.userRights.waiter?.canGenerateBills ?? true,
+            canApplyDiscounts: settings.userRights.waiter?.canApplyDiscounts ?? false,
+            canViewReports: settings.userRights.waiter?.canViewReports ?? false,
+          },
+          accountant: {
+            canViewAllOrders: settings.userRights.accountant?.canViewAllOrders ?? true,
+            canGenerateReports: settings.userRights.accountant?.canGenerateReports ?? true,
+            canProcessRefunds: settings.userRights.accountant?.canProcessRefunds ?? false,
+            canAccessSettings: settings.userRights.accountant?.canAccessSettings ?? false,
+          },
+          busser: {
+            canManageTables: settings.userRights.busser?.canManageTables ?? true,
+            canMarkTableCleaned: settings.userRights.busser?.canMarkTableCleaned ?? true,
+            canViewPendingCleaning: settings.userRights.busser?.canViewPendingCleaning ?? true,
+          },
+        });
       }
       
       // Load Payment settings
@@ -184,8 +222,64 @@ export function SettingsPage() {
 
   const fetchUsers = async () => {
     const response = await api.getUsers();
-    if (response.success && response.data) {
+    if (response.success && Array.isArray(response.data)) {
       setUsers(response.data);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    const response = await api.get('/customers');
+    if (response.success && Array.isArray(response.data)) {
+      setCustomers(response.data);
+    }
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomerForm.name) {
+      toast('error', 'Customer name is required');
+      return;
+    }
+    setIsSubmitting(true);
+    const response = await api.post('/customers', {
+      name: newCustomerForm.name,
+      phone: newCustomerForm.phone,
+      email: newCustomerForm.email,
+      place: newCustomerForm.place,
+      foodPreference: newCustomerForm.foodPreference,
+      loyaltyDiscount: parseFloat(newCustomerForm.loyaltyDiscount) || 0,
+    });
+    setIsSubmitting(false);
+    if (response.success) {
+      toast('success', 'Customer created successfully');
+      setShowNewCustomerForm(false);
+      setNewCustomerForm({ name: '', phone: '', email: '', place: '', foodPreference: 'both', loyaltyDiscount: '' });
+      fetchCustomers();
+    } else {
+      toast('error', response.error || 'Failed to create customer');
+    }
+  };
+
+  const handleEditCustomer = (customer: any) => {
+    setEditingCustomer(customer);
+    setNewCustomerForm({
+      name: customer.name,
+      phone: customer.phone || '',
+      email: customer.email || '',
+      place: customer.place || '',
+      foodPreference: customer.food_preference || 'both',
+      loyaltyDiscount: String(customer.loyalty_discount || ''),
+    });
+    setShowNewCustomerForm(true);
+  };
+
+  const handleDeleteCustomer = async (customerId: string) => {
+    if (!confirm('Are you sure you want to delete this customer?')) return;
+    const response = await api.delete(`/customers/${customerId}`);
+    if (response.success) {
+      toast('success', 'Customer deleted successfully');
+      fetchCustomers();
+    } else {
+      toast('error', 'Failed to delete customer');
     }
   };
 
@@ -317,6 +411,96 @@ export function SettingsPage() {
     } else {
       toast('error', 'Failed to save Bill Setup');
     }
+  };
+
+  // Detect connected printers (USB/Bluetooth)
+  const detectPrinters = async () => {
+    setIsDetecting(true);
+    setDetectionStatus('Detecting printers...');
+    setDetectedPrinters([]);
+    
+    try {
+      // Check if Web Bluetooth API is available (for Bluetooth printers)
+      const hasBluetooth = 'bluetooth' in navigator;
+      
+      // Check if navigator.usb is available (for USB printers)
+      const hasUSB = 'usb' in navigator;
+      
+      const foundPrinters: {name: string; type: string; address: string}[] = [];
+      
+      // Method 1: Try Web Bluetooth API for Bluetooth printers
+      if (hasBluetooth) {
+        try {
+          setDetectionStatus('Scanning for Bluetooth printers...');
+          // Request Bluetooth device
+          const device = await (navigator as any).bluetooth.requestDevice({
+            filters: [{ services: ['00001101-0000-1000-8000-00805f9b34fb'] }] // Serial Port Profile
+          });
+          
+          if (device.name) {
+            foundPrinters.push({
+              name: device.name,
+              type: 'Bluetooth',
+              address: device.id
+            });
+          }
+        } catch (btError: any) {
+          console.log('Bluetooth scan cancelled or failed:', btError.message);
+        }
+      }
+      
+      // Method 2: Try Web USB API for USB printers (mostly works on Chrome/Edge)
+      if (hasUSB) {
+        try {
+          setDetectionStatus('Scanning for USB printers...');
+          const device = await (navigator as any).usb.requestDevice({
+            filters: [
+              { vendorId: 0x04b8 }, // Epson
+              { vendorId: 0x04f9 }, // Brother
+              { vendorId: 0x0519 }, // Star Micronics
+              { vendorId: 0x0dd4 }, // Custom Engineering
+              { vendorId: 0x1504 }, // Posiflex
+            ]
+          });
+          
+          if (device.productName) {
+            foundPrinters.push({
+              name: device.productName,
+              type: 'USB',
+              address: `${device.vendorId}:${device.productId}`
+            });
+          }
+        } catch (usbError: any) {
+          console.log('USB scan cancelled or failed:', usbError.message);
+        }
+      }
+      
+      // Method 3: For Electron apps, check for serial/COM ports
+      // This is a placeholder - actual implementation would use electron-serial
+      // For now, we'll add some common thermal printer detection logic
+      
+      if (foundPrinters.length === 0) {
+        setDetectionStatus('No printers detected. Make sure your printer is connected and powered on.');
+      } else {
+        setDetectionStatus(`Found ${foundPrinters.length} printer(s)`);
+        setDetectedPrinters(foundPrinters);
+      }
+    } catch (error: any) {
+      console.error('Printer detection error:', error);
+      setDetectionStatus('Detection failed. Please try again or enter printer manually.');
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  // Select a detected printer
+  const selectDetectedPrinter = (printer: {name: string; type: string; address: string}, isKot: boolean) => {
+    if (isKot) {
+      setPrinterForm({ ...printerForm, kotPrinter: printer.name });
+    } else {
+      setPrinterForm({ ...printerForm, billPrinter: printer.name });
+    }
+    toast('success', `${printer.name} (${printer.type}) selected`);
   };
 
   const handleSaveUserRights = async () => {
@@ -612,7 +796,11 @@ export function SettingsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`badge ${u.role === 'waiter' ? 'badge-info' : 'badge-success'}`}>
+                        <span className={`badge ${
+                          u.role === 'waiter' ? 'badge-info' : 
+                          u.role === 'busser' ? 'badge-warning' : 
+                          'badge-success'
+                        }`}>
                           {u.role}
                         </span>
                         {u.mustResetPassword && (
@@ -1055,40 +1243,152 @@ export function SettingsPage() {
                 <Card>
                   <CardHeader>
                     <h2 className="font-semibold">Printer Setup</h2>
-                    <p className="text-sm text-text-muted">Configure printer connections</p>
+                    <p className="text-sm text-text-muted">Configure printer connections via USB, Bluetooth, or Network</p>
                   </CardHeader>
-                  <CardBody className="space-y-4">
-                    <Input
-                      label="KOT Printer Name/IP"
-                      value={printerForm.kotPrinter}
-                      onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
-                      placeholder="e.g., EPSON-KOT or 192.168.1.100"
-                    />
-                    <Input
-                      label="Bill Printer Name/IP"
-                      value={printerForm.billPrinter}
-                      onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
-                      placeholder="e.g., EPSON-BILL or 192.168.1.101"
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        label="Number of Copies"
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={printerForm.printCopies}
-                        onChange={(e) => setPrinterForm({ ...printerForm, printCopies: e.target.value })}
-                      />
-                      <Input
-                        label="Skip Lines Before Cut"
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={printerForm.skipLinesBeforeCut}
-                        onChange={(e) => setPrinterForm({ ...printerForm, skipLinesBeforeCut: e.target.value })}
-                        placeholder="Lines to skip before cutting"
-                      />
+                  <CardBody className="space-y-6">
+                    {/* Detect Printers Section */}
+                    <div className="p-4 rounded-lg border border-accent/30 bg-accent/5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-medium flex items-center gap-2">
+                            <Printer className="w-5 h-5" />
+                            Detect Connected Printers
+                          </h3>
+                          <p className="text-sm text-text-muted mt-1">
+                            Scan for USB, Bluetooth, or network printers
+                          </p>
+                        </div>
+                        <Button 
+                          onClick={detectPrinters} 
+                          loading={isDetecting}
+                          variant="accent"
+                        >
+                          {isDetecting ? 'Scanning...' : '🔍 Scan Printers'}
+                        </Button>
+                      </div>
+                      
+                      {detectionStatus && (
+                        <div className={`text-sm mb-3 ${detectedPrinters.length > 0 ? 'text-success' : 'text-text-muted'}`}>
+                          {detectionStatus}
+                        </div>
+                      )}
+                      
+                      {detectedPrinters.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-text-secondary">Detected Printers:</p>
+                          {detectedPrinters.map((printer, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background-secondary border border-white/10">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  printer.type === 'Bluetooth' ? 'bg-blue-500/20 text-blue-400' :
+                                  printer.type === 'USB' ? 'bg-green-500/20 text-green-400' :
+                                  'bg-gray-500/20 text-gray-400'
+                                }`}>
+                                  <Printer className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{printer.name}</p>
+                                  <p className="text-xs text-text-muted">
+                                    {printer.type} • {printer.address}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => selectDetectedPrinter(printer, true)}
+                                >
+                                  Use for KOT
+                                </Button>
+                                <Button 
+                                  variant="accent" 
+                                  size="sm"
+                                  onClick={() => selectDetectedPrinter(printer, false)}
+                                >
+                                  Use for Bill
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    {/* Manual Printer Configuration */}
+                    <div className="p-4 rounded-lg border border-white/10 space-y-4">
+                      <h3 className="font-medium">Manual Configuration</h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                          label="KOT Printer Name/IP"
+                          value={printerForm.kotPrinter}
+                          onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
+                          placeholder="e.g., EPSON-KOT or 192.168.1.100"
+                        />
+                        <Input
+                          label="Bill Printer Name/IP"
+                          value={printerForm.billPrinter}
+                          onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
+                          placeholder="e.g., EPSON-BILL or 192.168.1.101"
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          label="Number of Copies"
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={printerForm.printCopies}
+                          onChange={(e) => setPrinterForm({ ...printerForm, printCopies: e.target.value })}
+                        />
+                        <Input
+                          label="Skip Lines Before Cut"
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={printerForm.skipLinesBeforeCut}
+                          onChange={(e) => setPrinterForm({ ...printerForm, skipLinesBeforeCut: e.target.value })}
+                          placeholder="Lines to skip before cutting"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Connection Type Info */}
+                    <div className="p-4 rounded-lg bg-background-secondary/50 border border-white/10">
+                      <h4 className="text-sm font-medium mb-3">Supported Connection Types</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-sm">🔌</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">USB</p>
+                            <p className="text-xs text-text-muted">Direct cable connection for thermal printers</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-sm">📱</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">Bluetooth</p>
+                            <p className="text-xs text-text-muted">Wireless for mobile devices</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                            <span className="text-sm">🌐</span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">Network/IP</p>
+                            <p className="text-xs text-text-muted">Ethernet or WiFi printer on same network</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="pt-4">
                       <Button onClick={handleSavePrinter} loading={isSubmitting}>
                         Save Printer Settings
@@ -1188,7 +1488,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.waiter.canCreateKOT}
+                        checked={userRights?.waiter?.canCreateKOT ?? true}
                         onChange={(e) => setUserRights({...userRights, waiter: {...userRights.waiter, canCreateKOT: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1197,7 +1497,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.waiter.canGenerateBills}
+                        checked={userRights?.waiter?.canGenerateBills ?? true}
                         onChange={(e) => setUserRights({...userRights, waiter: {...userRights.waiter, canGenerateBills: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1206,7 +1506,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.waiter.canApplyDiscounts}
+                        checked={userRights?.waiter?.canApplyDiscounts ?? false}
                         onChange={(e) => setUserRights({...userRights, waiter: {...userRights.waiter, canApplyDiscounts: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1215,7 +1515,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.waiter.canViewReports}
+                        checked={userRights?.waiter?.canViewReports ?? false}
                         onChange={(e) => setUserRights({...userRights, waiter: {...userRights.waiter, canViewReports: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1233,7 +1533,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.accountant.canViewAllOrders}
+                        checked={userRights?.accountant?.canViewAllOrders ?? true}
                         onChange={(e) => setUserRights({...userRights, accountant: {...userRights.accountant, canViewAllOrders: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1242,7 +1542,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.accountant.canGenerateReports}
+                        checked={userRights?.accountant?.canGenerateReports ?? true}
                         onChange={(e) => setUserRights({...userRights, accountant: {...userRights.accountant, canGenerateReports: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1251,7 +1551,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.accountant.canProcessRefunds}
+                        checked={userRights?.accountant?.canProcessRefunds ?? false}
                         onChange={(e) => setUserRights({...userRights, accountant: {...userRights.accountant, canProcessRefunds: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1273,7 +1573,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.busser.canViewPendingCleaning}
+                        checked={userRights?.busser?.canViewPendingCleaning ?? true}
                         onChange={(e) => setUserRights({...userRights, busser: {...userRights.busser, canViewPendingCleaning: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1282,7 +1582,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.busser.canMarkTableCleaned}
+                        checked={userRights?.busser?.canMarkTableCleaned ?? true}
                         onChange={(e) => setUserRights({...userRights, busser: {...userRights.busser, canMarkTableCleaned: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />
@@ -1291,7 +1591,7 @@ export function SettingsPage() {
                     <label className="flex items-center gap-3">
                       <input 
                         type="checkbox" 
-                        checked={userRights.busser.canManageTables}
+                        checked={userRights?.busser?.canManageTables ?? true}
                         onChange={(e) => setUserRights({...userRights, busser: {...userRights.busser, canManageTables: e.target.checked}})}
                         className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                       />

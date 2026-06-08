@@ -303,6 +303,29 @@ class ApiClient {
     return this.request(`/users/${id}`, { method: 'DELETE' });
   }
 
+  // Customer endpoints
+  async getCustomers() {
+    return this.request<any[]>('/customers');
+  }
+
+  async createCustomer(data: any) {
+    return this.request<any>('/customers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCustomer(id: string, data: any) {
+    return this.request<any>(`/customers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCustomer(id: string) {
+    return this.request(`/customers/${id}`, { method: 'DELETE' });
+  }
+
   // Setup endpoints
   async checkSetup() {
     return this.request<{ needsSetup: boolean; restaurant?: any }>('/setup/status');
@@ -325,6 +348,21 @@ class ApiClient {
     return this.request<T>(endpoint, {
       method: 'PUT',
       body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  // Generic POST method for custom endpoints
+  async post<T>(endpoint: string, data?: any) {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  // Generic DELETE method for custom endpoints
+  async delete<T>(endpoint: string) {
+    return this.request<T>(endpoint, {
+      method: 'DELETE',
     });
   }
 }

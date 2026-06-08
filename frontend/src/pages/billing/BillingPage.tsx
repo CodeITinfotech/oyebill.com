@@ -31,8 +31,35 @@ export function BillingPage() {
   const [editingKotId, setEditingKotId] = useState<string | null>(null);
   const [couponCode, setCouponCode] = useState('');
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedWaiter, setSelectedWaiter] = useState<string>('');
+  const [waiters, setWaiters] = useState<{id: string; name: string; role: string}[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
   
+  // Mobile state
+  const [mobileView, setMobileView] = useState<'menu' | 'cart'>('menu');
+  const [showMobileCart, setShowMobileCart] = useState(false);
   
+  // Quick add customer modal
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
+  const [quickCustomerName, setQuickCustomerName] = useState('');
+  const [quickCustomerPhone, setQuickCustomerPhone] = useState('');
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  
+  // Customer search
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  
+  // Filter customers by search (name or phone)
+  const filteredCustomers = customers.filter(c => {
+    const search = customerSearch.toLowerCase();
+    return (
+      !search || 
+      (c.name && c.name.toLowerCase().includes(search)) ||
+      (c.phone && c.phone.includes(search))
+    );
+  });
   
   // Ref for quantity input focus
   const quantityInputRef = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -53,6 +80,20 @@ export function BillingPage() {
     store.fetchCategories();
     store.fetchProducts();
     store.fetchSettings();
+    // Fetch waiters
+    api.getUsers().then((response) => {
+      if (response.success && Array.isArray(response.data)) {
+        setWaiters(response.data.filter((u: any) => u.role === 'waiter' || u.role === 'busser'));
+      }
+    });
+    // Fetch customers
+    api.getCustomers().then((response) => {
+      if (response.success && response.data?.data && Array.isArray(response.data.data)) {
+        setCustomers(response.data.data);
+      } else if (response.success && Array.isArray(response.data)) {
+        setCustomers(response.data);
+      }
+    });
   }, []);
 
   // Fetch tables when section changes
@@ -72,7 +113,7 @@ export function BillingPage() {
   }, [showMoreDropdown]);
 
   // Calculate totals
-  const { subtotal, taxAmount, discountValue, couponDiscountValue, total } = useMemo(() => {
+  const { subtotal, taxAmount, discountValue, couponDiscountValue, loyaltyDiscountValue, total } = useMemo(() => {
     const sub = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const tax = cart.reduce((sum, item) => sum + item.taxAmount * item.quantity, 0);
     const discount = cart.length > 0 && discountAmount 
@@ -105,9 +146,14 @@ export function BillingPage() {
       couponDisc = discount;
     }
     
-    const totalAmount = sub + tax - discount - couponDisc;
-    return { subtotal: sub, taxAmount: tax, discountValue: discount, couponDiscountValue: couponDisc, total: Math.max(0, totalAmount) };
-  }, [cart, discountAmount, discountType, appliedCoupon, products]);
+    // Calculate loyalty discount
+    const loyaltyDisc = selectedCustomer?.loyalty_discount 
+      ? (sub + tax) * (selectedCustomer.loyalty_discount / 100) 
+      : 0;
+    
+    const totalAmount = sub + tax - discount - couponDisc - loyaltyDisc;
+    return { subtotal: sub, taxAmount: tax, discountValue: discount, couponDiscountValue: couponDisc, loyaltyDiscountValue: loyaltyDisc, total: Math.max(0, totalAmount) };
+  }, [cart, discountAmount, discountType, appliedCoupon, products, selectedCustomer]);
 
   // Add product to cart
   const addToCart = (product: Product) => {
@@ -253,12 +299,16 @@ export function BillingPage() {
     const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
     const orderId = `${dateStr}-${tableStr}-${randomNum}`;
     
+    // Get selected waiter name
+    const selectedWaiterObj = waiters.find(w => w.id === selectedWaiter);
+    const waiterName = selectedWaiterObj ? selectedWaiterObj.name : 'Not Assigned';
+    
     // Create content for preview
     const kotContent = {
       orderId: orderId,
       tableNumber: selectedTable.number,
       items: cart.filter(i => i.isNew || i.isKot),
-      waiterName: 'Current User',
+      waiterName: waiterName,
       dateTime: new Date().toLocaleString(),
     };
 
@@ -283,7 +333,7 @@ export function BillingPage() {
     if (currentOrderId) {
       await updateOrder(currentOrderId, kotItems);
     } else {
-      const response = await createOrder(selectedTable.id, kotItems);
+      const response = await createOrder(selectedTable.id, kotItems, selectedWaiter || undefined, selectedCustomer?.id);
       if (response) {
         setCurrentOrderId(response);
       }
@@ -353,11 +403,15 @@ export function BillingPage() {
       taxAmount: taxAmount,
       couponDiscount: couponDiscountValue,
       couponCode: appliedCoupon?.code || null,
+      loyaltyDiscount: loyaltyDiscountValue,
+      loyaltyCustomerName: selectedCustomer?.name || null,
       discount: discountValue,
       discountReason: discountReason,
       total: total,
       totalInWords: numberToWords(total),
       waiterName: user?.name || 'Staff',
+      customerPhone: selectedCustomer?.phone || null,
+      customerEmail: selectedCustomer?.email || null,
       dateTime: new Date().toLocaleString(),
       payment: settings?.payment,
     };
@@ -398,6 +452,7 @@ export function BillingPage() {
     setCurrentOrderId(null);
     setDiscountAmount('');
     setDiscountReason('');
+    setSelectedCustomer(null);
     fetchTables(selectedSection || undefined);
   };
 
@@ -482,12 +537,24 @@ export function BillingPage() {
     toast('info', 'Coupon removed');
   };
 
-  // Filter products by category and selected section
+  // Filter products by category, search, and selected section
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(p => p.isActive);
     
-    // Filter by category if selected
-    if (selectedCategory) {
+    // Filter by search query (product name or category name)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(p => {
+        // Check if product name matches
+        if (p.name.toLowerCase().includes(query)) return true;
+        // Check if category name matches - if match, include all products in that category
+        if (p.categoryName && p.categoryName.toLowerCase().includes(query)) return true;
+        return false;
+      });
+    }
+    
+    // Filter by category if selected (and no search query)
+    if (selectedCategory && !searchQuery.trim()) {
       filtered = filtered.filter(p => p.categoryId === selectedCategory);
     }
     
@@ -504,7 +571,7 @@ export function BillingPage() {
     }
     
     return filtered;
-  }, [products, selectedCategory, selectedSection]);
+  }, [products, selectedCategory, selectedSection, searchQuery]);
 
   // Get active categories
   const activeCategories = categories.filter(c => c.isActive);
@@ -514,28 +581,71 @@ export function BillingPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PageHeader title="Billing" subtitle="Generate KOT and Bills" />
+      {/* Page Header - visible on mobile at top, hidden on desktop (handled by sidebar) */}
+      <div className="lg:hidden px-4 py-3 border-b border-white/10 bg-background-card text-center">
+        <h1 className="text-xl font-display font-bold text-text-primary">Billing</h1>
+      </div>
 
-      <div className="flex-1 grid grid-cols-[350px_1fr] gap-6 min-h-0">
-        {/* Left: Order Panel */}
-        <div className="flex flex-col card">
+      {/* Desktop: Full page header */}
+      <div className="hidden lg:block mb-4">
+        <h1 className="text-2xl font-display font-bold text-text-primary">Billing</h1>
+      </div>
+
+      {/* Desktop: Two column layout, Mobile: Single column with cart toggle */}
+      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-0 lg:gap-6 min-h-0">
+        {/* Left: Order Panel - Desktop always visible, Mobile: Toggle */}
+        <div className={`flex flex-col card order-panel ${showMobileCart ? 'mobile-cart-open' : ''}`}>
+          {/* Mobile: View Toggle */}
+          <div className="lg:hidden flex border-b border-white/10">
+            <button
+              onClick={() => setMobileView('menu')}
+              className={`flex-1 py-3 text-sm font-medium transition-all ${
+                mobileView === 'menu' 
+                  ? 'bg-accent/10 text-accent border-b-2 border-accent' 
+                  : 'text-text-secondary'
+              }`}
+            >
+              Menu
+            </button>
+            <button
+              onClick={() => setMobileView('cart')}
+              className={`flex-1 py-3 text-sm font-medium transition-all relative ${
+                mobileView === 'cart' 
+                  ? 'bg-accent/10 text-accent border-b-2 border-accent' 
+                  : 'text-text-secondary'
+              }`}
+            >
+              Cart
+              {cart.length > 0 && (
+                <span className="absolute top-2 right-4 w-5 h-5 bg-accent text-background-primary rounded-full text-xs flex items-center justify-center">
+                  {cart.length}
+                </span>
+              )}
+            </button>
+          </div>
+
           {/* Table Selection */}
-          <div className="p-4 border-b border-white/10">
-            <Select
-              label="Section"
-              options={[
-                { value: '', label: 'All Sections' },
-                ...sections.filter(s => s.isActive).map(s => ({ value: s.id, label: s.name }))
-              ]}
-              value={selectedSection}
-              onChange={(e) => {
-                setSelectedSection(e.target.value);
-                setSelectedTable(null);
-              }}
-            />
-            
+          <div className="p-3 lg:p-4 border-b border-white/10">
+            {/* Section Filter */}
+            <div className="mb-3">
+              <select
+                value={selectedSection}
+                onChange={(e) => {
+                  setSelectedSection(e.target.value);
+                  setSelectedTable(null);
+                }}
+                className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+              >
+                <option value="">All Sections</option>
+                {sections.filter(s => s.isActive).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Selected Table Badge */}
             {selectedTable && (
-              <div className="mt-3 flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-accent" />
                   <div>
@@ -554,47 +664,115 @@ export function BillingPage() {
                 </div>
               </div>
             )}
+
+            {/* Waiter & Customer - Horizontal on mobile */}
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={selectedWaiter}
+                onChange={(e) => setSelectedWaiter(e.target.value)}
+                className="px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent"
+              >
+                <option value="">Waiter</option>
+                {waiters.map((waiter) => (
+                  <option key={waiter.id} value={waiter.id}>{waiter.name}</option>
+                ))}
+              </select>
+              {/* Searchable Customer Dropdown */}
+              <div className="relative">
+                <input
+                  type="text"
+                  value={selectedCustomer ? `${selectedCustomer.name}${selectedCustomer.phone ? ` (${selectedCustomer.phone})` : ''}` : customerSearch}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setSelectedCustomer(null);
+                    setShowCustomerDropdown(true);
+                  }}
+                  onFocus={() => setShowCustomerDropdown(true)}
+                  placeholder="Customer"
+                  className="w-full px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                />
+                {showCustomerDropdown && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                    {filteredCustomers.length > 0 ? (
+                      filteredCustomers.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setCustomerSearch('');
+                            setShowCustomerDropdown(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs hover:bg-accent/10 flex items-center justify-between"
+                        >
+                          <span>
+                            <span className="text-text-primary">{c.name || 'Unknown'}</span>
+                            {c.phone && <span className="text-text-muted ml-1">({c.phone})</span>}
+                          </span>
+                          {c.loyalty_discount > 0 && <span className="text-accent">🎁</span>}
+                        </button>
+                      ))
+                    ) : customerSearch.length > 0 ? (
+                      <div className="p-3 text-xs text-text-muted text-center">
+                        No customers found
+                      </div>
+                    ) : null}
+                    <button
+                      onClick={() => {
+                        setShowCustomerDropdown(false);
+                        setShowQuickAddCustomer(true);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs text-accent hover:bg-accent/10 border-t border-white/10 flex items-center gap-2"
+                    >
+                      <span className="text-base">+</span> Add New Customer
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {selectedCustomer && selectedCustomer.loyalty_discount > 0 && (
+              <div className="mt-1 text-xs text-accent">
+                {selectedCustomer.loyalty_discount}% Loyalty Discount applied
+              </div>
+            )}
           </div>
 
           {/* Cart Items */}
-          <div className="flex-1 overflow-auto p-4 space-y-2">
+          <div className="flex-1 overflow-auto p-2 lg:p-4 space-y-2">
             {cart.length === 0 ? (
-              <div className="text-center py-8 text-text-muted">
-                <Receipt className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No items in order</p>
-                <p className="text-sm">Select products from the menu</p>
+              <div className="text-center py-6 text-text-muted">
+                <Receipt className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No items in order</p>
+                <p className="text-xs">Select from menu</p>
               </div>
             ) : (
               cart.map((item) => (
                 <div 
                   key={item.id} 
-                  className={`p-2.5 rounded-lg border ${
+                  className={`p-2 lg:p-2.5 rounded-lg border ${
                     item.isKot 
                       ? 'bg-white/5 border-white/10' 
                       : 'bg-background-secondary border-accent/20'
                   }`}
                   onDoubleClick={() => {
                     if (item.isKot) {
-                      // Enable edit mode for KOT items
                       setEditingKotId(item.id);
                     }
                   }}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0 flex items-center gap-2">
-                      <p className="font-medium text-sm truncate">{item.productName}</p>
+                      <p className="font-medium text-xs lg:text-sm truncate">{item.productName}</p>
                       {item.isKot && (
-                        <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-warning/20 text-warning whitespace-nowrap">
+                        <span className="inline-flex items-center text-[9px] lg:text-[10px] px-1 py-0.5 rounded bg-warning/20 text-warning whitespace-nowrap">
                           KOT
                         </span>
                       )}
                     </div>
-                    <div className="text-right flex items-center gap-2">
-                      <p className="font-mono text-accent font-semibold text-sm">
+                    <div className="text-right flex items-center gap-1 lg:gap-2">
+                      <p className="font-mono text-accent font-semibold text-xs lg:text-sm">
                         {formatCurrency(item.total)}
                       </p>
                       {item.isKot ? (
-                        // KOT item controls - show edit/delete when editing
                         editingKotId === item.id ? (
                           <div className="flex items-center gap-1">
                             <input
@@ -615,67 +793,60 @@ export function BillingPage() {
                                   return cartItem;
                                 }));
                               }}
-                              className="w-12 text-center bg-transparent border border-white/20 rounded px-1 py-0.5 text-sm focus:border-accent focus:outline-none"
+                              className="w-10 lg:w-12 text-center bg-transparent border border-white/20 rounded px-1 py-0.5 text-xs lg:text-sm focus:border-accent focus:outline-none"
                             />
                             <button
                               onClick={() => setEditingKotId(null)}
                               className="p-1 rounded hover:bg-success/20 text-success"
-                              title="Done"
                             >
-                              <Check className="w-4 h-4" />
+                              <Check className="w-3 lg:w-4 h-3 lg:h-4" />
                             </button>
                             <button
                               onClick={() => removeFromCart(item.id)}
                               className="p-1 rounded hover:bg-error/20 text-error"
-                              title="Remove"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3 lg:w-4 h-3 lg:h-4" />
                             </button>
                           </div>
                         ) : (
                           <button
                             onClick={() => setEditingKotId(item.id)}
                             className="p-1 rounded hover:bg-white/10 text-text-muted"
-                            title="Edit KOT"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-3 lg:w-4 h-3 lg:h-4" />
                           </button>
                         )
                       ) : (
-                        // New item controls
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5 lg:gap-1">
                           {item.quantity === 1 ? (
-                            // Show delete icon when quantity is 1
                             <button
                               onClick={() => removeFromCart(item.id)}
                               className="p-1 rounded hover:bg-error/20 text-error"
-                              title="Remove"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3 lg:w-4 h-3 lg:h-4" />
                             </button>
                           ) : (
-                            // Show minus button when quantity > 1
                             <button
                               onClick={() => updateQuantity(item.id, -1)}
                               className="p-1 rounded hover:bg-white/10"
                             >
-                              <Minus className="w-4 h-4" />
+                              <Minus className="w-3 lg:w-4 h-3 lg:h-4" />
                             </button>
                           )}
-                          <span className="w-6 text-center text-sm">{item.quantity}</span>
+                          <span className="w-4 lg:w-6 text-center text-xs lg:text-sm">{item.quantity}</span>
                           <button
                             onClick={() => updateQuantity(item.id, 1)}
                             className="p-1 rounded hover:bg-white/10"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-3 lg:w-4 h-3 lg:h-4" />
                           </button>
                         </div>
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-text-muted mt-0.5">
+                  <p className="text-[10px] lg:text-xs text-text-muted mt-0.5">
                     {formatCurrency(item.unitPrice)} × {item.quantity}
-                    {item.taxRate > 0 && ` + ${item.taxRate}% GST`}
+                    {item.taxRate > 0 && ` + ${item.taxRate}%`}
                   </p>
                 </div>
               ))
@@ -683,8 +854,15 @@ export function BillingPage() {
           </div>
 
           {/* Totals & Actions */}
-          <div className="p-4 border-t border-white/10 space-y-3">
-            <div className="space-y-2 text-sm">
+          <div className="p-3 lg:p-4 border-t border-white/10 space-y-3">
+            {/* Mobile: Compact total display */}
+            <div className="lg:hidden flex items-center justify-between">
+              <span className="text-text-secondary text-sm">Total</span>
+              <span className="text-xl font-bold text-accent">{formatCurrency(total)}</span>
+            </div>
+
+            {/* Desktop: Full breakdown */}
+            <div className="hidden lg:block space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Subtotal</span>
                 <span className="font-mono">{formatCurrency(subtotal)}</span>
@@ -699,9 +877,15 @@ export function BillingPage() {
                   <span className="font-mono">-{formatCurrency(couponDiscountValue)}</span>
                 </div>
               )}
+              {loyaltyDiscountValue > 0 && (
+                <div className="flex justify-between text-accent">
+                  <span>Loyalty ({selectedCustomer?.name})</span>
+                  <span className="font-mono">-{formatCurrency(loyaltyDiscountValue)}</span>
+                </div>
+              )}
               {discountValue > 0 && (
                 <div className="flex justify-between text-success">
-                  <span>% Disc. ({discountReason})</span>
+                  <span>Disc. ({discountReason})</span>
                   <span className="font-mono">-{formatCurrency(discountValue)}</span>
                 </div>
               )}
@@ -711,15 +895,16 @@ export function BillingPage() {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            {/* Action Buttons - Mobile friendly */}
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleKOT}
                 disabled={cart.filter(i => i.isNew).length === 0}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-1 text-xs"
               >
-                <Printer className="w-4 h-4" />
+                <Printer className="w-3 lg:w-4 h-3 lg:h-4" />
                 <span>KOT</span>
               </Button>
               <Button
@@ -727,9 +912,9 @@ export function BillingPage() {
                 size="sm"
                 onClick={handleBill}
                 disabled={cart.length === 0}
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-1 text-xs"
               >
-                <Receipt className="w-4 h-4" />
+                <Receipt className="w-3 lg:w-4 h-3 lg:h-4" />
                 <span>Bill</span>
               </Button>
               <div className="relative">
@@ -737,10 +922,10 @@ export function BillingPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                  className="flex items-center gap-2"
+                  className="w-full flex items-center justify-center gap-1 text-xs"
                 >
-                  <MoreHorizontal className="w-4 h-4" />
-                  <span>More</span>
+                  <MoreHorizontal className="w-3 lg:w-4 h-3 lg:h-4" />
+                  <span className="hidden sm:inline">More</span>
                 </Button>
                 {/* Dropdown */}
                 {showMoreDropdown && (
@@ -748,37 +933,37 @@ export function BillingPage() {
                     className="absolute bottom-full left-0 mb-1 z-20 more-dropdown"
                   >
                     <div 
-                      className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]"
+                      className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[120px]"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() => {
                           if (appliedCoupon) {
-                            toast('warning', 'Remove coupon first before applying discount');
+                            toast('warning', 'Remove coupon first');
                             return;
                           }
                           setShowDiscountModal(true);
                           setShowMoreDropdown(false);
                         }}
                         disabled={cart.length === 0 || !!appliedCoupon}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
                       >
-                        <Percent className="w-4 h-4" />
-                        <span>Disc.</span>
+                        <Percent className="w-3 h-3" />
+                        <span>Discount</span>
                       </button>
                       <button
                         onClick={() => {
                           if (discountValue > 0) {
-                            toast('warning', 'Discount already applied. Remove it to use coupon.');
+                            toast('warning', 'Discount applied');
                             return;
                           }
                           setShowCouponModal(true);
                           setShowMoreDropdown(false);
                         }}
                         disabled={cart.length === 0 || discountValue > 0}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
                       >
-                        <Ticket className="w-4 h-4" />
+                        <Ticket className="w-3 h-3" />
                         <span>Coupon</span>
                       </button>
                     </div>
@@ -787,13 +972,12 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* Applied Coupon Display */}
+            {/* Applied Coupon Display - Mobile friendly */}
             {appliedCoupon && (
-              <div className="mt-2 p-2 bg-success/10 border border-success/20 rounded-lg flex items-center justify-between">
+              <div className="p-2 bg-success/10 border border-success/20 rounded-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-success" />
-                  <span className="text-sm text-success font-medium">{appliedCoupon.code}</span>
-                  <span className="text-xs text-text-muted">({appliedCoupon.discountValue}% off)</span>
+                  <Tag className="w-3 h-3 text-success" />
+                  <span className="text-xs text-success font-medium">{appliedCoupon.code}</span>
                 </div>
                 <button
                   onClick={handleRemoveCoupon}
@@ -806,63 +990,103 @@ export function BillingPage() {
           </div>
         </div>
 
-        {/* Right: Product Selection */}
-        <div className="flex flex-col">
+        {/* Right: Product Selection - Desktop only, hidden on mobile when cart view is active */}
+        <div className={`flex flex-col ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
           {/* Table Tiles */}
           {!selectedTable && (
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-text-secondary mb-3">Select Table</h3>
-              <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
+            <div className="mb-3 lg:mb-4">
+              <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Select Table</h3>
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
                 {tables.map((table) => {
                   const isAvailable = table.status === 'available';
                   const isPendingCleaning = table.status === 'pending_cleaning';
+                  const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
+                  const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
+                  
+                  // Status colors
+                  let statusColor = 'bg-success';
+                  let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
+                  
+                  if (isPendingCleaning) {
+                    statusColor = 'bg-red-900';
+                    statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
+                  } else if (isPendingPrint) {
+                    statusColor = 'bg-red-500';
+                    statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
+                  } else if (isOccupied) {
+                    statusColor = 'bg-orange-500';
+                    statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
+                  }
+                  
                   return (
                     <button
                       key={table.id}
                       onClick={() => handleTableSelect(table)}
-                      className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 relative ${
-                        isAvailable
-                          ? 'border-success/30 bg-success/5 hover:border-success'
-                          : isPendingCleaning
-                          ? 'border-warning/50 bg-warning/10 hover:border-warning cursor-pointer'
-                          : 'border-warning/30 bg-warning/5 hover:border-warning'
-                      }`}
+                      className={`h-12 lg:h-16 rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 relative px-1 ${statusBgClass}`}
                     >
-                      {isPendingCleaning && (
-                        <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-warning text-warning-foreground text-[8px] rounded-full font-medium">
-                          !
-                        </div>
-                      )}
-                      <span className="text-2xl font-bold">{table.number}</span>
-                      <span className="text-[10px] text-text-muted">Capacity: {table.capacity}</span>
-                      {!isAvailable && !isPendingCleaning && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-warning" />
-                      )}
+                      <span className="text-sm lg:text-lg font-bold leading-tight">{table.number}</span>
+                      <span className="text-[6px] lg:text-[7px] text-text-muted">{table.capacity}</span>
+                      <span className={`absolute bottom-0.5 w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${statusColor}`} />
                     </button>
                   );
                 })}
               </div>
+              {/* Legend - Desktop only */}
+              <div className="hidden lg:flex flex-wrap gap-3 lg:gap-4 mt-2 lg:mt-3 text-[10px] lg:text-xs text-text-muted">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-success"></span>
+                  <span>Available</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-orange-500"></span>
+                  <span>Occupied</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-500"></span>
+                  <span>Pending</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-red-900"></span>
+                  <span>Cleaning</span>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Category Pills */}
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          {/* Search Input */}
+          <div className="mb-2 lg:mb-4">
+            <input
+              type="text"
+              placeholder="Search items..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full px-3 lg:px-4 py-1.5 lg:py-2 bg-background-secondary border border-white/10 rounded-lg text-xs lg:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
+            />
+            {searchQuery.trim() && (
+              <div className="mt-1 text-[10px] lg:text-xs text-text-muted">
+                {filteredProducts.length} item{filteredProducts.length !== 1 ? 's' : ''} found
+              </div>
+            )}
+          </div>
+
+          {/* Category Pills - Scrollable */}
+          <div className="flex gap-1.5 lg:gap-2 mb-2 lg:mb-4 overflow-x-auto pb-1 scrollbar-hide">
             <button
-              onClick={() => setSelectedCategory('')}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                !selectedCategory
+              onClick={() => { setSelectedCategory(''); setSearchQuery(''); }}
+              className={`px-2.5 lg:px-4 py-1.5 lg:py-2 rounded-full text-[10px] lg:text-sm font-medium whitespace-nowrap transition-all ${
+                !selectedCategory && !searchQuery.trim()
                   ? 'bg-accent text-background-primary'
                   : 'bg-background-secondary text-text-secondary hover:text-text-primary'
               }`}
             >
-              All Items
+              All
             </button>
             {activeCategories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  selectedCategory === cat.id
+                onClick={() => { setSelectedCategory(cat.id); setSearchQuery(''); }}
+                className={`px-2.5 lg:px-4 py-1.5 lg:py-2 rounded-full text-[10px] lg:text-sm font-medium whitespace-nowrap transition-all ${
+                  selectedCategory === cat.id && !searchQuery.trim()
                     ? 'bg-accent text-background-primary'
                     : 'bg-background-secondary text-text-secondary hover:text-text-primary'
                 }`}
@@ -872,43 +1096,52 @@ export function BillingPage() {
             ))}
           </div>
 
-          {/* Product Grid */}
+          {/* Product Grid - Mobile friendly grid */}
           <div className="flex-1 overflow-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-1.5 lg:gap-2">
               {filteredProducts.map((product) => {
-                // Get display price - section-specific if available
                 const displayPrice = (selectedSection && product.sectionPrices?.length > 0)
                   ? (product.sectionPrices.find(sp => sp.sectionId === selectedSection)?.price || product.sellingPrice)
                   : product.sellingPrice;
                 
                 return (
-                  <Card
+                  <button
                     key={product.id}
-                    hover
                     onClick={() => addToCart(product)}
-                    className="cursor-pointer"
+                    className="p-2 lg:p-3 rounded-lg bg-background-secondary border border-white/10 hover:border-accent/50 hover:bg-accent/5 transition-all text-center"
                   >
-                    <CardBody className="p-3 text-center">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent/20 to-primary/20 mx-auto mb-2 flex items-center justify-center">
-                        <span className="text-xl">🍽️</span>
-                      </div>
-                      <p className="font-medium text-sm truncate">{product.name}</p>
-                      <p className="text-xs text-text-muted line-clamp-1">{product.categoryName}</p>
-                      <p className="font-mono text-accent font-semibold mt-2">
-                        {formatCurrency(parseFloat(displayPrice))}
-                      </p>
-                      {product.taxRate > 0 && (
-                        <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-info/20 text-info mt-1">
-                          +{product.taxRate}% GST
-                        </span>
-                      )}
-                    </CardBody>
-                  </Card>
+                    <div className="w-8 lg:w-10 h-8 lg:h-10 rounded-lg bg-gradient-to-br from-accent/20 to-primary/20 mx-auto mb-1 lg:mb-2 flex items-center justify-center">
+                      <span className="text-sm lg:text-base">🍽️</span>
+                    </div>
+                    <p className="font-medium text-[10px] lg:text-xs truncate px-1">{product.name}</p>
+                    <p className="font-mono text-accent font-semibold text-[10px] lg:text-xs mt-0.5 lg:mt-1">
+                      {formatCurrency(parseFloat(displayPrice))}
+                    </p>
+                  </button>
                 );
               })}
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Mobile: Floating Cart Button */}
+      <div className="lg:hidden fixed bottom-4 right-4 z-30">
+        <button
+          onClick={() => setMobileView('cart')}
+          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${
+            cart.length > 0 
+              ? 'bg-accent text-background-primary' 
+              : 'bg-background-secondary text-text-muted'
+          }`}
+        >
+          <Receipt className="w-6 h-6" />
+          {cart.length > 0 && (
+            <span className="absolute -top-1 -right-1 w-6 h-6 bg-error text-white rounded-full text-xs flex items-center justify-center">
+              {cart.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Discount Modal */}
@@ -1067,6 +1300,85 @@ export function BillingPage() {
         </div>
       </Modal>
 
+      {/* Quick Add Customer Modal */}
+      <Modal
+        isOpen={showQuickAddCustomer}
+        onClose={() => {
+          setShowQuickAddCustomer(false);
+          setQuickCustomerName('');
+          setQuickCustomerPhone('');
+        }}
+        title="Add New Customer"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Customer Name *</label>
+            <input
+              type="text"
+              value={quickCustomerName}
+              onChange={(e) => setQuickCustomerName(e.target.value)}
+              placeholder="Enter customer name"
+              className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-text-secondary mb-1">Phone Number</label>
+            <input
+              type="tel"
+              value={quickCustomerPhone}
+              onChange={(e) => setQuickCustomerPhone(e.target.value)}
+              placeholder="Enter phone number"
+              className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button
+              onClick={async () => {
+                if (!quickCustomerName.trim()) {
+                  toast('error', 'Customer name is required');
+                  return;
+                }
+                setIsAddingCustomer(true);
+                const response = await api.createCustomer({
+                  name: quickCustomerName.trim(),
+                  phone: quickCustomerPhone.trim() || undefined,
+                });
+                setIsAddingCustomer(false);
+                
+                if (response.success) {
+                  const newCustomer = response.data?.data || response.data;
+                  if (newCustomer) {
+                    setCustomers([...customers, newCustomer]);
+                    setSelectedCustomer(newCustomer);
+                  }
+                  toast('success', 'Customer added successfully');
+                  setShowQuickAddCustomer(false);
+                  setQuickCustomerName('');
+                  setQuickCustomerPhone('');
+                } else {
+                  toast('error', 'Failed to add customer');
+                }
+              }}
+              loading={isAddingCustomer}
+              disabled={!quickCustomerName.trim()}
+            >
+              Add Customer
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowQuickAddCustomer(false);
+                setQuickCustomerName('');
+                setQuickCustomerPhone('');
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Preview Modal */}
       {showPreviewModal && previewContent && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -1192,6 +1504,12 @@ export function BillingPage() {
                         <span>-₹{previewContent.content.couponDiscount.toFixed(2)}</span>
                       </div>
                     )}
+                    {previewContent.content.loyaltyDiscount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Loyalty ({previewContent.content.loyaltyCustomerName}):</span>
+                        <span>-₹{previewContent.content.loyaltyDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
                     {previewContent.content.discount > 0 && (
                       <div className="flex justify-between text-green-600">
                         <span>Discount ({previewContent.content.discountReason || 'Manual'}):</span>
@@ -1252,17 +1570,41 @@ export function BillingPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 p-4 border-t border-white/10">
+            <div className="flex flex-wrap gap-2 p-4 border-t border-white/10">
               <Button
                 variant="ghost"
-                className="flex-1"
                 onClick={handlePreviewCancel}
               >
                 Cancel
               </Button>
+              {previewContent.type === 'bill' && previewContent.content.customerPhone && (
+                <Button
+                  variant="success"
+                  onClick={() => {
+                    // Generate WhatsApp link
+                    const message = encodeURIComponent(`Your bill from ${settings?.restaurant?.name || 'Restaurant'}\n\nBill No: ${previewContent.content.orderId}\nTotal: ₹${previewContent.content.total.toFixed(2)}\n\nThank you!`);
+                    window.open(`https://wa.me/${previewContent.content.customerPhone.replace(/\D/g, '')}?text=${message}`, '_blank');
+                  }}
+                >
+                  <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  Send WhatsApp
+                </Button>
+              )}
+              {previewContent.type === 'bill' && previewContent.content.customerEmail && (
+                <Button
+                  variant="info"
+                  onClick={() => {
+                    const subject = encodeURIComponent(`Bill from ${settings?.restaurant?.name || 'Restaurant'} - ${previewContent.content.orderId}`);
+                    const body = encodeURIComponent(`Dear Customer,\n\nThank you for dining with us!\n\nBill Details:\nBill No: ${previewContent.content.orderId}\nTable: ${previewContent.content.tableNumber}\nDate: ${previewContent.content.dateTime}\n\nItems:\n${previewContent.content.items.map((i: any) => `${i.productName} x ${i.quantity} = ₹${(i.unitPrice * i.quantity).toFixed(2)}`).join('\n')}\n\nSubtotal: ₹${previewContent.content.subtotal.toFixed(2)}\nTax: ₹${previewContent.content.taxAmount.toFixed(2)}\n${previewContent.content.discount > 0 ? `Discount: -₹${previewContent.content.discount.toFixed(2)}\n` : ''}${previewContent.content.loyaltyDiscount > 0 ? `Loyalty Discount: -₹${previewContent.content.loyaltyDiscount.toFixed(2)}\n` : ''}\nTotal: ₹${previewContent.content.total.toFixed(2)}\n\nTotal in Words: ${previewContent.content.totalInWords}\n\nThank you for visiting!\n${settings?.restaurant?.name || 'Restaurant'}`);
+                    window.open(`mailto:${previewContent.content.customerEmail}?subject=${subject}&body=${body}`, '_blank');
+                  }}
+                >
+                  <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  Send Email
+                </Button>
+              )}
               <Button
                 variant="accent"
-                className="flex-1"
                 onClick={handlePreviewPrint}
               >
                 <Printer className="w-4 h-4 mr-2" />

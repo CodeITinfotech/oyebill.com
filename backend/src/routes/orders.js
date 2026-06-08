@@ -128,7 +128,7 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
 // Create order
 router.post('/', authenticateToken, (req, res) => {
   try {
-    const { tableId, items } = req.body;
+    const { tableId, items, waiterId, customerId } = req.body;
     const { db } = req;
 
     // Check for existing active order
@@ -143,9 +143,9 @@ router.post('/', authenticateToken, (req, res) => {
     // Create order
     const orderId = uuidv4();
     db.prepare(`
-      INSERT INTO orders (id, table_id, user_id, status)
-      VALUES (?, ?, ?, 'pending')
-    `).run(orderId, tableId, req.user.id);
+      INSERT INTO orders (id, table_id, user_id, waiter_id, customer_id, status)
+      VALUES (?, ?, ?, ?, ?, 'pending')
+    `).run(orderId, tableId, req.user.id, waiterId || null, customerId || null);
 
     // Add items
     let subtotal = 0;

@@ -97,16 +97,21 @@ db.exec(`
     id TEXT PRIMARY KEY,
     table_id TEXT,
     user_id TEXT,
+    waiter_id TEXT,
+    customer_id TEXT,
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'kot', 'billed')),
     subtotal REAL DEFAULT 0,
     tax_amount REAL DEFAULT 0,
     discount_amount REAL DEFAULT 0,
+    loyalty_discount REAL DEFAULT 0,
     discount_reason TEXT,
     total REAL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (table_id) REFERENCES tables(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (waiter_id) REFERENCES users(id),
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
   );
 
   -- Order items table
@@ -148,6 +153,24 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_orders_table ON orders(table_id);
   CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
   CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+  
+  -- Customers table
+  CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    place TEXT,
+    food_preference TEXT CHECK(food_preference IN ('veg', 'non-veg', 'both')) DEFAULT 'both',
+    loyalty_discount REAL DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    restaurant_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+  CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 `);
 
 export default db;

@@ -14,6 +14,7 @@ import { CategoriesPage } from './pages/categories/CategoriesPage';
 import { SectionsPage } from './pages/sections/SectionsPage';
 import { TablesPage } from './pages/tables/TablesPage';
 import { SettingsPage } from './pages/settings/SettingsPage';
+import { CustomersPage } from './pages/customers/CustomersPage';
 import BusserPage from './pages/busser/BusserPage';
 import { NotFoundPage } from './pages/error/ErrorPage';
 
@@ -215,6 +216,18 @@ function App() {
                 <Navigate to="/reset-password" replace />
               ) : (
                 <BusserPage />
+              )}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/customers"
+          element={
+            <ProtectedRoute>
+              {user?.mustResetPassword ? (
+                <Navigate to="/reset-password" replace />
+              ) : (
+                <CustomersPage />
               )}
             </ProtectedRoute>
           }

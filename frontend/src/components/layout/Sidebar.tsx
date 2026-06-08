@@ -8,6 +8,7 @@ import {
   Settings,
   LogOut,
   User,
+  UserPlus,
   Store,
   ClipboardList,
   CheckCircle,
@@ -20,6 +21,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { clsx } from 'clsx';
 import { Badge } from '../ui';
 import { useState, useEffect } from 'react';
+import { useSidebar } from './SidebarContext';
 
 const navItems = [
   { to: '/billing', icon: FileText, label: 'Billing' },
@@ -28,6 +30,7 @@ const navItems = [
   { to: '/sections', icon: Grid3X3, label: 'Sections' },
   { to: '/tables', icon: LayoutDashboard, label: 'Tables' },
   { to: '/busser', icon: ClipboardList, label: 'Busser Tasks', roles: ['busser'] },
+  { to: '/customers', icon: UserPlus, label: 'Customers', roles: ['admin'] },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -44,9 +47,8 @@ type ViewMode = 'mobile' | 'tablet' | 'desktop';
 export function Sidebar() {
   const { user, restaurant, logout } = useAuthStore();
   const navigate = useNavigate();
+  const { isOpen, toggle, close } = useSidebar();
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('full');
   const [viewMode, setViewMode] = useState<ViewMode>('desktop');
 
   // Detect viewport size
@@ -55,12 +57,12 @@ export function Sidebar() {
       const width = window.innerWidth;
       if (width < 768) {
         setViewMode('mobile');
-        setMobileOpen(false);
       } else if (width < 1024) {
         setViewMode('tablet');
-        setMobileOpen(false);
+        setCollapsed(true);
       } else {
         setViewMode('desktop');
+        setCollapsed(false);
       }
     };
 
@@ -69,17 +71,6 @@ export function Sidebar() {
     return () => window.removeEventListener('resize', updateViewMode);
   }, []);
 
-  // Auto-collapse on tablet
-  useEffect(() => {
-    if (viewMode === 'tablet') {
-      setSidebarMode('icon');
-      setCollapsed(true);
-    } else if (viewMode === 'desktop') {
-      setSidebarMode('full');
-      setCollapsed(false);
-    }
-  }, [viewMode]);
-
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -87,192 +78,183 @@ export function Sidebar() {
 
   const toggleCollapse = () => {
     if (viewMode === 'mobile') {
-      setMobileOpen(!mobileOpen);
+      toggle();
     } else {
       setCollapsed(!collapsed);
-      setSidebarMode(collapsed ? 'full' : 'icon');
-    }
-  };
-
-  const cycleMode = () => {
-    if (viewMode === 'mobile') {
-      setMobileOpen(!mobileOpen);
-    } else {
-      // Cycle through: full -> icon -> full
-      if (sidebarMode === 'full') {
-        setSidebarMode('icon');
-        setCollapsed(true);
-      } else {
-        setSidebarMode('full');
-        setCollapsed(false);
-      }
     }
   };
 
   const role = user?.role ? roleLabels[user.role] : { text: 'User', variant: 'default' as const };
 
+  // Desktop/Tablet sidebar width
+  const sidebarWidth = viewMode !== 'mobile' ? (collapsed ? 'w-[80px]' : 'w-[280px]') : '';
+
   const sidebarClasses = clsx(
     'h-screen bg-background-secondary flex flex-col border-r border-white/10 jali-pattern transition-all duration-300',
-    viewMode === 'mobile' ? 'fixed inset-y-0 left-0 z-50 w-[280px]' : '',
-    viewMode === 'tablet' ? 'w-[80px]' : '',
-    viewMode === 'desktop' ? (collapsed ? 'w-[80px]' : 'w-[280px]') : '',
-    sidebarMode === 'icon' && viewMode !== 'mobile' ? 'w-[80px]' : 'w-[280px]'
+    viewMode === 'mobile' 
+      ? `fixed inset-y-0 left-0 z-50 w-[280px] ${isOpen ? 'translate-x-0' : '-translate-x-full'}` 
+      : '',
+    sidebarWidth
   );
 
-  // Render mobile overlay
-  const mobileOverlay = viewMode === 'mobile' && mobileOpen && (
-    <div 
-      className="fixed inset-0 bg-black/50 z-40"
-      onClick={() => setMobileOpen(false)}
-    />
-  );
+  const showFullContent = viewMode === 'mobile' || !collapsed;
 
-  const sidebarContent = (
+  return (
     <>
-      {/* Logo & Toggle Header */}
-      <div className="p-4 border-b border-white/10">
-        {/* When collapsed - show only expand button */}
-        {collapsed ? (
-          <div className="flex items-center justify-center">
-            <button
-              onClick={cycleMode}
-              className="p-3 rounded-lg hover:bg-white/10 transition-all"
-              title="Expand Sidebar"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-        ) : (
-          /* When expanded - show logo + toggle button */
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-primary flex items-center justify-center">
-                <span className="text-xl font-bold text-white">₹</span>
-              </div>
-              <div>
-                <h1 className="font-display text-xl font-bold gradient-text">Oyebill</h1>
-                <p className="text-[10px] text-text-muted tracking-wider">RESTAURANT BILLING</p>
-              </div>
-            </div>
-            <button
-              onClick={cycleMode}
-              className="p-2 rounded-lg hover:bg-white/10 transition-all"
-              title="Collapse Sidebar"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-        
-        {/* Mobile Menu Button */}
-        {viewMode === 'mobile' && (
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-all"
-            title={mobileOpen ? 'Close Menu' : 'Open Menu'}
-          >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        )}
-      </div>
-
-      {/* Restaurant Selector */}
-      {restaurant && (viewMode === 'mobile' || !collapsed) && (
-        <div className="px-4 py-3 border-b border-white/10">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-card/50">
-            <Store className="w-4 h-4 text-accent" />
-            <span className="text-sm truncate">{restaurant.name}</span>
-          </div>
-        </div>
+      {/* Mobile Toggle Button - visible when sidebar is closed */}
+      {viewMode === 'mobile' && !isOpen && (
+        <button
+          onClick={toggle}
+          className="fixed top-2 left-2 z-40 p-2 rounded-lg bg-background-secondary border border-white/10 shadow-lg hover:bg-background-card transition-all"
+          title="Open Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
       )}
 
-      {/* Navigation */}
-      <nav className={clsx(
-        'flex-1 p-2 overflow-y-auto',
-        viewMode === 'mobile' || !collapsed ? 'space-y-1' : 'space-y-2'
-      )}>
-        {navItems.map((item) => {
-          if (user?.role === 'admin') {
+      {/* Mobile Overlay */}
+      {viewMode === 'mobile' && isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={close}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={sidebarClasses}>
+        {/* Header with Logo & Toggle */}
+        <div className="p-4 border-b border-white/10">
+          {collapsed && viewMode !== 'mobile' ? (
+            /* Collapsed Mode - Show only toggle button */
+            <div className="flex justify-center">
+              <button
+                onClick={toggleCollapse}
+                className="p-3 rounded-lg hover:bg-white/10 transition-all bg-gradient-to-br from-accent to-primary"
+                title="Expand Sidebar"
+              >
+                <ChevronRight className="w-6 h-6 text-white" />
+              </button>
+            </div>
+          ) : (
+            /* Expanded Mode - Show full header */
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-primary flex items-center justify-center">
+                  <span className="text-xl font-bold text-white">₹</span>
+                </div>
+                <div>
+                  <h1 className="font-display text-xl font-bold gradient-text">Oyebill</h1>
+                  <p className="text-[10px] text-text-muted tracking-wider">RESTAURANT BILLING</p>
+                </div>
+              </div>
+              {viewMode !== 'mobile' && (
+                <button
+                  onClick={toggleCollapse}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all"
+                  title="Collapse Sidebar"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+              {viewMode === 'mobile' && (
+                <button
+                  onClick={close}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-all"
+                  title="Close Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Restaurant Selector */}
+        {restaurant && showFullContent && (
+          <div className="px-4 py-3 border-b border-white/10">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-card/50">
+              <Store className="w-4 h-4 text-accent" />
+              <span className="text-sm truncate">{restaurant.name}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <nav className={clsx(
+          'flex-1 p-2 overflow-y-auto',
+          showFullContent ? 'space-y-1' : 'space-y-2'
+        )}>
+          {navItems.map((item) => {
+            if (user?.role === 'admin') {
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => viewMode === 'mobile' && close()}
+                  className={({ isActive }) =>
+                    clsx('nav-item', isActive && 'nav-item-active')
+                  }
+                >
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {showFullContent && <span>{item.label}</span>}
+                </NavLink>
+              );
+            }
+            if (item.roles && user?.role && !item.roles.includes(user.role)) {
+              return null;
+            }
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
-                onClick={() => viewMode === 'mobile' && setMobileOpen(false)}
+                onClick={() => viewMode === 'mobile' && close()}
                 className={({ isActive }) =>
                   clsx('nav-item', isActive && 'nav-item-active')
                 }
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />
-                {(viewMode === 'mobile' || !collapsed) && <span>{item.label}</span>}
+                {showFullContent && <span>{item.label}</span>}
               </NavLink>
             );
-          }
-          if (item.roles && user?.role && !item.roles.includes(user.role)) {
-            return null;
-          }
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => viewMode === 'mobile' && setMobileOpen(false)}
-              className={({ isActive }) =>
-                clsx('nav-item', isActive && 'nav-item-active')
-              }
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {(viewMode === 'mobile' || !collapsed) && <span>{item.label}</span>}
-            </NavLink>
-          );
-        })}
-      </nav>
+          })}
+        </nav>
 
-      {/* User Section */}
-      <div className="p-4 border-t border-white/10">
-        {viewMode === 'mobile' || !collapsed ? (
-          <>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+        {/* User Section */}
+        <div className="p-4 border-t border-white/10">
+          {showFullContent ? (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+                  <Badge variant={role.variant} className="mt-1">{role.text}</Badge>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="nav-item w-full text-error hover:bg-error/10"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
                 <User className="w-5 h-5 text-white" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                <Badge variant={role.variant} className="mt-1">{role.text}</Badge>
-              </div>
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg text-error hover:bg-error/10"
+                title="Logout"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="nav-item w-full text-error hover:bg-error/10"
-            >
-              <LogOut className="w-5 h-5" />
-              <span>Logout</span>
-            </button>
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <User className="w-5 h-5 text-white" />
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-lg text-error hover:bg-error/10"
-              title="Logout"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-
-  return (
-    <>
-      {/* Mobile Overlay */}
-      {mobileOverlay}
-
-      {/* Sidebar */}
-      <aside className={sidebarClasses}>
-        {sidebarContent}
+          )}
+        </div>
       </aside>
     </>
   );

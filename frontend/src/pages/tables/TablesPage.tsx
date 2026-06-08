@@ -174,26 +174,65 @@ export function TablesPage() {
       {/* Visual Grid View */}
       <div className="card p-6 mb-6">
         <h3 className="text-sm font-medium text-text-secondary mb-4">Visual Layout</h3>
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4">
-          {filteredTables.map((table) => (
-            <button
-              key={table.id}
-              onClick={() => handleOpenModal(table)}
-              className={`aspect-square rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 ${
-                table.status === 'available'
-                  ? 'border-success/50 bg-success/10 hover:border-success'
-                  : table.status === 'occupied'
-                  ? 'border-warning/50 bg-warning/10 hover:border-warning'
-                  : 'border-info/50 bg-info/10 hover:border-info'
-              }`}
-            >
-              <span className="text-xl font-bold">{table.number}</span>
-              <div className="flex items-center gap-1 text-xs text-text-muted">
-                <Users className="w-3 h-3" />
-                {table.capacity}
-              </div>
-            </button>
-          ))}
+        <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
+          {filteredTables.map((table) => {
+            const isAvailable = table.status === 'available';
+            const isPendingCleaning = table.status === 'pending_cleaning';
+            const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
+            const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
+            
+            // Status colors - same as BillingPage
+            let statusColor = 'bg-success'; // Green - Available
+            let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
+            
+            if (isPendingCleaning) {
+              statusColor = 'bg-red-900'; // Maroon - Pending Cleaning
+              statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
+            } else if (isPendingPrint) {
+              statusColor = 'bg-red-500'; // Red - Pending Printing
+              statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
+            } else if (isOccupied) {
+              statusColor = 'bg-orange-500'; // Orange - Occupied (Before KOT)
+              statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
+            }
+            
+            return (
+              <button
+                key={table.id}
+                onClick={() => handleOpenModal(table)}
+                className={`h-16 rounded-lg border-2 flex flex-col items-center justify-center transition-all hover:scale-105 relative px-1 ${statusBgClass}`}
+              >
+                <span className="text-lg font-bold leading-tight">{table.number}</span>
+                <span className="text-[7px] text-text-muted">{table.capacity}</span>
+                {/* Status indicator dot below table */}
+                <span className={`absolute bottom-0.5 w-2 h-2 rounded-full ${statusColor}`} title={
+                  isAvailable ? 'Available' : 
+                  isPendingCleaning ? 'Pending Cleaning' :
+                  isPendingPrint ? 'Pending Printing' :
+                  'Occupied (Before KOT)'
+                } />
+              </button>
+            );
+          })}
+        </div>
+        {/* Legend - same as BillingPage */}
+        <div className="flex flex-wrap gap-4 mt-3 text-xs text-text-muted">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-success"></span>
+            <span>Available</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+            <span>Occupied (Before KOT)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-500"></span>
+            <span>Pending Printing</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-900"></span>
+            <span>Pending Cleaning</span>
+          </div>
         </div>
       </div>
 
