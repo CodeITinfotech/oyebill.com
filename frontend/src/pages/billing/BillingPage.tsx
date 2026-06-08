@@ -10,6 +10,7 @@ import type { Product, Table, OrderItem } from '../../types';
 
 interface CartItem extends OrderItem {
   isNew?: boolean;
+  isOnlineOrder?: boolean;
 }
 
 export function BillingPage() {
@@ -69,6 +70,18 @@ export function BillingPage() {
   const [previewContent, setPreviewContent] = useState<{type: 'kot' | 'bill', content: any} | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Online order state
+  const [onlineOrder, setOnlineOrder] = useState<{
+    onlineOrderId: string;
+    externalOrderId: string;
+    platform: string;
+    customerName: string;
+    customerPhone: string;
+    deliveryAddress: string;
+    items: any[];
+    totalAmount: number;
+  } | null>(null);
+
   // Stores
   const { user } = useAuthStore();
   const store = useDataStore();
@@ -94,6 +107,38 @@ export function BillingPage() {
         setCustomers(response.data);
       }
     });
+
+    // Check for online order data in sessionStorage
+    const onlineOrderData = sessionStorage.getItem('onlineOrderData');
+    if (onlineOrderData) {
+      try {
+        const parsedData = JSON.parse(onlineOrderData);
+        setOnlineOrder(parsedData);
+        
+        // Add online order items to cart
+        if (parsedData.items && parsedData.items.length > 0) {
+          const cartItems: CartItem[] = parsedData.items.map((item: any) => ({
+            id: uuidv4(),
+            productId: item.productId || item.id,
+            productName: item.name || item.productName,
+            quantity: item.quantity || 1,
+            unitPrice: item.price || item.unitPrice || 0,
+            taxRate: item.taxRate || 0,
+            taxAmount: (item.price || 0) * ((item.taxRate || 0) / 100),
+            total: (item.price || 0) * (item.quantity || 1),
+            isKot: false,
+            isNew: true,
+            isOnlineOrder: true,
+          }));
+          setCart(cartItems);
+        }
+        
+        // Clear sessionStorage
+        sessionStorage.removeItem('onlineOrderData');
+      } catch (e) {
+        console.error('Error parsing online order data:', e);
+      }
+    }
   }, []);
 
   // Fetch tables when section changes
@@ -281,23 +326,47 @@ export function BillingPage() {
 
   // Generate KOT
   const handleKOT = async () => {
-    if (!selectedTable || cart.filter(i => i.isNew).length === 0) {
+    // Check for items
+    if (cart.filter(i => i.isNew).length === 0) {
       toast('warning', 'Add items to generate KOT');
+      return;
+    }
+
+    // Check if online order (no table needed)
+    const isOnlineOrderMode = onlineOrder !== null;
+    
+    if (!isOnlineOrderMode && !selectedTable) {
+      toast('warning', 'Please select a table first');
       return;
     }
 
     const kotSetup = settings?.kot_setup;
     const showPreview = kotSetup?.showPreview !== false; // Default to true
     
-    // Generate formatted order ID: DDMMYY-TB##-XXXXX
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear()).slice(-2);
-    const dateStr = `${day}${month}${year}`;
-    const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
-    const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-    const orderId = `${dateStr}-${tableStr}-${randomNum}`;
+    // Generate order ID based on mode
+    let orderId: string;
+    let displayTable: string;
+    
+    if (isOnlineOrderMode) {
+      // Online order ID format: Online-SGY-XXXXX, Online-ZMTO-XXXXX, Online-OTHS-XXXXX
+      const platformCode = onlineOrder.platform?.toUpperCase().slice(0, 4) || 'OTHS';
+      const prefix = platformCode === 'SWIG' ? 'SGY' : 
+                     platformCode === 'ZOMA' ? 'ZMTO' : 'OTHS';
+      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
+      orderId = `Online-${prefix}-${randomNum}`;
+      displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
+    } else {
+      // Regular order ID format: DDMMYY-TB##-XXXXX
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = String(now.getFullYear()).slice(-2);
+      const dateStr = `${day}${month}${year}`;
+      const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
+      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
+      orderId = `${dateStr}-${tableStr}-${randomNum}`;
+      displayTable = selectedTable.number;
+    }
     
     // Get selected waiter name
     const selectedWaiterObj = waiters.find(w => w.id === selectedWaiter);
@@ -306,10 +375,12 @@ export function BillingPage() {
     // Create content for preview
     const kotContent = {
       orderId: orderId,
-      tableNumber: selectedTable.number,
+      tableNumber: displayTable,
       items: cart.filter(i => i.isNew || i.isKot),
       waiterName: waiterName,
       dateTime: new Date().toLocaleString(),
+      isOnlineOrder: isOnlineOrderMode,
+      platform: onlineOrder?.platform,
     };
 
     // If preview is enabled, show preview modal
@@ -330,8 +401,32 @@ export function BillingPage() {
     const kotItems = cart.map(item => ({ ...item, isKot: true, isNew: false }));
     setCart(kotItems);
 
+    const isOnlineOrderMode = onlineOrder !== null;
+
     if (currentOrderId) {
       await updateOrder(currentOrderId, kotItems);
+    } else if (isOnlineOrderMode) {
+      // For online orders, create a special order (no table)
+      // Store the online order ID for later use when generating bill
+      // We'll create an order entry in the backend or use session
+      try {
+        // Save order data for online orders - could call API to create order
+        const orderData = {
+          onlineOrderId: onlineOrder.onlineOrderId,
+          externalOrderId: onlineOrder.externalOrderId,
+          platform: onlineOrder.platform,
+          items: kotItems,
+          status: 'kot_generated',
+        };
+        
+        // Store in session for later use
+        sessionStorage.setItem('onlineKotData', JSON.stringify(orderData));
+        
+        // Update online order status to preparing
+        await api.updateOnlineOrderStatus(onlineOrder.onlineOrderId, 'preparing');
+      } catch (error) {
+        console.error('Error saving online order KOT:', error);
+      }
     } else {
       const response = await createOrder(selectedTable.id, kotItems, selectedWaiter || undefined, selectedCustomer?.id);
       if (response) {
@@ -339,8 +434,8 @@ export function BillingPage() {
       }
     }
 
-    await generateKOT(currentOrderId || '');
-    toast('success', 'KOT Generated successfully');
+    await generateKOT(currentOrderId || (isOnlineOrderMode ? 'ONLINE-KOT' : ''));
+    toast('success', isOnlineOrderMode ? 'Online Order KOT Generated' : 'KOT Generated successfully');
     
     // Print KOT (simulated)
     setTimeout(() => {
@@ -375,29 +470,56 @@ export function BillingPage() {
 
   // Generate Bill
   const handleBill = async () => {
-    if (!selectedTable || cart.length === 0) {
+    // Check for items
+    if (cart.length === 0) {
       toast('warning', 'Add items to generate bill');
+      return;
+    }
+
+    const isOnlineOrderMode = onlineOrder !== null;
+    
+    if (!isOnlineOrderMode && !selectedTable) {
+      toast('warning', 'Please select a table first');
       return;
     }
 
     const billSetup = settings?.bill_setup;
     const showPreview = billSetup?.showPreview !== false; // Default to true
     
-    // Generate formatted order ID: DDMMYY-TB##-XXXXX
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear()).slice(-2);
-    const dateStr = `${day}${month}${year}`;
-    const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
-    const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-    const orderId = `${dateStr}-${tableStr}-${randomNum}`;
+    // Generate order ID based on mode
+    let orderId: string;
+    let displayTable: string;
+    
+    if (isOnlineOrderMode) {
+      // Online order ID format: Online-SGY-XXXXX, Online-ZMTO-XXXXX, Online-OTHS-XXXXX
+      const platformCode = onlineOrder.platform?.toUpperCase().slice(0, 4) || 'OTHS';
+      const prefix = platformCode === 'SWIG' ? 'SGY' : 
+                     platformCode === 'ZOMA' ? 'ZMTO' : 'OTHS';
+      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
+      orderId = `Online-${prefix}-${randomNum}`;
+      displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
+    } else {
+      // Regular order ID format: DDMMYY-TB##-XXXXX
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = String(now.getFullYear()).slice(-2);
+      const dateStr = `${day}${month}${year}`;
+      const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
+      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
+      orderId = `${dateStr}-${tableStr}-${randomNum}`;
+      displayTable = selectedTable.number;
+    }
+    
+    // Get KotData from session for online orders
+    const kotDataStr = sessionStorage.getItem('onlineKotData');
+    const kotData = kotDataStr ? JSON.parse(kotDataStr) : null;
     
     // Create content for preview
     const billContent = {
       orderId: orderId,
-      kotNumber: currentOrderId || 'N/A', // Reference to KOT
-      tableNumber: selectedTable.number,
+      kotNumber: currentOrderId || kotData?.onlineOrderId || 'N/A', // Reference to KOT
+      tableNumber: displayTable,
       items: cart,
       subtotal: subtotal,
       taxAmount: taxAmount,
@@ -410,10 +532,13 @@ export function BillingPage() {
       total: total,
       totalInWords: numberToWords(total),
       waiterName: user?.name || 'Staff',
-      customerPhone: selectedCustomer?.phone || null,
+      customerPhone: selectedCustomer?.phone || onlineOrder?.customerPhone || null,
       customerEmail: selectedCustomer?.email || null,
       dateTime: new Date().toLocaleString(),
       payment: settings?.payment,
+      isOnlineOrder: isOnlineOrderMode,
+      platform: onlineOrder?.platform,
+      deliveryAddress: onlineOrder?.deliveryAddress,
     };
 
     // If preview is enabled, show preview modal
@@ -430,6 +555,8 @@ export function BillingPage() {
 
   // Execute Bill generation (called after preview confirm or if preview disabled)
   const executeBill = async () => {
+    const isOnlineOrderMode = onlineOrder !== null;
+
     if (currentOrderId) {
       // Apply any pending discount
       if (discountAmount && discountReason) {
@@ -438,7 +565,24 @@ export function BillingPage() {
       await generateBill(currentOrderId);
     }
 
-    toast('success', 'Bill Generated successfully');
+    // For online orders, update status to ready
+    if (isOnlineOrderMode && onlineOrder) {
+      try {
+        await api.updateOnlineOrderStatus(onlineOrder.onlineOrderId, 'ready');
+        toast('success', 'Online Order Bill Generated - Order Ready for Pickup');
+        
+        // Clear session data
+        sessionStorage.removeItem('onlineKotData');
+        
+        // Reset online order state
+        setOnlineOrder(null);
+      } catch (error) {
+        console.error('Error updating online order status:', error);
+        toast('success', 'Bill Generated (Status update failed)');
+      }
+    } else {
+      toast('success', 'Bill Generated successfully');
+    }
     
     // Print Bill (simulated)
     setTimeout(() => {
@@ -626,43 +770,74 @@ export function BillingPage() {
 
           {/* Table Selection */}
           <div className="p-3 lg:p-4 border-b border-white/10">
-            {/* Section Filter */}
-            <div className="mb-3">
-              <select
-                value={selectedSection}
-                onChange={(e) => {
-                  setSelectedSection(e.target.value);
-                  setSelectedTable(null);
-                }}
-                className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
-              >
-                <option value="">All Sections</option>
-                {sections.filter(s => s.isActive).map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Selected Table Badge */}
-            {selectedTable && (
-              <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-accent" />
+            {/* Online Order Banner */}
+            {onlineOrder && (
+              <div className="mb-3 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">Table {selectedTable.number}</p>
-                    <p className="text-xs text-text-muted">Capacity: {selectedTable.capacity}</p>
+                    <p className="font-medium text-green-400">Online Order</p>
+                    <p className="text-sm text-text-secondary">
+                      {onlineOrder.externalOrderId || onlineOrder.platform}
+                    </p>
+                    {onlineOrder.customerName && (
+                      <p className="text-xs text-text-muted">{onlineOrder.customerName}</p>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
                   <button
-                    onClick={() => setSelectedTable(null)}
-                    className="text-xs text-accent hover:text-accent/80"
+                    onClick={() => {
+                      setOnlineOrder(null);
+                      setCart([]);
+                      sessionStorage.removeItem('onlineKotData');
+                    }}
+                    className="text-xs text-red-400 hover:text-red-300"
                   >
-                    Change
+                    Cancel
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* Section Filter - only show when not in online order mode */}
+            {!onlineOrder && (
+              <>
+                <div className="mb-3">
+                  <select
+                    value={selectedSection}
+                    onChange={(e) => {
+                      setSelectedSection(e.target.value);
+                      setSelectedTable(null);
+                    }}
+                    className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+                  >
+                    <option value="">All Sections</option>
+                    {sections.filter(s => s.isActive).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Selected Table Badge */}
+                {selectedTable && (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-5 h-5 text-accent" />
+                      <div>
+                        <p className="font-medium">Table {selectedTable.number}</p>
+                        <p className="text-xs text-text-muted">Capacity: {selectedTable.capacity}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
+                      <button
+                        onClick={() => setSelectedTable(null)}
+                        className="text-xs text-accent hover:text-accent/80"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Waiter & Customer - Horizontal on mobile */}

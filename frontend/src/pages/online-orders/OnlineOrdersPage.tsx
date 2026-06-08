@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 
 interface OnlineOrder {
@@ -45,11 +46,13 @@ const platformColors: Record<string, string> = {
 };
 
 export default function OnlineOrdersPage() {
+  const navigate = useNavigate();
   const [ordersData, setOrdersData] = useState<OnlineOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
   const [counts, setCounts] = useState({ new: 0, accepted: 0, preparing: 0, ready: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -121,6 +124,38 @@ export default function OnlineOrdersPage() {
       }
     } catch (error) {
       console.error('Error updating status:', error);
+    }
+  };
+
+  const handleAcceptOrder = async (order: OnlineOrder) => {
+    try {
+      setAcceptingOrderId(order.id);
+      
+      // Update status to accepted
+      const response = await api.updateOnlineOrderStatus(order.id, 'accepted');
+      if (response.success) {
+        // Navigate to billing page with online order data
+        const orderData = {
+          onlineOrderId: order.id,
+          externalOrderId: order.external_order_id,
+          platform: order.platform,
+          customerName: order.customer_name,
+          customerPhone: order.customer_phone,
+          deliveryAddress: order.delivery_address,
+          items: order.order_data?.items || [],
+          totalAmount: order.total_amount,
+        };
+        
+        // Store in sessionStorage for the billing page to retrieve
+        sessionStorage.setItem('onlineOrderData', JSON.stringify(orderData));
+        
+        // Navigate to billing page
+        navigate('/billing', { state: { fromOnlineOrders: true } });
+      }
+    } catch (error) {
+      console.error('Error accepting order:', error);
+    } finally {
+      setAcceptingOrderId(null);
     }
   };
 
@@ -256,10 +291,11 @@ export default function OnlineOrdersPage() {
                       {order.status === 'new' && (
                         <>
                           <button
-                            onClick={() => handleUpdateStatus(order.id, 'accepted')}
-                            className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700"
+                            onClick={() => handleAcceptOrder(order)}
+                            disabled={acceptingOrderId === order.id}
+                            className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
                           >
-                            Accept
+                            {acceptingOrderId === order.id ? 'Opening...' : 'Accept & Bill'}
                           </button>
                           <button
                             onClick={() => handleUpdateStatus(order.id, 'declined')}
