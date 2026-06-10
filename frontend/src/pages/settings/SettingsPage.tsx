@@ -5,6 +5,8 @@ import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
+import { DatePicker } from '../../components/ui/DatePicker';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X, Globe } from 'lucide-react';
 import { api } from '../../api';
 import { OnlineOrderingSettings } from './OnlineOrderingSettings';
@@ -85,6 +87,11 @@ export function SettingsPage() {
     onConfirm: () => {},
   });
   const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+
+  // Data Management selections
+  const [selectedTable, setSelectedTable] = useState('');
+  const [bookingDate, setBookingDate] = useState('');
+  const [kotDate, setKotDate] = useState('');
   
   // Show confirm modal helper
   const showConfirm = (
@@ -2754,35 +2761,36 @@ TOTAL:               ₹620
                     <div className="p-3 bg-background-secondary rounded-lg">
                       <p className="text-sm font-medium mb-2">Clear Specific Table</p>
                       <p className="text-xs text-text-muted mb-3">Select a table to clear</p>
-                      <select
-                        className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm mb-2"
-                        id="clearTableSelect"
-                      >
-                        <option value="">Select Table...</option>
-                        {(tables || []).filter(t => t.status !== 'available').map(t => (
-                          <option key={t.id} value={t.id}>Table {t.number} ({t.status})</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        value={selectedTable}
+                        onChange={setSelectedTable}
+                        placeholder="Select table..."
+                        options={(tables || []).filter(t => t.status !== 'available').map(t => ({
+                          value: t.id,
+                          label: `Table ${t.number}`,
+                          sublabel: t.status,
+                        }))}
+                      />
                       <Button
                         variant="secondary"
                         size="sm"
+                        className="mt-2 w-full"
                         onClick={() => {
-                          const select = document.getElementById('clearTableSelect') as HTMLSelectElement;
-                          if (!select.value) {
+                          if (!selectedTable) {
                             toast('warning', 'Select a table first');
                             return;
                           }
-                          const tableNum = (tables || []).find(t => t.id === select.value)?.number;
+                          const table = (tables || []).find(t => t.id === selectedTable);
                           showConfirm(
-                            `Clear Table ${tableNum}?`,
+                            `Clear Table ${table?.number}?`,
                             'This will reset the table to available status and remove its active orders. This action cannot be undone.',
                             async () => {
                               try {
-                                const res = await api.clearTable(select.value);
+                                const res = await api.clearTable(selectedTable);
                                 if (res.success) {
                                   toast('success', `Table ${res.tableNumber} cleared`);
                                   fetchTables();
-                                  select.value = '';
+                                  setSelectedTable('');
                                 } else {
                                   toast('error', res.error || 'Failed');
                                 }
@@ -2835,75 +2843,61 @@ TOTAL:               ₹620
                     
                     <div className="p-3 bg-background-secondary rounded-lg">
                       <p className="text-sm font-medium mb-2">Delete by Bill Number</p>
-                      <p className="text-xs text-text-muted mb-3">Enter bill/order ID</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          id="deleteBillInput"
-                          placeholder="Bill Number"
-                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
-                        />
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => {
-                            const input = document.getElementById('deleteBillInput') as HTMLInputElement;
-                            if (!input.value.trim()) {
-                              toast('warning', 'Enter bill number');
-                              return;
-                            }
-                            showConfirm(
-                              `Delete Booking "${input.value.trim()}"?`,
-                              'This will permanently delete this booking. This action cannot be undone.',
-                              async () => {
-                                try {
-                                  const res = await api.deleteBookingByBill(input.value.trim());
-                                  if (res.success) {
-                                    toast('success', res.message);
-                                    input.value = '';
-                                  } else {
-                                    toast('error', res.error || 'Not found');
-                                  }
-                                } catch (e) {
-                                  toast('error', 'Failed to delete');
+                      <p className="text-xs text-text-muted mb-3">Search or type bill/order ID</p>
+                      <SearchableSelect
+                        value=""
+                        onChange={(val) => {
+                          if (!val) return;
+                          showConfirm(
+                            `Delete Booking "${val}"?`,
+                            'This will permanently delete this booking. This action cannot be undone.',
+                            async () => {
+                              try {
+                                const res = await api.deleteBookingByBill(val);
+                                if (res.success) {
+                                  toast('success', res.message);
+                                } else {
+                                  toast('error', res.error || 'Not found');
                                 }
-                              },
-                              'danger',
-                              'Delete'
-                            );
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </div>
+                              } catch (e) {
+                                toast('error', 'Failed to delete');
+                              }
+                            },
+                            'danger',
+                            'Delete'
+                          );
+                        }}
+                        placeholder="Bill Number"
+                        options={[]}
+                      />
                     </div>
                     
                     <div className="p-3 bg-background-secondary rounded-lg">
                       <p className="text-sm font-medium mb-2">Delete by Date</p>
                       <p className="text-xs text-text-muted mb-3">Delete bookings from specific date</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="date"
-                          id="deleteBookingDateInput"
-                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
+                      <div className="flex gap-2 items-start">
+                        <DatePicker
+                          value={bookingDate}
+                          onChange={setBookingDate}
+                          placeholder="Select date"
                         />
                         <Button
                           variant="danger"
                           size="sm"
                           onClick={() => {
-                            const input = document.getElementById('deleteBookingDateInput') as HTMLInputElement;
-                            if (!input.value) {
+                            if (!bookingDate) {
                               toast('warning', 'Select a date');
                               return;
                             }
+                            const formatted = new Date(bookingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                             showConfirm(
-                              `Delete Bookings from ${input.value}?`,
+                              `Delete Bookings from ${formatted}?`,
                               'This will permanently delete all bookings from this date. This action cannot be undone.',
                               async () => {
                                 try {
-                                  const res = await api.deleteBookingsByDate(input.value);
+                                  const res = await api.deleteBookingsByDate(bookingDate);
                                   toast('success', res.message);
-                                  input.value = '';
+                                  setBookingDate('');
                                 } catch (e) {
                                   toast('error', 'Failed to delete');
                                 }
@@ -2955,29 +2949,29 @@ TOTAL:               ₹620
                     <div className="p-3 bg-background-secondary rounded-lg">
                       <p className="text-sm font-medium mb-2">Delete KOTs by Date</p>
                       <p className="text-xs text-text-muted mb-3">Delete KOTs from specific date</p>
-                      <div className="flex gap-2">
-                        <input
-                          type="date"
-                          id="deleteKotDateInput"
-                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
+                      <div className="flex gap-2 items-start">
+                        <DatePicker
+                          value={kotDate}
+                          onChange={setKotDate}
+                          placeholder="Select date"
                         />
                         <Button
                           variant="danger"
                           size="sm"
                           onClick={() => {
-                            const input = document.getElementById('deleteKotDateInput') as HTMLInputElement;
-                            if (!input.value) {
+                            if (!kotDate) {
                               toast('warning', 'Select a date');
                               return;
                             }
+                            const formatted = new Date(kotDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                             showConfirm(
-                              `Delete KOTs from ${input.value}?`,
+                              `Delete KOTs from ${formatted}?`,
                               'This will permanently delete all KOTs from this date. This action cannot be undone.',
                               async () => {
                                 try {
-                                  const res = await api.deleteKotsByDate(input.value);
+                                  const res = await api.deleteKotsByDate(kotDate);
                                   toast('success', res.message);
-                                  input.value = '';
+                                  setKotDate('');
                                 } catch (e) {
                                   toast('error', 'Failed to delete');
                                 }

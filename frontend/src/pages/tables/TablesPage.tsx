@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Toggle, Table, Modal, toast } from '../../components/ui';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { Plus, Pencil, Trash2, Users, Search } from 'lucide-react';
 import type { Table as TableType } from '../../types';
 
@@ -12,6 +13,7 @@ export function TablesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filterSection, setFilterSection] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ table: TableType | null; loading: boolean }>({ table: null, loading: false });
 
   const [formData, setFormData] = useState({
     number: '',
@@ -91,16 +93,23 @@ export function TablesPage() {
     }
   };
 
-  const handleDelete = async (table: TableType) => {
-    const confirmed = window.confirm(`Are you sure you want to delete Table ${table.number}?`);
-    if (confirmed) {
+  const handleDelete = async () => {
+    if (!deleteConfirm.table) return;
+    const table = deleteConfirm.table;
+    setDeleteConfirm(prev => ({ ...prev, loading: true }));
+    
+    try {
       const success = await deleteTable(table.id);
       if (success) {
-        toast('success', `Table ${table.number} deleted successfully`);
+        toast('success', `Deleted all orders for Table ${table.number}`);
         fetchTables(filterSection || undefined);
       } else {
-        toast('error', 'Failed to delete table');
+        toast('error', 'Failed to delete table orders');
       }
+    } catch (e) {
+      toast('error', 'Failed to delete table orders');
+    } finally {
+      setDeleteConfirm({ table: null, loading: false });
     }
   };
 
@@ -138,9 +147,9 @@ export function TablesPage() {
             <Pencil className="w-4 h-4 text-accent" />
           </button>
           <button 
-            onClick={(e) => { e.stopPropagation(); handleDelete(t); }}
+            onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ table: t, loading: false }); }}
             className="p-1.5 hover:bg-error/20 rounded-lg transition-colors bg-error/10"
-            title="Delete"
+            title="Delete Orders"
           >
             <Trash2 className="w-4 h-4 text-error" />
           </button>
@@ -321,7 +330,7 @@ export function TablesPage() {
                         <Pencil className="w-4 h-4 text-accent" />
                       </button>
                       <button 
-                        onClick={() => handleDelete(table)}
+                        onClick={() => setDeleteConfirm({ table, loading: false })}
                         className="p-2 hover:bg-error/20 rounded-lg transition-colors"
                       >
                         <Trash2 className="w-4 h-4 text-error" />
@@ -392,7 +401,7 @@ export function TablesPage() {
                   variant="danger"
                   onClick={() => {
                     setShowModal(false);
-                    handleDelete(editingTable);
+                    setDeleteConfirm({ table: editingTable, loading: false });
                   }}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -485,7 +494,7 @@ export function TablesPage() {
                     type="button"
                     onClick={() => {
                       setShowModal(false);
-                      handleDelete(editingTable);
+                      setDeleteConfirm({ table: editingTable, loading: false });
                     }}
                     className="px-4 py-3 bg-error/20 hover:bg-error/30 text-error font-medium rounded-lg transition-colors"
                   >
@@ -511,6 +520,18 @@ export function TablesPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteConfirm.table !== null}
+        onClose={() => setDeleteConfirm({ table: null, loading: false })}
+        onConfirm={handleDelete}
+        title="⚠️ Delete Table Orders?"
+        message={`This will delete all KOTs and bills for Table ${deleteConfirm.table?.number}. The table will be set to available status. This action cannot be undone.`}
+        confirmText="Delete Orders"
+        variant="danger"
+        loading={deleteConfirm.loading}
+      />
     </div>
   );
 }

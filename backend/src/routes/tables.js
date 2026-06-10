@@ -254,26 +254,33 @@ router.put('/:id', authenticateToken, (req, res) => {
   }
 });
 
-// Delete table
+// Delete table (clears associated KOTs and bills, keeps table)
 router.delete('/:id', authenticateToken, (req, res) => {
   try {
     const { db } = req;
+    const tableId = req.params.id;
 
-    // Check if table has active orders
-    const orders = db.prepare(`
-      SELECT COUNT(*) as count FROM orders 
-      WHERE table_id = ? AND status != 'billed'
-    `).get(req.params.id);
-    
-    if (orders.count > 0) {
-      return res.status(400).json({ error: 'Cannot delete table with active orders' });
+    // Get table info
+    const table = db.prepare('SELECT * FROM tables WHERE id = ? AND restaurant_id = ?').get(tableId, req.user.restaurantId);
+    if (!table) {
+      return res.status(404).json({ success: false, error: 'Table not found' });
     }
 
-    db.prepare('DELETE FROM tables WHERE id = ?').run(req.params.id);
-    res.json({ message: 'Table deleted successfully' });
+    // Delete all orders (KOTs and bills) for this table
+    const deletedOrders = db.prepare('DELETE FROM orders WHERE table_id = ?').run(tableId);
+
+    // Set table to available
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', tableId);
+
+    res.json({ 
+      success: true, 
+      message: `Deleted ${deletedOrders.changes} orders for Table ${table.number}`,
+      deletedOrders: deletedOrders.changes,
+      tableNumber: table.number
+    });
   } catch (error) {
-    console.error('Delete table error:', error);
-    res.status(500).json({ error: 'Failed to delete table' });
+    console.error('Delete table orders error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete table orders' });
   }
 });
 

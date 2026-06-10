@@ -254,7 +254,9 @@ const store = create<DataState>((set, get) => ({
     const response = await api.deleteTable(id);
     if (response.success) {
       invalidateCache('tables_');
-      set({ tables: get().tables.filter(t => t.id !== id) });
+      // Refresh tables to get updated status
+      const tables = await api.getTables();
+      set({ tables });
       return true;
     }
     return false;
