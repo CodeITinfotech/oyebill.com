@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Frontend + API Proxy (nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"  # HTTP (nginx serves frontend)
+      - "5000:5000" # API port
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - oyebill-network
+
+networks:
+  oyebill-network:
+    driver: bridge
