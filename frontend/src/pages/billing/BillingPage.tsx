@@ -2452,16 +2452,28 @@ export function BillingPage() {
                               if (currentOrderId) {
                                 await api.deleteOrder(currentOrderId);
                               }
+                              
+                              // Clear saved cart
+                              if (selectedTable) {
+                                setTableCarts(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[selectedTable.id];
+                                  return updated;
+                                });
+                                
+                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                                if (selectedSection) {
+                                  store.fetchTables(selectedSection);
+                                }
+                              }
+                              
                               setCart([]);
                               setCurrentOrderId(null);
                               setDiscountAmount('');
                               setDiscountReason('');
                               setAppliedCoupon(null);
-                              if (selectedTable) {
-                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                              }
                               setShowMoreDropdown(false);
-                              toast('success', 'KOT cancelled');
+                              toast('success', 'KOT cancelled, table is now available');
                             } catch (error) {
                               toast('error', 'Failed to cancel KOT');
                             }
@@ -2627,17 +2639,26 @@ export function BillingPage() {
                                 await api.deleteOrder(currentOrderId);
                               }
                               
+                              // Clear saved cart and update table status
+                              if (selectedTable) {
+                                setTableCarts(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[selectedTable.id];
+                                  return updated;
+                                });
+                                
+                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                                if (selectedSection) {
+                                  store.fetchTables(selectedSection);
+                                }
+                              }
+                              
                               // Clear all cart items
                               setCart([]);
                               setCurrentOrderId(null);
                               setDiscountAmount('');
                               setDiscountReason('');
                               setAppliedCoupon(null);
-                              
-                              // Mark table as available
-                              if (selectedTable) {
-                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                              }
                               
                               setShowMoreDropdown(false);
                               toast('success', 'KOT cancelled, table is now free');
@@ -2655,13 +2676,39 @@ export function BillingPage() {
                       {/* Clear Cart - only show when no KOT items */}
                       {!cart.some(item => item.isKot) && (
                         <button
-                          onClick={() => {
-                            setCart([]);
-                            setDiscountAmount('');
-                            setDiscountReason('');
-                            setAppliedCoupon(null);
-                            setShowMoreDropdown(false);
-                            toast('info', 'Cart cleared');
+                          onClick={async () => {
+                            try {
+                              // Delete order from backend if exists
+                              if (currentOrderId) {
+                                await api.deleteOrder(currentOrderId);
+                              }
+                              
+                              // Clear saved cart
+                              if (selectedTable) {
+                                setTableCarts(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[selectedTable.id];
+                                  return updated;
+                                });
+                                
+                                // Update table status to available
+                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                                if (selectedSection) {
+                                  store.fetchTables(selectedSection);
+                                }
+                              }
+                              
+                              setCart([]);
+                              setCurrentOrderId(null);
+                              setDiscountAmount('');
+                              setDiscountReason('');
+                              setAppliedCoupon(null);
+                              setShowMoreDropdown(false);
+                              toast('success', 'Cart cleared, table is now available');
+                            } catch (error) {
+                              console.error('Error clearing cart:', error);
+                              toast('error', 'Failed to clear cart');
+                            }
                           }}
                           disabled={cart.length === 0}
                           className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50 text-red-400"
