@@ -546,8 +546,50 @@ export function BillingPage() {
   };
 
   // Remove item from cart
-  const removeFromCart = (itemId: string) => {
-    setCart(prev => prev.filter(item => item.id !== itemId));
+  const removeFromCart = async (itemId: string) => {
+    const itemToRemove = cart.find(item => item.id === itemId);
+    const newCart = cart.filter(item => item.id !== itemId);
+    
+    // If this is a new item (not from backend), just remove from cart
+    if (itemToRemove?.isNew && !currentOrderId) {
+      setCart(newCart);
+      return;
+    }
+    
+    // If item is from backend order, delete from backend
+    if (currentOrderId && itemToRemove && !itemToRemove.isNew) {
+      try {
+        await api.deleteOrderItem(currentOrderId, itemId);
+      } catch (error) {
+        console.error('Failed to delete order item:', error);
+      }
+    }
+    
+    // Update local cart
+    setCart(newCart);
+    
+    // If cart becomes empty, delete the entire order and mark table as available
+    if (newCart.length === 0 && currentOrderId && selectedTable) {
+      try {
+        await api.deleteOrder(currentOrderId);
+        setCurrentOrderId(null);
+        
+        // Clear saved cart for this table
+        setTableCarts(prev => {
+          const updated = { ...prev };
+          delete updated[selectedTable.id];
+          return updated;
+        });
+        
+        // Update table status to available
+        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+        if (selectedSection) {
+          store.fetchTables(selectedSection);
+        }
+      } catch (error) {
+        console.error('Failed to delete order:', error);
+      }
+    }
   };
 
   // Accept customer order

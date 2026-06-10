@@ -279,6 +279,51 @@ router.delete('/:id', authenticateToken, (req, res) => {
   }
 });
 
+// Delete order item
+router.delete('/:orderId/items/:itemId', authenticateToken, (req, res) => {
+  try {
+    const { db } = req;
+    const { orderId, itemId } = req.params;
+
+    // Check if order exists and is not billed
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.status === 'billed') {
+      return res.status(400).json({ error: 'Cannot modify billed order' });
+    }
+
+    // Delete the item
+    const result = db.prepare('DELETE FROM order_items WHERE id = ? AND order_id = ?').run(itemId, orderId);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    // Update order totals
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    let subtotal = 0;
+    let taxAmount = 0;
+    for (const item of items) {
+      subtotal += item.unit_price * item.quantity;
+      taxAmount += item.tax_amount;
+    }
+    const total = subtotal + taxAmount;
+    db.prepare('UPDATE orders SET subtotal = ?, tax_amount = ?, total = ? WHERE id = ?')
+      .run(subtotal, taxAmount, total, orderId);
+
+    res.json({ 
+      success: true, 
+      message: 'Item deleted',
+      itemsRemaining: items.length 
+    });
+  } catch (error) {
+    console.error('Delete order item error:', error);
+    res.status(500).json({ error: 'Failed to delete order item' });
+  }
+});
+
 // Create order
 router.post('/', authenticateToken, (req, res) => {
   try {

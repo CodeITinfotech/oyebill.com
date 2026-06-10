@@ -274,6 +274,10 @@ class ApiClient {
     return this.request<any>(`/orders/${orderId}`, { method: 'DELETE' });
   }
 
+  async deleteOrderItem(orderId: string, itemId: string) {
+    return this.request<any>(`/orders/${orderId}/items/${itemId}`, { method: 'DELETE' });
+  }
+
   async applyDiscount(orderId: string, amount: number, reason: string) {
     return this.request<any>(`/orders/${orderId}/discount`, {
       method: 'POST',
