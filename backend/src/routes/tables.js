@@ -167,8 +167,15 @@ router.get('/:id', authenticateToken, (req, res) => {
 // Create table
 router.post('/', authenticateToken, (req, res) => {
   try {
-    const { table_number, section_id, capacity = 4 } = req.body;
+    // Accept both camelCase and snake_case
+    const table_number = req.body.table_number || req.body.number;
+    const section_id = req.body.section_id || req.body.sectionId;
+    const capacity = req.body.capacity || 4;
     const { db } = req;
+
+    if (!table_number || !section_id) {
+      return res.status(400).json({ error: 'Table number and section are required' });
+    }
 
     // Check if table number already exists in restaurant
     const existing = db.prepare('SELECT * FROM tables WHERE number = ? AND restaurant_id = ?').get(table_number, req.user.restaurantId);
@@ -207,7 +214,11 @@ router.post('/', authenticateToken, (req, res) => {
 // Update table
 router.put('/:id', authenticateToken, (req, res) => {
   try {
-    const { number, sectionId, capacity, status } = req.body;
+    // Accept both camelCase and snake_case
+    const number = req.body.number || req.body.table_number;
+    const sectionId = req.body.sectionId || req.body.section_id;
+    const capacity = req.body.capacity;
+    const status = req.body.status;
     const { db } = req;
 
     // Check for duplicate table number

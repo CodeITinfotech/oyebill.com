@@ -8,7 +8,7 @@ const notifications = [];
 // Send notification to bussers
 router.post('/notify', (req, res) => {
   try {
-    const { tableId, tableNumber, message } = req.body;
+    const { tableId, tableNumber, message, busserId } = req.body;
     
     if (!tableId || !tableNumber) {
       return res.status(400).json({ success: false, error: 'tableId and tableNumber are required' });
@@ -20,13 +20,15 @@ router.post('/notify', (req, res) => {
       tableNumber,
       message: message || `Table ${tableNumber} needs cleaning!`,
       type: 'cleaning_reminder',
+      busserId: busserId || null, // null means all bussers
       createdAt: new Date().toISOString(),
       read: false
     };
     
     notifications.push(notification);
     
-    console.log(`🔔 Busser notification sent: ${notification.message}`);
+    const target = busserId ? `busser ${busserId}` : 'all bussers';
+    console.log(`🔔 Busser notification sent to ${target}: ${notification.message}`);
     
     res.json({ success: true, data: notification });
   } catch (error) {

@@ -72,7 +72,6 @@ export function TablesPage() {
       number: formData.number,
       sectionId: formData.sectionId,
       capacity: parseInt(formData.capacity) || 4,
-      isActive: formData.isActive,
     };
 
     let success = false;

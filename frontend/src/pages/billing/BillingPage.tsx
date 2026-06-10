@@ -99,6 +99,7 @@ export function BillingPage() {
   // Pending cleaning modal state
   const [showPendingCleaningModal, setShowPendingCleaningModal] = useState(false);
   const [pendingCleaningTable, setPendingCleaningTable] = useState<Table | null>(null);
+  const [selectedBusser, setSelectedBusser] = useState<string>(''); // Empty = all bussers
 
   // Bill generated state for COLLECT/PUSH buttons
   const [billGenerated, setBillGenerated] = useState(false);
@@ -3088,6 +3089,27 @@ export function BillingPage() {
             </p>
           </div>
 
+          {/* Busser Selection */}
+          <div>
+            <label className="block text-sm text-text-secondary mb-1.5">
+              Notify Busser (optional)
+            </label>
+            <select
+              value={selectedBusser}
+              onChange={(e) => setSelectedBusser(e.target.value)}
+              className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+            >
+              <option value="">All Bussers</option>
+              {waiters
+                .filter((w: any) => w.role === 'busser')
+                .map((busser: any) => (
+                  <option key={busser.id} value={busser.id}>
+                    {busser.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
           <div className="flex gap-3 pt-2">
             <Button
               variant="ghost"
@@ -3098,9 +3120,13 @@ export function BillingPage() {
                   api.post('/busser/notify', {
                     tableId: pendingCleaningTable.id,
                     tableNumber: pendingCleaningTable.number,
-                    message: `Table ${pendingCleaningTable.number} needs cleaning immediately!`
+                    message: `Table ${pendingCleaningTable.number} needs cleaning immediately!`,
+                    busserId: selectedBusser || undefined // undefined = all bussers
                   }).then(() => {
-                    toast('info', `Notification sent to bussers for Table ${pendingCleaningTable.number}`);
+                    const target = selectedBusser 
+                      ? `Busser ${waiters.find((w: any) => w.id === selectedBusser)?.name}` 
+                      : 'all bussers';
+                    toast('info', `Notification sent to ${target} for Table ${pendingCleaningTable.number}`);
                   }).catch(() => {
                     toast('error', 'Failed to send notification');
                   });
@@ -3113,7 +3139,10 @@ export function BillingPage() {
             <Button
               variant="accent"
               className="flex-1"
-              onClick={handleConfirmPendingCleaning}
+              onClick={() => {
+                setSelectedBusser(''); // Reset selection
+                handleConfirmPendingCleaning();
+              }}
             >
               OK
             </Button>

@@ -222,8 +222,8 @@ const store = create<DataState>((set, get) => ({
   
   createTable: async (data) => {
     const apiData = {
-      table_number: data.number,
-      section_id: data.sectionId,
+      number: data.number,
+      sectionId: data.sectionId,
       capacity: data.capacity,
     };
     const response = await api.createTable(apiData);
@@ -236,11 +236,14 @@ const store = create<DataState>((set, get) => ({
   },
   
   updateTable: async (id, data) => {
-    const apiData = {
-      table_number: data.number,
-      section_id: data.sectionId,
+    const apiData: Record<string, any> = {
+      number: data.number,
+      sectionId: data.sectionId,
       capacity: data.capacity,
     };
+    if (data.status) {
+      apiData.status = data.status;
+    }
     const response = await api.updateTable(id, apiData);
     if (response.success) {
       invalidateCache('tables_');
