@@ -1572,19 +1572,19 @@ export function SettingsPage() {
                       
                       <div className="text-sm text-text-muted mb-4 p-3 bg-background-secondary rounded-lg">
                         <p className="font-medium text-text-secondary mb-1">Format:</p>
-                        <p><code className="bg-white/10 px-2 py-0.5 rounded">\\IP_Address\Shared_Printer_Name</code></p>
-                        <p className="text-xs mt-1">Example: <code className="bg-white/10 px-1 py-0.5 rounded">\\192.168.1.100\POS-80</code></p>
+                        <p><code className="bg-white/10 px-2 py-0.5 rounded">IP_Address/Shared_Printer_Name</code></p>
+                        <p className="text-xs mt-1">Example: <code className="bg-white/10 px-1 py-0.5 rounded">192.168.0.220/POS-80</code></p>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">KOT Printer (IP + Shared Name)</label>
+                          <label className="block text-sm text-text-secondary mb-1">KOT Printer (IP/Printer Name)</label>
                           <div className="relative">
                             <input
                               type="text"
                               value={printerForm.kotPrinter}
                               onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
-                              placeholder="\\192.168.1.100\POS-80"
+                              placeholder="192.168.0.220/POS-80"
                               className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
                             />
                             {printerForm.kotPrinter && (
@@ -1599,13 +1599,13 @@ export function SettingsPage() {
                           </div>
                         </div>
                         <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">Bill Printer (IP + Shared Name)</label>
+                          <label className="block text-sm text-text-secondary mb-1">Bill Printer (IP/Printer Name)</label>
                           <div className="relative">
                             <input
                               type="text"
                               value={printerForm.billPrinter}
                               onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
-                              placeholder="\\192.168.1.100\POS-80"
+                              placeholder="192.168.0.220/POS-80"
                               className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
                             />
                             {printerForm.billPrinter && (
@@ -1670,8 +1670,8 @@ export function SettingsPage() {
                           </div>
                           <div>
                             <p className="font-medium text-text-primary">Enter in Format</p>
-                            <p className="text-xs"><code className="bg-white/10 px-1 py-0.5 rounded">\\IP_Address\Shared_Name</code></p>
-                            <p className="text-xs">Example: <code className="bg-white/10 px-1 py-0.5 rounded">\\192.168.1.100\POS-80</code></p>
+                            <p className="text-xs">Format: <code className="bg-white/10 px-1 py-0.5 rounded">IP_Address/Printer_Name</code></p>
+                            <p className="text-xs">Example: <code className="bg-white/10 px-1 py-0.5 rounded">192.168.0.220/POS-80</code></p>
                           </div>
                         </div>
                       </div>
