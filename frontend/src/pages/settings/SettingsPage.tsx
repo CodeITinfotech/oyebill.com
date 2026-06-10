@@ -1570,16 +1570,22 @@ export function SettingsPage() {
                     <div className="p-4 rounded-lg border border-white/10 space-y-4">
                       <h3 className="font-medium">Manual Configuration</h3>
                       
+                      <div className="text-sm text-text-muted mb-4 p-3 bg-background-secondary rounded-lg">
+                        <p className="font-medium text-text-secondary mb-1">Format:</p>
+                        <p><code className="bg-white/10 px-2 py-0.5 rounded">\\IP_Address\Shared_Printer_Name</code></p>
+                        <p className="text-xs mt-1">Example: <code className="bg-white/10 px-1 py-0.5 rounded">\\192.168.1.100\POS-80</code></p>
+                      </div>
+                      
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">KOT Printer Name/IP</label>
+                          <label className="block text-sm text-text-secondary mb-1">KOT Printer (IP + Shared Name)</label>
                           <div className="relative">
                             <input
                               type="text"
                               value={printerForm.kotPrinter}
                               onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
-                              placeholder="e.g., POS-80 or 192.168.1.100"
-                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                              placeholder="\\192.168.1.100\POS-80"
+                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
                             />
                             {printerForm.kotPrinter && (
                               <button
@@ -1593,14 +1599,14 @@ export function SettingsPage() {
                           </div>
                         </div>
                         <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">Bill Printer Name/IP</label>
+                          <label className="block text-sm text-text-secondary mb-1">Bill Printer (IP + Shared Name)</label>
                           <div className="relative">
                             <input
                               type="text"
                               value={printerForm.billPrinter}
                               onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
-                              placeholder="e.g., POS-80 or 192.168.1.101"
-                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                              placeholder="\\192.168.1.100\POS-80"
+                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
                             />
                             {printerForm.billPrinter && (
                               <button
@@ -1638,33 +1644,34 @@ export function SettingsPage() {
 
                     {/* Connection Type Info */}
                     <div className="p-4 rounded-lg bg-background-secondary/50 border border-white/10">
-                      <h4 className="text-sm font-medium mb-3">Supported Connection Types</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <h4 className="text-sm font-medium mb-3">Network Printer Setup</h4>
+                      <div className="space-y-3 text-sm text-text-muted">
                         <div className="flex items-start gap-3">
                           <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">🔌</span>
+                            <span className="text-sm">1️⃣</span>
                           </div>
                           <div>
-                            <p className="font-medium text-sm">USB</p>
-                            <p className="text-xs text-text-muted">Direct cable connection for thermal printers</p>
+                            <p className="font-medium text-text-primary">Share Printer on Windows PC</p>
+                            <p className="text-xs">Connect printer via USB to Windows PC, then share it</p>
                           </div>
                         </div>
                         <div className="flex items-start gap-3">
                           <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">📱</span>
+                            <span className="text-sm">2️⃣</span>
                           </div>
                           <div>
-                            <p className="font-medium text-sm">Bluetooth</p>
-                            <p className="text-xs text-text-muted">Wireless for mobile devices</p>
+                            <p className="font-medium text-text-primary">Get PC IP Address</p>
+                            <p className="text-xs">Run <code className="bg-white/10 px-1 py-0.5 rounded">ipconfig</code> on Windows to find IP</p>
                           </div>
                         </div>
                         <div className="flex items-start gap-3">
                           <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">🌐</span>
+                            <span className="text-sm">3️⃣</span>
                           </div>
                           <div>
-                            <p className="font-medium text-sm">Network/IP</p>
-                            <p className="text-xs text-text-muted">Ethernet or WiFi printer on same network</p>
+                            <p className="font-medium text-text-primary">Enter in Format</p>
+                            <p className="text-xs"><code className="bg-white/10 px-1 py-0.5 rounded">\\IP_Address\Shared_Name</code></p>
+                            <p className="text-xs">Example: <code className="bg-white/10 px-1 py-0.5 rounded">\\192.168.1.100\POS-80</code></p>
                           </div>
                         </div>
                       </div>
