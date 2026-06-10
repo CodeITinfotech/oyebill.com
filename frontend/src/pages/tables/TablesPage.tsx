@@ -497,7 +497,7 @@ export function TablesPage() {
                     }}
                     className="px-4 py-3 bg-error/20 hover:bg-error/30 text-error font-medium rounded-lg transition-colors"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 )}
                 <button

@@ -254,15 +254,21 @@ const store = create<DataState>((set, get) => ({
   },
   
   deleteTable: async (id) => {
-    const response = await api.deleteTable(id);
-    if (response.success) {
-      invalidateCache('tables_');
-      // Refresh tables to get updated status
-      const tables = await api.getTables();
-      set({ tables });
-      return true;
+    try {
+      const response = await api.deleteTable(id);
+      if (response && response.success) {
+        invalidateCache('tables_');
+        // Refresh tables to get updated status
+        const tables = await api.getTables();
+        set({ tables });
+        return true;
+      }
+      console.error('Delete table failed:', response);
+      return false;
+    } catch (error) {
+      console.error('Delete table error:', error);
+      return false;
     }
-    return false;
   },
 
   // Products
