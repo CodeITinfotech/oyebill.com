@@ -2277,14 +2277,85 @@ export function BillingPage() {
                   </Button>
                 </>
               )}
-              <Button
-                variant="outline"
-                size="md"
-                onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
-              >
-                <MoreHorizontal className="w-3 h-3" />
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+                  className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                >
+                  <MoreHorizontal className="w-3 h-3" />
+                </Button>
+                {showMoreDropdown && (
+                  <div className="absolute bottom-full right-0 mb-1 z-50 more-dropdown">
+                    <div className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]">
+                      <button
+                        onClick={() => {
+                          if (appliedCoupon) {
+                            toast('warning', 'Remove coupon first');
+                            setShowMoreDropdown(false);
+                            return;
+                          }
+                          setShowDiscountModal(true);
+                          setShowMoreDropdown(false);
+                        }}
+                        disabled={cart.length === 0 || !!appliedCoupon}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
+                      >
+                        <Percent className="w-3 h-3" />
+                        <span>Discount</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (discountValue > 0) {
+                            toast('warning', 'Discount applied');
+                            setShowMoreDropdown(false);
+                            return;
+                          }
+                          setShowCouponModal(true);
+                          setShowMoreDropdown(false);
+                        }}
+                        disabled={cart.length === 0 || discountValue > 0}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
+                      >
+                        <Ticket className="w-3 h-3" />
+                        <span>Coupon</span>
+                      </button>
+                      {cart.some(item => item.isKot) && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Are you sure you want to cancel KOT?')) {
+                              setShowMoreDropdown(false);
+                              return;
+                            }
+                            try {
+                              if (currentOrderId) {
+                                await api.deleteOrder(currentOrderId);
+                              }
+                              setCart([]);
+                              setCurrentOrderId(null);
+                              setDiscountAmount('');
+                              setDiscountReason('');
+                              setAppliedCoupon(null);
+                              if (selectedTable) {
+                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                              }
+                              setShowMoreDropdown(false);
+                              toast('success', 'KOT cancelled');
+                            } catch (error) {
+                              toast('error', 'Failed to cancel KOT');
+                            }
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors text-orange-400"
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Cancel KOT</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Desktop: Full breakdown */}
