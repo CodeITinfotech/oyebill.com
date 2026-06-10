@@ -537,10 +537,13 @@ export function BillingPage() {
       if (item.id === itemId) {
         const newQty = Math.max(0, item.quantity + delta);
         if (newQty === 0) return null;
+        // For KOT items, mark as new when quantity increased (for additional KOT)
+        const isQuantityIncrease = delta > 0 && item.isKot;
         return {
           ...item,
           quantity: newQty,
           total: newQty * (item.unitPrice + item.taxAmount),
+          isNew: isQuantityIncrease ? true : item.isNew,
         };
       }
       return item;
@@ -1611,6 +1614,16 @@ export function BillingPage() {
           await api.put(`/tables/${selectedTable.id}`, { status: 'pending_cleaning' });
           setSelectedTable({ ...selectedTable, status: 'pending_cleaning' });
           store.fetchTables(selectedSection || undefined);
+          
+          // Clear cart items after billing
+          setCart([]);
+          
+          // Clear table carts for this table
+          setTableCarts(prev => {
+            const updated = { ...prev };
+            delete updated[selectedTable.id];
+            return updated;
+          });
         } catch (error) {
           console.error('Failed to update table status:', error);
         }
@@ -1779,11 +1792,73 @@ export function BillingPage() {
   // Format currency
   const formatCurrency = (amount: number) => `₹${amount.toFixed(2)}`;
 
+  // Generate bill text for download
+  const generateBillText = (content: any) => {
+    let text = '';
+    text += '================== BILL ==================\n\n';
+    text += `${settings?.restaurant?.name || 'Oyebill'}\n`;
+    text += 'TAX INVOICE\n\n';
+    text += `Bill No: ${content.orderId || 'N/A'}\n`;
+    text += `Table: ${content.tableNumber || 'N/A'}\n`;
+    text += `Date: ${content.dateTime || new Date().toLocaleString()}\n`;
+    text += `Billed By: ${content.waiterName || 'N/A'}\n\n`;
+    text += '------------------------------------------\n';
+    text += 'ITEMS:\n';
+    text += '------------------------------------------\n';
+    content.items.forEach((item: any) => {
+      text += `${item.productName}\n`;
+      text += `  Qty: ${item.quantity} x ₹${item.unitPrice.toFixed(2)}\n`;
+      text += `  Tax: ₹${(item.unitPrice * item.quantity * 0.05).toFixed(2)}\n`;
+      text += `  Amount: ₹${(item.unitPrice * item.quantity * 1.05).toFixed(2)}\n\n`;
+    });
+    text += '------------------------------------------\n';
+    text += `Subtotal: ₹${content.subtotal?.toFixed(2) || '0.00'}\n`;
+    if (content.couponDiscount > 0) {
+      text += `Coupon Discount: -₹${content.couponDiscount.toFixed(2)}\n`;
+    }
+    if (content.loyaltyDiscount > 0) {
+      text += `Loyalty Discount: -₹${content.loyaltyDiscount.toFixed(2)}\n`;
+    }
+    if (content.discount > 0) {
+      text += `Discount: -₹${content.discount.toFixed(2)}\n`;
+    }
+    text += `CGST: ₹${(content.taxAmount / 2).toFixed(2)}\n`;
+    text += `SGST: ₹${(content.taxAmount / 2).toFixed(2)}\n`;
+    text += '------------------------------------------\n';
+    text += `GRAND TOTAL: ₹${content.total?.toFixed(2) || '0.00'}\n`;
+    text += '------------------------------------------\n\n';
+    text += `${content.totalInWords || 'Rupees Only'}\n\n`;
+    if (content.payment?.showQrOnBill && content.payment?.upiId) {
+      text += 'Scan QR code to pay\n';
+      text += `UPI: ${content.payment.upiId}\n`;
+    }
+    if (settings?.bill_setup?.specialMessage) {
+      text += `\n${settings.bill_setup.specialMessage}\n`;
+    }
+    text += '\n========== Thank You! ==========\n';
+    return text;
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Page Header - Centered Billing title on mobile, with Bell on desktop */}
-      <div className="lg:hidden flex items-center justify-center mb-4">
+      <div className="lg:hidden flex items-center justify-between px-4 mb-4">
         <h1 className="text-xl font-display font-bold text-text-primary">Billing</h1>
+        
+        {/* Notification Bell for Mobile - Always visible */}
+        {(user?.role === 'waiter' || user?.role === 'admin') && (
+          <button
+            onClick={() => setShowOrdersPanel(true)}
+            className="relative p-2 rounded-lg hover:bg-white/10 transition-colors"
+          >
+            <Bell className="w-5 h-5 text-text-primary" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Desktop: Full page header with Bell */}
@@ -1872,19 +1947,26 @@ export function BillingPage() {
             {!onlineOrder && (
               <>
                 <div className="mb-3">
-                  <select
-                    value={selectedSection}
-                    onChange={(e) => {
-                      setSelectedSection(e.target.value);
-                      setSelectedTable(null);
-                    }}
-                    className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
-                  >
-                    <option value="">All Sections</option>
-                    {sections.filter(s => s.isActive).map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                  {/* Mobile: Read-only text in cart view */}
+                  {mobileView === 'cart' && selectedSection ? (
+                    <div className="px-3 py-2 bg-background-secondary/50 rounded-lg text-sm text-text-primary">
+                      {sections.find(s => s.id === selectedSection)?.name || 'All Sections'}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedSection}
+                      onChange={(e) => {
+                        setSelectedSection(e.target.value);
+                        setSelectedTable(null);
+                      }}
+                      className="w-full px-3 py-2 bg-background-secondary border border-white/10 rounded-lg text-sm text-text-primary focus:outline-none focus:border-accent"
+                    >
+                      <option value="">All Sections</option>
+                      {sections.filter(s => s.isActive).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Selected Table Badge */}
@@ -1899,12 +1981,15 @@ export function BillingPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
-                      <button
-                        onClick={() => setShowSwitchTableModal(true)}
-                        className="text-xs text-accent hover:text-accent/80 font-medium"
-                      >
-                        Switch
-                      </button>
+                      {/* Hide Switch button in mobile cart view */}
+                      {mobileView !== 'cart' && (
+                        <button
+                          onClick={() => setShowSwitchTableModal(true)}
+                          className="text-xs text-accent hover:text-accent/80 font-medium"
+                        >
+                          Switch
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1913,9 +1998,16 @@ export function BillingPage() {
 
             {/* Waiter & Customer - Horizontal on mobile */}
             <div className="grid grid-cols-2 gap-2">
-              {/* Waiter Selection with PIN */}
+              {/* Waiter Selection with PIN - Read-only in mobile cart view */}
               <div className="relative">
-                {waiterPinInput.length > 0 ? (
+                {/* Mobile: Read-only text in cart view */}
+                {mobileView === 'cart' && selectedWaiter ? (
+                  <div className="px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg">
+                    <span className="text-xs text-accent font-medium">
+                      {waiters.find(w => w.id === selectedWaiter)?.name || 'Waiter'}
+                    </span>
+                  </div>
+                ) : waiterPinInput.length > 0 ? (
                   // PIN input mode
                   <div className="flex items-center gap-1">
                     <input
@@ -1981,7 +2073,7 @@ export function BillingPage() {
                 )}
 
                 {/* Waiter Dropdown */}
-                {showWaiterDropdown && (
+                {mobileView !== 'cart' && showWaiterDropdown && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                     {/* Waiter Search Input */}
                     <div className="p-2 border-b border-white/10">
@@ -2029,9 +2121,17 @@ export function BillingPage() {
                   </div>
                 )}
               </div>
-              {/* Searchable Customer Dropdown */}
+              {/* Searchable Customer Dropdown - Read-only in mobile cart view */}
               <div className="relative">
-                {selectedCustomer ? (
+                {/* Mobile: Read-only text in cart view */}
+                {mobileView === 'cart' && selectedCustomer ? (
+                  <div className="flex items-center px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg">
+                    <Users className="w-3 h-3 text-accent" />
+                    <span className="text-xs text-accent font-medium truncate max-w-[100px]">
+                      {selectedCustomer.name}
+                    </span>
+                  </div>
+                ) : selectedCustomer ? (
                   // Show selected customer with clear option
                   <div className="flex items-center justify-between px-2 py-1.5 bg-accent/20 border border-accent/50 rounded-lg">
                     <div className="flex items-center gap-2">
@@ -2064,7 +2164,7 @@ export function BillingPage() {
                     className="w-full px-2 py-1.5 bg-background-secondary border border-white/10 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
                   />
                 )}
-                {showCustomerDropdown && !selectedCustomer && (
+                {mobileView !== 'cart' && showCustomerDropdown && !selectedCustomer && (
                   <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background-card border border-white/10 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                     {(filteredCustomers && filteredCustomers.length > 0) ? (
                       filteredCustomers.map((c) => (
@@ -2158,6 +2258,8 @@ export function BillingPage() {
                                       ...cartItem,
                                       quantity: Math.max(1, newQty),
                                       total: Math.max(1, newQty) * (cartItem.unitPrice + cartItem.taxAmount),
+                                      // Mark as new when quantity increased on KOT items (for additional KOT)
+                                      isNew: newQty > item.quantity ? true : cartItem.isNew,
                                     };
                                   }
                                   return cartItem;
@@ -2276,7 +2378,7 @@ export function BillingPage() {
                   </Button>
                 </>
               )}
-              <div className="relative">
+              <div className="relative z-10">
                 <Button
                   variant="outline"
                   size="md"
@@ -2454,7 +2556,7 @@ export function BillingPage() {
                   </Button>
                 </>
               )}
-              <div className="relative">
+              <div className="relative z-10">
                 <Button
                   variant="outline"
                   size="md"
@@ -2471,7 +2573,6 @@ export function BillingPage() {
                   >
                     <div 
                       className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]"
-                      onClick={(e) => e.stopPropagation()}
                     >
                       <button
                         onClick={() => {
@@ -2813,7 +2914,9 @@ export function BillingPage() {
               : 'bg-background-secondary text-text-muted'
           }`}
         >
-          <Receipt className="w-6 h-6" />
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
           {cart.length > 0 && (
             <span className="absolute -top-1 -right-1 w-6 h-6 bg-error text-white rounded-full text-xs flex items-center justify-center">
               {cart.length}
@@ -3381,12 +3484,13 @@ export function BillingPage() {
                   )}
                 </div>
 
-                {/* Items */}
-                <div className="text-xs border-b border-black pb-2 mb-2">
-                  <div className="grid grid-cols-[1fr_40px_60px_70px] gap-1 font-semibold mb-1 border-b border-black pb-1">
+                {/* Items - Thermal printer width (80mm standard) */}
+                <div className="text-xs border-b border-black pb-2 mb-2" style={{ maxWidth: '280px' }}>
+                  <div className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 font-semibold mb-1 border-b border-black pb-1">
                     <span>Item</span>
                     <span className="text-right">Qty</span>
                     <span className="text-right">Rate</span>
+                    <span className="text-right">Tax</span>
                     <span className="text-right">Amount</span>
                   </div>
                   {previewContent.type === 'kot' && previewContent.content.items.some((item: any) => item.alreadyKot) ? (
@@ -3395,11 +3499,12 @@ export function BillingPage() {
                       <div className="text-[10px] text-gray-500 mb-1">Already Sent:</div>
                       {previewContent.content.items.map((item: any, idx: number) => (
                         item.alreadyKot ? (
-                          <div key={`old-${idx}`} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5 opacity-50">
+                          <div key={`old-${idx}`} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5 opacity-50">
                             <span className="truncate line-through">{item.productName}</span>
                             <span className="text-right line-through">{item.quantity}</span>
                             <span className="text-right line-through">₹{item.unitPrice.toFixed(2)}</span>
-                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
+                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
                           </div>
                         ) : null
                       ))}
@@ -3408,11 +3513,12 @@ export function BillingPage() {
                       {/* Show new items (not alreadyKot) */}
                       {previewContent.content.items.map((item: any, idx: number) => (
                         !item.alreadyKot ? (
-                          <div key={`new-${idx}`} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5 font-semibold">
+                          <div key={`new-${idx}`} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5 font-semibold">
                             <span className="truncate">{item.productName}</span>
                             <span className="text-right">{item.quantity}</span>
                             <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
-                            <span className="text-right">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                            <span className="text-right">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
+                            <span className="text-right">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
                           </div>
                         ) : null
                       ))}
@@ -3420,11 +3526,12 @@ export function BillingPage() {
                   ) : (
                     /* Default: show all items without strikethrough */
                     previewContent.content.items.map((item: any, idx: number) => (
-                      <div key={idx} className="grid grid-cols-[1fr_40px_60px_70px] gap-1 py-0.5">
+                      <div key={idx} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5">
                         <span className="truncate">{item.productName}</span>
                         <span className="text-right">{item.quantity}</span>
                         <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
-                        <span className="text-right">₹{(item.unitPrice * item.quantity).toFixed(2)}</span>
+                        <span className="text-right">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
+                        <span className="text-right">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
                       </div>
                     ))
                   )}
@@ -3516,22 +3623,49 @@ export function BillingPage() {
               >
                 Cancel
               </Button>
-              {previewContent.type === 'bill' && previewContent.content.customerPhone && (
+              {previewContent.type === 'bill' && (
                 <Button
                   variant="success"
-                  onClick={() => shareViaWhatsApp(previewContent.content)}
+                  onClick={() => {
+                    if (previewContent.content.customerPhone) {
+                      shareViaWhatsApp(previewContent.content);
+                    } else {
+                      // Generate WhatsApp link without phone
+                      const message = encodeURIComponent(`Bill Details:\nOrder: ${previewContent.content.orderId}\nTotal: ₹${previewContent.content.total.toFixed(2)}`);
+                      window.open(`https://wa.me/?text=${message}`, '_blank');
+                    }
+                  }}
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  Send WhatsApp (Link)
+                  Send WhatsApp
+                </Button>
+              )}
+              {previewContent.type === 'bill' && (
+                <Button
+                  variant="info"
+                  onClick={() => {
+                    // Download bill as text file
+                    const content = generateBillText(previewContent.content);
+                    const blob = new Blob([content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Bill_${previewContent.content.orderId || 'unknown'}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  Download Bill
                 </Button>
               )}
               {previewContent.type === 'bill' && previewContent.content.customerEmail && (
                 <Button
-                  variant="info"
+                  variant="secondary"
                   onClick={() => sharePDFViaEmail(previewContent.content)}
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  Send Email (PDF)
+                  Email PDF
                 </Button>
               )}
               <Button
