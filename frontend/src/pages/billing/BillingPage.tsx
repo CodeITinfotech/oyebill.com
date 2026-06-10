@@ -2737,10 +2737,10 @@ export function BillingPage() {
                 // Get custom colors from settings or use defaults
                 const customColors = store.settings?.tableStatusColors || {};
                 
-                // Default colors mapping - follows the flow: Available → Active KOT → Pending Billing → Pending Cleaning → Available
+                // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; bg: string; label: string }> = {
                   available: { dot: customColors.available?.color || 'bg-success', bg: 'border-success/30 bg-success/5 hover:border-success', label: customColors.available?.label || 'Available' },
-                  active_kot: { dot: customColors.active_kot?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.active_kot?.label || 'Active KOT' },
+                  active_kot: { dot: customColors.active_kot?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
                   pending_billing: { dot: customColors.pending_billing?.color || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
                   pending_cleaning: { dot: customColors.pending_cleaning?.color || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
@@ -2801,7 +2801,7 @@ export function BillingPage() {
                     ) : (
                       <div className="flex items-center gap-1">
                         <span className="w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full bg-accent"></span>
-                        <span>Active - KOT</span>
+                        <span>KOT - In Progress</span>
                       </div>
                     )}
                     {customColors.occupied?.label ? (
@@ -3272,10 +3272,10 @@ export function BillingPage() {
                 // Get custom colors from settings or use defaults
                 const customColors = store.settings?.tableStatusColors || {};
                 
-                // Default colors mapping - follows the flow: Available → Active KOT → Pending Billing → Pending Cleaning → Available
+                // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; label: string }> = {
                   available: { dot: customColors.available?.color || 'text-success', label: customColors.available?.label || 'Available' },
-                  active_kot: { dot: customColors.active_kot?.color || 'text-orange-500', label: customColors.active_kot?.label || 'Active KOT' },
+                  active_kot: { dot: customColors.active_kot?.color || 'text-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
                   pending_billing: { dot: customColors.pending_billing?.color || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
                   pending_cleaning: { dot: customColors.pending_cleaning?.color || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
