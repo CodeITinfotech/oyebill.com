@@ -2627,51 +2627,39 @@ export function BillingPage() {
             <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Tables</h3>
             <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1">
               {tables.map((table) => {
-                // Determine status based on actual table status
-                const isActive = table.status === 'active';
+                // Determine status based on actual table status (including legacy values)
                 const isAvailable = table.status === 'available';
-                const isOccupied = table.status === 'occupied' || table.status === 'billing';
-                const isBilled = table.status === 'billed';
+                const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
+                const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing' || table.status === 'pending_printing';
                 const isPendingCleaning = table.status === 'pending_cleaning';
-                const isPendingPrint = table.status === 'pending_printing';
                 
                 // Get custom colors from settings or use defaults
                 const customColors = store.settings?.tableStatusColors || {};
                 
-                // Default colors mapping - follows the flow: Available → Occupied → Active(KOT) → Billed → Cleaning → Available
+                // Default colors mapping - follows the flow: Available → Active KOT → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; bg: string; label: string }> = {
                   available: { dot: customColors.available?.color || 'bg-success', bg: 'border-success/30 bg-success/5 hover:border-success', label: customColors.available?.label || 'Available' },
-                  occupied: { dot: customColors.occupied?.color || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.occupied?.label || 'Occupied' },
-                  active: { dot: customColors.active?.color || 'bg-accent', bg: 'border-accent/50 bg-accent/20 hover:border-accent', label: customColors.active?.label || 'Active - KOT' },
-                  billed: { dot: customColors.billed?.color || 'bg-blue-500', bg: 'border-blue-500/50 bg-blue-500/20 hover:border-blue-500', label: customColors.billed?.label || 'Billed' },
-                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Cleaning' },
-                  pending_printing: { dot: customColors.pending_printing?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.pending_printing?.label || 'Pending' },
+                  active_kot: { dot: customColors.active_kot?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.active_kot?.label || 'Active KOT' },
+                  pending_billing: { dot: customColors.pending_billing?.color || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
                 
                 let statusColor = colorMap.available.dot;
                 let statusBgClass = colorMap.available.bg;
                 let statusLabel = colorMap.available.label;
                 
-                if (isActive) {
-                  statusColor = colorMap.active.dot;
-                  statusBgClass = colorMap.active.bg;
-                  statusLabel = colorMap.active.label;
-                } else if (isOccupied) {
-                  statusColor = colorMap.occupied.dot;
-                  statusBgClass = colorMap.occupied.bg;
-                  statusLabel = colorMap.occupied.label;
-                } else if (isBilled) {
-                  statusColor = colorMap.billed.dot;
-                  statusBgClass = colorMap.billed.bg;
-                  statusLabel = colorMap.billed.label;
-                } else if (isPendingCleaning) {
+                if (isPendingCleaning) {
                   statusColor = colorMap.pending_cleaning.dot;
                   statusBgClass = colorMap.pending_cleaning.bg;
                   statusLabel = colorMap.pending_cleaning.label;
-                } else if (isPendingPrint) {
-                  statusColor = colorMap.pending_printing.dot;
-                  statusBgClass = colorMap.pending_printing.bg;
-                  statusLabel = colorMap.pending_printing.label;
+                } else if (isPendingBilling) {
+                  statusColor = colorMap.pending_billing.dot;
+                  statusBgClass = colorMap.pending_billing.bg;
+                  statusLabel = colorMap.pending_billing.label;
+                } else if (isActiveKot) {
+                  statusColor = colorMap.active_kot.dot;
+                  statusBgClass = colorMap.active_kot.bg;
+                  statusLabel = colorMap.active_kot.label;
                 }
                 
                 return (
@@ -3172,45 +3160,35 @@ export function BillingPage() {
             {tables
               .filter(table => table.id !== selectedTable?.id)
               .map((table) => {
-                // Determine status based on actual table status
-                const isActive = table.status === 'active';
+                // Determine status based on actual table status (including legacy values)
                 const isAvailable = table.status === 'available';
-                const isOccupied = table.status === 'occupied' || table.status === 'billing';
-                const isBilled = table.status === 'billed';
+                const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
+                const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing' || table.status === 'pending_printing';
                 const isPendingCleaning = table.status === 'pending_cleaning';
-                const isPendingPrint = table.status === 'pending_printing';
                 
                 // Get custom colors from settings or use defaults
                 const customColors = store.settings?.tableStatusColors || {};
                 
-                // Default colors mapping - follows the flow: Available → Occupied → Active(KOT) → Billed → Cleaning → Available
+                // Default colors mapping - follows the flow: Available → Active KOT → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; label: string }> = {
                   available: { dot: customColors.available?.color || 'text-success', label: customColors.available?.label || 'Available' },
-                  occupied: { dot: customColors.occupied?.color || 'text-red-500', label: customColors.occupied?.label || 'Occupied' },
-                  active: { dot: customColors.active?.color || 'text-accent', label: customColors.active?.label || 'Active - KOT' },
-                  billed: { dot: customColors.billed?.color || 'text-blue-500', label: customColors.billed?.label || 'Billed' },
-                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Cleaning' },
-                  pending_printing: { dot: customColors.pending_printing?.color || 'text-orange-500', label: customColors.pending_printing?.label || 'Pending' },
+                  active_kot: { dot: customColors.active_kot?.color || 'text-orange-500', label: customColors.active_kot?.label || 'Active KOT' },
+                  pending_billing: { dot: customColors.pending_billing?.color || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
                 
                 let statusDot = colorMap.available.dot;
                 let statusLabel = colorMap.available.label;
                 
-                if (isActive) {
-                  statusDot = colorMap.active.dot;
-                  statusLabel = colorMap.active.label;
-                } else if (isOccupied) {
-                  statusDot = colorMap.occupied.dot;
-                  statusLabel = colorMap.occupied.label;
-                } else if (isBilled) {
-                  statusDot = colorMap.billed.dot;
-                  statusLabel = colorMap.billed.label;
-                } else if (isPendingCleaning) {
+                if (isPendingCleaning) {
                   statusDot = colorMap.pending_cleaning.dot;
                   statusLabel = colorMap.pending_cleaning.label;
-                } else if (isPendingPrint) {
-                  statusDot = colorMap.pending_printing.dot;
-                  statusLabel = colorMap.pending_printing.label;
+                } else if (isPendingBilling) {
+                  statusDot = colorMap.pending_billing.dot;
+                  statusLabel = colorMap.pending_billing.label;
+                } else if (isActiveKot) {
+                  statusDot = colorMap.active_kot.dot;
+                  statusLabel = colorMap.active_kot.label;
                 }
                 
                 return (

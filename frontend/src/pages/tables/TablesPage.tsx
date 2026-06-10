@@ -117,11 +117,17 @@ export function TablesPage() {
       case 'available':
         return <span className="badge-success badge">Available</span>;
       case 'active_kot':
+      case 'occupied': // Legacy - map to Active KOT
+      case 'active': // Legacy - map to Active KOT
         return <span className="badge-warning badge">Active KOT</span>;
       case 'pending_billing':
+      case 'billing': // Legacy
         return <span className="badge-error badge">Pending Billing</span>;
       case 'pending_cleaning':
+      case 'pending_printing': // Legacy
         return <span className="badge-secondary badge">Pending Cleaning</span>;
+      case 'reserved':
+        return <span className="badge-info badge">Reserved</span>;
       default:
         return <span className="badge-default badge">{status}</span>;
     }
@@ -225,9 +231,9 @@ export function TablesPage() {
         <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
           {filteredTables.map((table) => {
             const isAvailable = table.status === 'available';
-            const isActiveKot = table.status === 'active_kot';
-            const isPendingBilling = table.status === 'pending_billing';
-            const isPendingCleaning = table.status === 'pending_cleaning';
+            const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
+            const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing';
+            const isPendingCleaning = table.status === 'pending_cleaning' || table.status === 'pending_printing';
             
             let statusColor = 'bg-success';
             let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
@@ -300,11 +306,17 @@ export function TablesPage() {
                 case 'available':
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-success/20 text-success">Available</span>;
                 case 'active_kot':
+                case 'occupied': // Legacy
+                case 'active': // Legacy
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-orange-500/20 text-orange-400">Active KOT</span>;
                 case 'pending_billing':
+                case 'billing': // Legacy
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-400">Pending Billing</span>;
                 case 'pending_cleaning':
+                case 'pending_printing': // Legacy
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">Pending Cleaning</span>;
+                case 'reserved':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/20 text-blue-400">Reserved</span>;
                 default:
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">{status}</span>;
               }
