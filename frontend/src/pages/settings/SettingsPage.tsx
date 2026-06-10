@@ -501,7 +501,8 @@ export function SettingsPage() {
   const detectPrinters = async () => {
     setIsDetecting(true);
     setDetectionStatus('Scanning local network for shared printers...');
-    setDetectedPrinters([]);
+    // Keep existing manually added printers, just add network printers
+    const existingPrinters = [...detectedPrinters];
     setScanDiagnostics(null);
     
     try {
@@ -516,20 +517,22 @@ export function SettingsPage() {
           connection: p.connection
         }));
         
-        setDetectedPrinters(foundPrinters);
+        // Merge existing (manual) + new (network) printers
+        const allPrinters = [...existingPrinters, ...foundPrinters];
+        setDetectedPrinters(allPrinters);
         setScanDiagnostics(response.data.diagnostics);
         
         if (foundPrinters.length > 0) {
-          setDetectionStatus(`Found ${foundPrinters.length} shared printer(s) on network`);
+          setDetectionStatus(`Found ${foundPrinters.length} new shared printer(s) on network`);
         } else {
-          setDetectionStatus('No shared printers found. Try manual configuration.');
+          setDetectionStatus('No new shared printers found. Your manual configuration is preserved.');
         }
       } else {
-        setDetectionStatus(response.error || 'Scan failed. Try manual configuration below.');
+        setDetectionStatus(response.error || 'Scan failed. Your manual configuration is preserved.');
       }
     } catch (error: any) {
       console.error('Printer detection error:', error);
-      setDetectionStatus('Scan failed. Use manual configuration below.');
+      setDetectionStatus('Scan failed. Your manual configuration is preserved.');
     } finally {
       setIsDetecting(false);
     }
@@ -1748,34 +1751,33 @@ TOTAL:               ₹620
 
                     {/* Connection Type Info */}
                     <div className="p-4 rounded-lg bg-background-secondary/50 border border-white/10">
-                      <h4 className="text-sm font-medium mb-3">Network Printer Setup</h4>
-                      <div className="space-y-3 text-sm text-text-muted">
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">1️⃣</span>
+                      <h4 className="text-sm font-medium mb-2">Network Printer Setup - Help</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center shrink-0 text-xs">
+                            1
                           </div>
                           <div>
-                            <p className="font-medium text-text-primary">Share Printer on Windows PC</p>
-                            <p className="text-xs">Connect printer via USB to Windows PC, then share it</p>
+                            <p className="font-medium text-text-primary">Share Printer</p>
+                            <p className="text-xs text-text-muted">Connect printer to Windows PC via USB, then share it in Printer Properties</p>
                           </div>
                         </div>
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">2️⃣</span>
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 text-xs">
+                            2
                           </div>
                           <div>
-                            <p className="font-medium text-text-primary">Get PC IP Address</p>
-                            <p className="text-xs">Run <code className="bg-white/10 px-1 py-0.5 rounded">ipconfig</code> on Windows to find IP</p>
+                            <p className="font-medium text-text-primary">Get PC IP</p>
+                            <p className="text-xs text-text-muted">Run <code className="bg-white/10 px-1 py-0.5 rounded">ipconfig</code> on Windows CMD</p>
                           </div>
                         </div>
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                            <span className="text-sm">3️⃣</span>
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 text-xs">
+                            3
                           </div>
                           <div>
-                            <p className="font-medium text-text-primary">Enter in Format</p>
-                            <p className="text-xs">Format: <code className="bg-white/10 px-1 py-0.5 rounded">IP_Address/Printer_Name</code></p>
-                            <p className="text-xs">Example: <code className="bg-white/10 px-1 py-0.5 rounded">192.168.0.220/POS-80</code></p>
+                            <p className="font-medium text-text-primary">Enter Format</p>
+                            <p className="text-xs text-text-muted">IP/PrinterName: <code className="bg-white/10 px-1 py-0.5 rounded">192.168.0.220/POS-80</code></p>
                           </div>
                         </div>
                       </div>
