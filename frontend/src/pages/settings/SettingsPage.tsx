@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
+import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X, Globe } from 'lucide-react';
 import { api } from '../../api';
 import { OnlineOrderingSettings } from './OnlineOrderingSettings';
@@ -68,6 +69,44 @@ export function SettingsPage() {
     printCopies: '1',
     skipLinesBeforeCut: '3',
   });
+  
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'warning' | 'default';
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+  const [isConfirmLoading, setIsConfirmLoading] = useState(false);
+  
+  // Show confirm modal helper
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    variant: 'danger' | 'warning' | 'default' = 'danger',
+    confirmText = 'Confirm'
+  ) => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm, variant, confirmText });
+  };
+  
+  // Handle confirm action
+  const handleConfirm = async () => {
+    setIsConfirmLoading(true);
+    try {
+      await confirmModal.onConfirm();
+    } finally {
+      setIsConfirmLoading(false);
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
+    }
+  };
   
   // Printer sub-tab
   const [printerTab, setPrinterTab] = useState<PrinterTab>('kot');
@@ -2686,19 +2725,26 @@ TOTAL:               ₹620
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={async () => {
-                          if (!confirm('⚠️ Clear ALL tables? This will reset all tables and remove active orders.')) return;
-                          try {
-                            const res = await api.clearTables();
-                            if (res.success) {
-                              toast('success', `Cleared ${res.clearedTables} tables`);
-                              fetchTables();
-                            } else {
-                              toast('error', res.error || 'Failed');
-                            }
-                          } catch (e) {
-                            toast('error', 'Failed to clear tables');
-                          }
+                        onClick={() => {
+                          showConfirm(
+                            '⚠️ Clear All Tables?',
+                            'This will reset all tables to available status and remove all active orders. This action cannot be undone.',
+                            async () => {
+                              try {
+                                const res = await api.clearTables();
+                                if (res.success) {
+                                  toast('success', `Cleared ${res.clearedTables} tables`);
+                                  fetchTables();
+                                } else {
+                                  toast('error', res.error || 'Failed');
+                                }
+                              } catch (e) {
+                                toast('error', 'Failed to clear tables');
+                              }
+                            },
+                            'danger',
+                            'Clear All'
+                          );
                         }}
                       >
                         Clear All Tables
@@ -2720,24 +2766,33 @@ TOTAL:               ₹620
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={async () => {
+                        onClick={() => {
                           const select = document.getElementById('clearTableSelect') as HTMLSelectElement;
                           if (!select.value) {
                             toast('warning', 'Select a table first');
                             return;
                           }
-                          try {
-                            const res = await api.clearTable(select.value);
-                            if (res.success) {
-                              toast('success', `Table ${res.tableNumber} cleared`);
-                              fetchTables();
-                              select.value = '';
-                            } else {
-                              toast('error', res.error || 'Failed');
-                            }
-                          } catch (e) {
-                            toast('error', 'Failed to clear table');
-                          }
+                          const tableNum = (tables || []).find(t => t.id === select.value)?.number;
+                          showConfirm(
+                            `Clear Table ${tableNum}?`,
+                            'This will reset the table to available status and remove its active orders. This action cannot be undone.',
+                            async () => {
+                              try {
+                                const res = await api.clearTable(select.value);
+                                if (res.success) {
+                                  toast('success', `Table ${res.tableNumber} cleared`);
+                                  fetchTables();
+                                  select.value = '';
+                                } else {
+                                  toast('error', res.error || 'Failed');
+                                }
+                              } catch (e) {
+                                toast('error', 'Failed to clear table');
+                              }
+                            },
+                            'warning',
+                            'Clear'
+                          );
                         }}
                       >
                         Clear Selected
@@ -2757,14 +2812,21 @@ TOTAL:               ₹620
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={async () => {
-                          if (!confirm('⚠️ DELETE all bookings? This cannot be undone!')) return;
-                          try {
-                            const res = await api.deleteAllBookings();
-                            toast('success', `${res.deleted} bookings deleted`);
-                          } catch (e) {
-                            toast('error', 'Failed to delete bookings');
-                          }
+                        onClick={() => {
+                          showConfirm(
+                            '⚠️ Delete All Bookings?',
+                            'This will permanently delete ALL paid bookings from history. This action cannot be undone!',
+                            async () => {
+                              try {
+                                const res = await api.deleteAllBookings();
+                                toast('success', `${res.deleted} bookings deleted`);
+                              } catch (e) {
+                                toast('error', 'Failed to delete bookings');
+                              }
+                            },
+                            'danger',
+                            'Delete All'
+                          );
                         }}
                       >
                         Delete All
@@ -2784,23 +2846,31 @@ TOTAL:               ₹620
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={async () => {
+                          onClick={() => {
                             const input = document.getElementById('deleteBillInput') as HTMLInputElement;
                             if (!input.value.trim()) {
                               toast('warning', 'Enter bill number');
                               return;
                             }
-                            try {
-                              const res = await api.deleteBookingByBill(input.value.trim());
-                              if (res.success) {
-                                toast('success', res.message);
-                                input.value = '';
-                              } else {
-                                toast('error', res.error || 'Not found');
-                              }
-                            } catch (e) {
-                              toast('error', 'Failed to delete');
-                            }
+                            showConfirm(
+                              `Delete Booking "${input.value.trim()}"?`,
+                              'This will permanently delete this booking. This action cannot be undone.',
+                              async () => {
+                                try {
+                                  const res = await api.deleteBookingByBill(input.value.trim());
+                                  if (res.success) {
+                                    toast('success', res.message);
+                                    input.value = '';
+                                  } else {
+                                    toast('error', res.error || 'Not found');
+                                  }
+                                } catch (e) {
+                                  toast('error', 'Failed to delete');
+                                }
+                              },
+                              'danger',
+                              'Delete'
+                            );
                           }}
                         >
                           Delete
@@ -2820,20 +2890,27 @@ TOTAL:               ₹620
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={async () => {
+                          onClick={() => {
                             const input = document.getElementById('deleteBookingDateInput') as HTMLInputElement;
                             if (!input.value) {
                               toast('warning', 'Select a date');
                               return;
                             }
-                            if (!confirm(`Delete all bookings from ${input.value}?`)) return;
-                            try {
-                              const res = await api.deleteBookingsByDate(input.value);
-                              toast('success', res.message);
-                              input.value = '';
-                            } catch (e) {
-                              toast('error', 'Failed to delete');
-                            }
+                            showConfirm(
+                              `Delete Bookings from ${input.value}?`,
+                              'This will permanently delete all bookings from this date. This action cannot be undone.',
+                              async () => {
+                                try {
+                                  const res = await api.deleteBookingsByDate(input.value);
+                                  toast('success', res.message);
+                                  input.value = '';
+                                } catch (e) {
+                                  toast('error', 'Failed to delete');
+                                }
+                              },
+                              'danger',
+                              'Delete'
+                            );
                           }}
                         >
                           Delete
@@ -2854,14 +2931,21 @@ TOTAL:               ₹620
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={async () => {
-                          if (!confirm('⚠️ DELETE all KOTs? This cannot be undone!')) return;
-                          try {
-                            const res = await api.deleteAllKots();
-                            toast('success', `${res.deleted} KOTs deleted`);
-                          } catch (e) {
-                            toast('error', 'Failed to delete KOTs');
-                          }
+                        onClick={() => {
+                          showConfirm(
+                            '⚠️ Delete All KOTs?',
+                            'This will permanently delete ALL kitchen order tickets. This action cannot be undone!',
+                            async () => {
+                              try {
+                                const res = await api.deleteAllKots();
+                                toast('success', `${res.deleted} KOTs deleted`);
+                              } catch (e) {
+                                toast('error', 'Failed to delete KOTs');
+                              }
+                            },
+                            'danger',
+                            'Delete All'
+                          );
                         }}
                       >
                         Delete All KOTs
@@ -2880,20 +2964,27 @@ TOTAL:               ₹620
                         <Button
                           variant="danger"
                           size="sm"
-                          onClick={async () => {
+                          onClick={() => {
                             const input = document.getElementById('deleteKotDateInput') as HTMLInputElement;
                             if (!input.value) {
                               toast('warning', 'Select a date');
                               return;
                             }
-                            if (!confirm(`Delete all KOTs from ${input.value}?`)) return;
-                            try {
-                              const res = await api.deleteKotsByDate(input.value);
-                              toast('success', res.message);
-                              input.value = '';
-                            } catch (e) {
-                              toast('error', 'Failed to delete');
-                            }
+                            showConfirm(
+                              `Delete KOTs from ${input.value}?`,
+                              'This will permanently delete all KOTs from this date. This action cannot be undone.',
+                              async () => {
+                                try {
+                                  const res = await api.deleteKotsByDate(input.value);
+                                  toast('success', res.message);
+                                  input.value = '';
+                                } catch (e) {
+                                  toast('error', 'Failed to delete');
+                                }
+                              },
+                              'danger',
+                              'Delete'
+                            );
                           }}
                         >
                           Delete
@@ -2905,6 +2996,18 @@ TOTAL:               ₹620
               </CardBody>
             </Card>
           )}
+          
+          {/* Confirm Modal */}
+          <ConfirmModal
+            isOpen={confirmModal.isOpen}
+            onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+            onConfirm={handleConfirm}
+            title={confirmModal.title}
+            message={confirmModal.message}
+            variant={confirmModal.variant || 'danger'}
+            confirmText={confirmModal.confirmText}
+            loading={isConfirmLoading}
+          />
         </div>
       </div>
     </div>

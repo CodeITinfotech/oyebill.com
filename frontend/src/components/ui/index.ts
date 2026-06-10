@@ -4,6 +4,7 @@ export { Select } from './Select';
 export { Textarea } from './Textarea';
 export { Toggle } from './Toggle';
 export { Modal } from './Modal';
+export { ConfirmModal } from './ConfirmModal';
 export { Card, CardHeader, CardBody, CardFooter } from './Card';
 export { Badge } from './Badge';
 export { Table } from './Table';
