@@ -1719,14 +1719,20 @@ export function BillingPage() {
       }
       await generateBill(orderId);
 
-      // Update table status to 'billed' when bill is generated
+      // Update table status to 'pending_cleaning' when bill is generated
       if (!isOnlineOrderMode && selectedTable) {
         try {
-          await api.put(`/tables/${selectedTable.id}`, { status: 'billed' });
-          setSelectedTable({ ...selectedTable, status: 'billed' });
+          // Delete any remaining pending orders for this table
+          const pendingOrder = await api.getOrderByTable(selectedTable.id);
+          if (pendingOrder.success && pendingOrder.data) {
+            await api.deleteOrder(pendingOrder.data.id);
+          }
+          
+          await api.put(`/tables/${selectedTable.id}`, { status: 'pending_cleaning' });
+          setSelectedTable({ ...selectedTable, status: 'pending_cleaning' });
           store.fetchTables(selectedSection || undefined);
         } catch (error) {
-          console.error('Failed to update table status to billed:', error);
+          console.error('Failed to update table status:', error);
         }
       }
 
