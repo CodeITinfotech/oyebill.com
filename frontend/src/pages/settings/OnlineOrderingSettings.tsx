@@ -52,10 +52,14 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
 
       const ordersResponse = await api.getCustomerOnlineOrders();
       if (ordersResponse.success && ordersResponse.data) {
-        setOrders(ordersResponse.data);
+        // Ensure orders is always an array
+        setOrders(Array.isArray(ordersResponse.data) ? ordersResponse.data : []);
+      } else {
+        setOrders([]);
       }
     } catch (error) {
       console.error('Error loading stats:', error);
+      setOrders([]);
     }
   };
 

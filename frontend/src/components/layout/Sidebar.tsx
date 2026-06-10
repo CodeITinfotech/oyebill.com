@@ -26,6 +26,7 @@ import { useSidebar } from './SidebarContext';
 const navItems = [
   { to: '/billing', icon: FileText, label: 'Billing' },
   { to: '/online-orders', icon: Store, label: 'Online Orders', mobileLabel: 'Orders' },
+  { to: '/customer-orders', icon: ClipboardList, label: 'Customer Orders' },
   { to: '/products', icon: Package, label: 'Products' },
   { to: '/categories', icon: Layers, label: 'Categories' },
   { to: '/sections', icon: Grid3X3, label: 'Sections' },
