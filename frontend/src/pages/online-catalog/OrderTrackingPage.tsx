@@ -10,7 +10,7 @@ interface OrderTrackingPageProps {
 const STATUS_STEPS = [
   { key: 'new', label: 'Order Placed', icon: Package },
   { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
-  { key: 'preparing', label: 'Preparing', icon: Chef },
+  { key: 'preparing', label: 'Preparing', icon: ChefHat },
   { key: 'ready', label: 'Ready', icon: Package },
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: Bike },
   { key: 'delivered', label: 'Delivered', icon: Home },
@@ -19,7 +19,7 @@ const STATUS_STEPS = [
 const STATUS_STEPS_PICKUP = [
   { key: 'new', label: 'Order Placed', icon: Package },
   { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
-  { key: 'preparing', label: 'Preparing', icon: Chef },
+  { key: 'preparing', label: 'Preparing', icon: ChefHat },
   { key: 'ready', label: 'Ready for Pickup', icon: Package },
   { key: 'completed', label: 'Picked Up', icon: Home },
 ];
