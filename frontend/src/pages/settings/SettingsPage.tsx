@@ -85,6 +85,10 @@ export function SettingsPage() {
     connection: 'usb'
   });
   
+  // Test print state
+  const [isTestPrinting, setIsTestPrinting] = useState(false);
+  const [testPrintStatus, setTestPrintStatus] = useState<string | null>(null);
+  
   // KOT Setup form
   const [kotSetupForm, setKotSetupForm] = useState({
     showKotNumber: true,
@@ -549,6 +553,106 @@ export function SettingsPage() {
     setNewPrinterForm({ name: '', address: '', type: 'USB', connection: 'usb' });
     setShowAddPrinter(false);
     toast('success', `Printer "${newPrinterForm.name}" added`);
+  };
+
+  // Test print KOT
+  const handleTestPrintKOT = async () => {
+    if (!printerForm.kotPrinter) {
+      toast('error', 'Please enter KOT Printer IP/Name first');
+      return;
+    }
+    
+    setIsTestPrinting(true);
+    setTestPrintStatus('Sending test print to KOT printer...');
+    
+    const testContent = `
+================================
+        OYEBILL - TEST KOT
+================================
+Date: ${new Date().toLocaleString()}
+Table: Test Table
+Order: TEST-001
+
+Item            Qty    Price
+--------------------------------
+Biryani         2     ₹300
+Tandoori Roti   4     ₹80
+Dal Tadka       1     ₹150
+================================
+        Thank You!
+================================
+`.trim();
+
+    try {
+      const response = await api.printKot(testContent);
+      if (response.success) {
+        setTestPrintStatus('✅ Test KOT printed successfully!');
+        toast('success', 'Test KOT printed');
+      } else {
+        setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
+        toast('error', 'Test print failed');
+      }
+    } catch (error: any) {
+      setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
+      toast('error', 'Failed to send test print');
+    } finally {
+      setIsTestPrinting(false);
+      setTimeout(() => setTestPrintStatus(null), 5000);
+    }
+  };
+
+  // Test print Bill
+  const handleTestPrintBill = async () => {
+    if (!printerForm.billPrinter) {
+      toast('error', 'Please enter Bill Printer IP/Name first');
+      return;
+    }
+    
+    setIsTestPrinting(true);
+    setTestPrintStatus('Sending test print to Bill printer...');
+    
+    const testContent = `
+================================
+        OYEBILL - TEST BILL
+================================
+Bill #: TEST-${Date.now().toString().slice(-6)}
+Date: ${new Date().toLocaleString()}
+Server: Admin
+Table: Test Table
+--------------------------------
+Item            Qty    Price
+--------------------------------
+Biryani         2     ₹300
+Tandoori Roti   4     ₹80
+Dal Tadka       1     ₹150
+Soft Drink      2     ₹60
+--------------------------------
+Subtotal:            ₹590
+CGST (2.5%):          ₹15
+SGST (2.5%):          ₹15
+--------------------------------
+TOTAL:               ₹620
+================================
+    Thank You! Visit Again!
+================================
+`.trim();
+
+    try {
+      const response = await api.printBill(testContent);
+      if (response.success) {
+        setTestPrintStatus('✅ Test Bill printed successfully!');
+        toast('success', 'Test Bill printed');
+      } else {
+        setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
+        toast('error', 'Test print failed');
+      }
+    } catch (error: any) {
+      setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
+      toast('error', 'Failed to send test print');
+    } finally {
+      setIsTestPrinting(false);
+      setTimeout(() => setTestPrintStatus(null), 5000);
+    }
   };
 
   // Select a detected printer
@@ -1677,11 +1781,37 @@ export function SettingsPage() {
                       </div>
                     </div>
 
-                    <div className="pt-4">
+                    <div className="pt-4 flex items-center gap-3">
                       <Button onClick={handleSavePrinter} loading={isSubmitting}>
                         Save Printer Settings
                       </Button>
+                      <Button 
+                        variant="secondary"
+                        onClick={handleTestPrintKOT}
+                        loading={isTestPrinting}
+                        disabled={!printerForm.kotPrinter}
+                      >
+                        🖨️ Test KOT Print
+                      </Button>
+                      <Button 
+                        variant="secondary"
+                        onClick={handleTestPrintBill}
+                        loading={isTestPrinting}
+                        disabled={!printerForm.billPrinter}
+                      >
+                        🧾 Test Bill Print
+                      </Button>
                     </div>
+                    
+                    {testPrintStatus && (
+                      <div className={`mt-4 p-3 rounded-lg text-sm ${
+                        testPrintStatus.includes('✅') ? 'bg-green-500/20 text-green-400' : 
+                        testPrintStatus.includes('❌') ? 'bg-red-500/20 text-red-400' : 
+                        'bg-blue-500/20 text-blue-400'
+                      }`}>
+                        {testPrintStatus}
+                      </div>
+                    )}
                   </CardBody>
                 </Card>
               )}
