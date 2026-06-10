@@ -640,7 +640,13 @@ router.post('/test', authenticateToken, requireRole('admin'), async (req, res) =
 router.get('/config', authenticateToken, requireRole('admin'), async (req, res) => {
   try {
     const { db } = req;
-    const settings = db.prepare('SELECT kot_printer, bill_printer, print_copies, skip_lines_before_cut FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
+    
+    // Ensure column exists
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    
+    const settings = db.prepare('SELECT kot_printer, bill_printer, print_copies, skip_lines_before_cut, saved_printers FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
     
     res.json({
       success: true,
@@ -648,12 +654,95 @@ router.get('/config', authenticateToken, requireRole('admin'), async (req, res) 
         kotPrinter: settings.kot_printer,
         billPrinter: settings.bill_printer,
         printCopies: settings.print_copies,
-        skipLinesBeforeCut: settings.skip_lines_before_cut
+        skipLinesBeforeCut: settings.skip_lines_before_cut,
+        savedPrinters: settings.saved_printers ? JSON.parse(settings.saved_printers) : []
       } : null
     });
   } catch (error) {
     console.error('Get printer config error:', error);
     res.status(500).json({ success: false, error: 'Failed to get printer configuration' });
+  }
+});
+
+// Save manual printers list
+router.post('/save-printers', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { printers } = req.body;
+    const { db } = req;
+    
+    // Ensure column exists
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    
+    db.prepare(`UPDATE settings SET saved_printers = ? WHERE restaurant_id = ?`).run(
+      JSON.stringify(printers || []),
+      req.user.restaurantId
+    );
+    
+    res.json({ success: true, message: 'Printers saved' });
+  } catch (error) {
+    console.error('Save printers error:', error);
+    res.status(500).json({ success: false, error: 'Failed to save printers' });
+  }
+});
+
+// Add single printer to saved list
+router.post('/add-printer', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { name, type, address, connection } = req.body;
+    const { db } = req;
+    
+    // Ensure column exists
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    
+    const settings = db.prepare('SELECT saved_printers FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
+    let printers = settings?.saved_printers ? JSON.parse(settings.saved_printers) : [];
+    
+    // Add new printer if not already exists
+    const exists = printers.some(p => p.address === address);
+    if (!exists) {
+      printers.push({ name, type, address, connection });
+      db.prepare(`UPDATE settings SET saved_printers = ? WHERE restaurant_id = ?`).run(
+        JSON.stringify(printers),
+        req.user.restaurantId
+      );
+    }
+    
+    res.json({ success: true, printers });
+  } catch (error) {
+    console.error('Add printer error:', error);
+    res.status(500).json({ success: false, error: 'Failed to add printer' });
+  }
+});
+
+// Remove printer from saved list
+router.post('/remove-printer', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { address } = req.body;
+    const { db } = req;
+    
+    // Ensure column exists
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    
+    const settings = db.prepare('SELECT saved_printers FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
+    let printers = settings?.saved_printers ? JSON.parse(settings.saved_printers) : [];
+    
+    printers = printers.filter(p => p.address !== address);
+    
+    db.prepare(`UPDATE settings SET saved_printers = ? WHERE restaurant_id = ?`).run(
+      JSON.stringify(printers),
+      req.user.restaurantId
+    );
+    
+    res.json({ success: true, printers });
+  } catch (error) {
+    console.error('Remove printer error:', error);
+    res.status(500).json({ success: false, error: 'Failed to remove printer' });
   }
 });
 

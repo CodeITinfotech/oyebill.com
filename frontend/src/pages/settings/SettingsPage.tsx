@@ -203,6 +203,24 @@ export function SettingsPage() {
     }
   }, []);
 
+  // Load saved printers from backend
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      loadSavedPrinters();
+    }
+  }, [user]);
+
+  const loadSavedPrinters = async () => {
+    try {
+      const response = await api.getPrinterConfig();
+      if (response.success && response.config?.savedPrinters) {
+        setDetectedPrinters(response.config.savedPrinters);
+      }
+    } catch (error) {
+      console.error('Error loading saved printers:', error);
+    }
+  };
+
   // Fetch table allocations when tab changes
   useEffect(() => {
     if (activeTab === 'tableAllocations' && restaurant?.id) {
@@ -501,12 +519,10 @@ export function SettingsPage() {
   const detectPrinters = async () => {
     setIsDetecting(true);
     setDetectionStatus('Scanning local network for shared printers...');
-    // Keep existing manually added printers, just add network printers
     const existingPrinters = [...detectedPrinters];
     setScanDiagnostics(null);
     
     try {
-      // Use server-side printer detection API
       const response = await api.scanPrinters();
       
       if (response.success && response.data) {
@@ -517,10 +533,19 @@ export function SettingsPage() {
           connection: p.connection
         }));
         
-        // Merge existing (manual) + new (network) printers
-        const allPrinters = [...existingPrinters, ...foundPrinters];
+        // Merge existing + new printers, remove duplicates
+        const allPrinters = [...existingPrinters];
+        for (const fp of foundPrinters) {
+          if (!allPrinters.some(p => p.address === fp.address)) {
+            allPrinters.push(fp);
+          }
+        }
+        
         setDetectedPrinters(allPrinters);
         setScanDiagnostics(response.data.diagnostics);
+        
+        // Save merged list to backend
+        await api.savePrinters(allPrinters);
         
         if (foundPrinters.length > 0) {
           setDetectionStatus(`Found ${foundPrinters.length} new shared printer(s) on network`);
@@ -539,7 +564,7 @@ export function SettingsPage() {
   };
   
   // Add printer manually
-  const handleAddPrinter = () => {
+  const handleAddPrinter = async () => {
     if (!newPrinterForm.name || !newPrinterForm.address) {
       toast('error', 'Please enter printer name and address');
       return;
@@ -552,10 +577,23 @@ export function SettingsPage() {
       connection: newPrinterForm.connection
     };
     
-    setDetectedPrinters([...detectedPrinters, newPrinter]);
-    setNewPrinterForm({ name: '', address: '', type: 'USB', connection: 'usb' });
-    setShowAddPrinter(false);
-    toast('success', `Printer "${newPrinterForm.name}" added`);
+    try {
+      const response = await api.addPrinter(newPrinter);
+      if (response.success) {
+        setDetectedPrinters(response.printers);
+        setNewPrinterForm({ name: '', address: '', type: 'USB', connection: 'usb' });
+        setShowAddPrinter(false);
+        toast('success', `Printer "${newPrinterForm.name}" added and saved`);
+      } else {
+        toast('error', 'Failed to save printer');
+      }
+    } catch (error) {
+      // Fallback to local state if API fails
+      setDetectedPrinters([...detectedPrinters, newPrinter]);
+      setNewPrinterForm({ name: '', address: '', type: 'USB', connection: 'usb' });
+      setShowAddPrinter(false);
+      toast('success', `Printer "${newPrinterForm.name}" added (local only)`);
+    }
   };
 
   // Test print KOT
@@ -1570,7 +1608,7 @@ TOTAL:               ₹620
                       
                       {detectedPrinters && detectedPrinters.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-sm font-medium text-text-secondary">Detected Printers ({detectedPrinters.length}):</p>
+                          <p className="text-sm font-medium text-text-secondary">Saved Printers ({detectedPrinters.length}):</p>
                           {detectedPrinters.map((printer, idx) => (
                             <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background-secondary border border-white/10">
                               <div className="flex items-center gap-3">
@@ -1607,22 +1645,43 @@ TOTAL:               ₹620
                                 >
                                   Bill
                                 </Button>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const response = await api.removePrinter(printer.address);
+                                      if (response.success) {
+                                        setDetectedPrinters(response.printers);
+                                        toast('success', 'Printer removed');
+                                      }
+                                    } catch (error) {
+                                      // Fallback: remove locally
+                                      setDetectedPrinters(detectedPrinters.filter((_, i) => i !== idx));
+                                    }
+                                  }}
+                                  className="p-1 text-text-muted hover:text-red-400"
+                                  title="Remove printer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               </div>
                             </div>
                           ))}
-                        </div>
-                      )}
-                      
-                      {/* Manual Add Printer */}
-                      {detectedPrinters.length === 0 && (
-                        <div className="mt-4">
+                          
+                          {/* Add Printer Button */}
                           <Button 
                             variant="outline" 
                             size="sm"
                             onClick={() => setShowAddPrinter(!showAddPrinter)}
+                            className="w-full mt-2"
                           >
                             {showAddPrinter ? 'Cancel' : '+ Add Printer Manually'}
                           </Button>
+                        </div>
+                      )}
+                      
+                      {/* Manual Add Printer - Show when no printers */}
+                      {(detectedPrinters.length === 0 || showAddPrinter) && (
+                        <div className="mt-4">
                           
                           {showAddPrinter && (
                             <div className="mt-4 p-4 bg-background-secondary rounded-lg space-y-3">

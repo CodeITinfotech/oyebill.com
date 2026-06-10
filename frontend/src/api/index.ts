@@ -668,6 +668,27 @@ class ApiClient {
     return this.request<any>('/printers/config');
   }
 
+  async savePrinters(printers: any[]) {
+    return this.request<any>('/printers/save-printers', {
+      method: 'POST',
+      body: JSON.stringify({ printers }),
+    });
+  }
+
+  async addPrinter(printer: any) {
+    return this.request<any>('/printers/add-printer', {
+      method: 'POST',
+      body: JSON.stringify(printer),
+    });
+  }
+
+  async removePrinter(address: string) {
+    return this.request<any>('/printers/remove-printer', {
+      method: 'POST',
+      body: JSON.stringify({ address }),
+    });
+  }
+
   async printKot(content: string, copies?: number) {
     return this.request<any>('/printers/print-kot', {
       method: 'POST',
