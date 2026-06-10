@@ -80,10 +80,14 @@ export function SettingsPage() {
     showKotNumber: true,
     showDateTime: true,
     showTableNumber: true,
+    showCustomerName: true,
+    showSectionName: true,
     showProductName: true,
     showQty: true,
     showRate: true,
+    showPrice: true,
     showWaiterName: true,
+    showRestaurantName: true,
     strikeOldKotItems: true,
     showPreview: true,
   });
@@ -1050,7 +1054,16 @@ export function SettingsPage() {
                   <CardBody className="space-y-4">
                     <div className="p-4 rounded-lg border border-white/10">
                       <h3 className="font-medium mb-4">Fields to Display</h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <label className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={kotSetupForm.showRestaurantName}
+                            onChange={(e) => setKotSetupForm({...kotSetupForm, showRestaurantName: e.target.checked})}
+                            className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
+                          />
+                          <span>Restaurant Name</span>
+                        </label>
                         <label className="flex items-center gap-3">
                           <input 
                             type="checkbox" 
@@ -1077,6 +1090,33 @@ export function SettingsPage() {
                             className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                           />
                           <span>Table Number</span>
+                        </label>
+                        <label className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={kotSetupForm.showCustomerName}
+                            onChange={(e) => setKotSetupForm({...kotSetupForm, showCustomerName: e.target.checked})}
+                            className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
+                          />
+                          <span>Customer Name</span>
+                        </label>
+                        <label className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={kotSetupForm.showWaiterName}
+                            onChange={(e) => setKotSetupForm({...kotSetupForm, showWaiterName: e.target.checked})}
+                            className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
+                          />
+                          <span>Waiter Name</span>
+                        </label>
+                        <label className="flex items-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            checked={kotSetupForm.showSectionName}
+                            onChange={(e) => setKotSetupForm({...kotSetupForm, showSectionName: e.target.checked})}
+                            className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
+                          />
+                          <span>Section Name</span>
                         </label>
                         <label className="flex items-center gap-3">
                           <input 
@@ -1108,11 +1148,11 @@ export function SettingsPage() {
                         <label className="flex items-center gap-3">
                           <input 
                             type="checkbox" 
-                            checked={kotSetupForm.showWaiterName}
-                            onChange={(e) => setKotSetupForm({...kotSetupForm, showWaiterName: e.target.checked})}
+                            checked={kotSetupForm.showPrice}
+                            onChange={(e) => setKotSetupForm({...kotSetupForm, showPrice: e.target.checked})}
                             className="w-4 h-4 rounded border-white/20 bg-background-secondary text-accent focus:ring-accent" 
                           />
-                          <span>Waiter Name</span>
+                          <span>Price</span>
                         </label>
                       </div>
                     </div>
