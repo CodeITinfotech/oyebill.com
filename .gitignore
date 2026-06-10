@@ -32,6 +32,3 @@ Thumbs.db
 *.db
 !backend/database/oyebill.db
 !backend/database/oyebill.db.tar.gz
-
-# Docker
-.dockerignore

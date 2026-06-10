@@ -2370,7 +2370,7 @@ export function BillingPage() {
                     variant="accent"
                     size="md"
                     onClick={handleBill}
-                    disabled={cart.length === 0}
+                    disabled={cart.length === 0 || !currentOrderId}
                     className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
                   >
                     <Receipt className="w-3 h-3" />
@@ -2548,7 +2548,7 @@ export function BillingPage() {
                     variant="accent"
                     size="md"
                     onClick={handleBill}
-                    disabled={cart.length === 0}
+                    disabled={cart.length === 0 || !currentOrderId}
                     className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
                   >
                     <Receipt className="w-4 h-4" />

@@ -163,13 +163,13 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
   try {
     const { db } = req;
 
-    // Get active order for table (not billed)
+    // Get active order for table (not billed or paid)
     const order = db.prepare(`
       SELECT o.*, t.number as table_number, u.name as user_name 
       FROM orders o 
       LEFT JOIN tables t ON o.table_id = t.id
       LEFT JOIN users u ON o.user_id = u.id
-      WHERE o.table_id = ? AND o.status != 'billed'
+      WHERE o.table_id = ? AND o.status NOT IN ('billed', 'paid')
       ORDER BY o.created_at DESC
       LIMIT 1
     `).get(req.params.tableId);
