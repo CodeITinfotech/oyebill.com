@@ -277,6 +277,14 @@ router.delete('/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ success: false, error: 'Table not found' });
     }
 
+    // Get all order IDs for this table
+    const orders = db.prepare('SELECT id FROM orders WHERE table_id = ?').all(tableId);
+    
+    // Delete order items first (due to foreign key constraints)
+    for (const order of orders) {
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(order.id);
+    }
+    
     // Delete all orders (KOTs and bills) for this table
     const deletedOrders = db.prepare('DELETE FROM orders WHERE table_id = ?').run(tableId);
 
