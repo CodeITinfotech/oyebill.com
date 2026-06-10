@@ -1103,7 +1103,12 @@ export function BillingPage() {
     const isOnlineOrderMode = onlineOrder !== null;
 
     if (currentOrderId) {
-      await updateOrder(currentOrderId, kotItems);
+      await api.updateOrder(currentOrderId, { items: kotItems });
+      // Update order status to KOT and table status to pending_billing
+      await api.generateKOT(currentOrderId);
+      // Refresh table status
+      store.fetchTables(selectedSection || undefined);
+      toast('success', 'KOT Generated successfully');
     } else if (isOnlineOrderMode) {
       // For online orders, create a special order (no table)
       // Store the online order ID for later use when generating bill
@@ -1127,23 +1132,25 @@ export function BillingPage() {
         console.error('Error saving online order KOT:', error);
       }
     } else {
-      const response = await createOrder(selectedTable.id, kotItems, selectedWaiter || undefined, selectedCustomer?.id);
-      if (response) {
-        setCurrentOrderId(response);
-      }
-    }
-
-    await generateKOT(currentOrderId || (isOnlineOrderMode ? 'ONLINE-KOT' : ''));
-    toast('success', isOnlineOrderMode ? 'Online Order KOT Generated' : 'KOT Generated successfully');
-    
-    // Update table status to pending_billing (KOT generated, ready to bill)
-    if (!isOnlineOrderMode && selectedTable) {
-      try {
-        await api.put(`/tables/${selectedTable.id}`, { status: 'pending_billing' });
-        setSelectedTable({ ...selectedTable, status: 'pending_billing' });
+      console.log('[KOT] Creating order for table:', selectedTable.id, selectedTable.number);
+      const response = await api.createOrder({
+        tableId: selectedTable.id,
+        items: kotItems,
+        waiterId: selectedWaiter || undefined,
+        customerId: selectedCustomer?.id
+      });
+      console.log('[KOT] Order created response:', JSON.stringify(response));
+      if (response.success && response.data && response.data.id) {
+        setCurrentOrderId(response.data.id);
+        console.log('[KOT] Generating KOT for order:', response.data.id);
+        // Generate KOT with the new order ID - backend will update table status to pending_billing
+        const kotResponse = await api.generateKOT(response.data.id);
+        console.log('[KOT] KOT response:', JSON.stringify(kotResponse));
+        // Refresh table status
         store.fetchTables(selectedSection || undefined);
-      } catch (error) {
-        console.error('Failed to update table status to pending_billing:', error);
+        toast('success', 'KOT Generated successfully');
+      } else {
+        console.error('[KOT] Failed to create order:', response.error);
       }
     }
     
