@@ -651,6 +651,22 @@ class ApiClient {
   async getOnlineOrderingStats() {
     return this.request<any>('/online-ordering-settings/stats');
   }
+
+  // Printer Management
+  async scanPrinters() {
+    return this.request<any>('/printers/scan');
+  }
+
+  async testPrinter(printerName: string, printerType?: string, testText?: string) {
+    return this.request<any>('/printers/test', {
+      method: 'POST',
+      body: JSON.stringify({ printerName, printerType, testText }),
+    });
+  }
+
+  async getPrinterConfig() {
+    return this.request<any>('/printers/config');
+  }
 }
 
 export const api = new ApiClient();

@@ -483,74 +483,25 @@ export function SettingsPage() {
   // Detect connected printers (USB/Bluetooth)
   const detectPrinters = async () => {
     setIsDetecting(true);
-    setDetectionStatus('Detecting printers...');
+    setDetectionStatus('Scanning for printers on server...');
     setDetectedPrinters([]);
     
     try {
-      // Check if Web Bluetooth API is available (for Bluetooth printers)
-      const hasBluetooth = 'bluetooth' in navigator;
+      // Use server-side printer detection API
+      const response = await api.scanPrinters();
       
-      // Check if navigator.usb is available (for USB printers)
-      const hasUSB = 'usb' in navigator;
-      
-      const foundPrinters: {name: string; type: string; address: string}[] = [];
-      
-      // Method 1: Try Web Bluetooth API for Bluetooth printers
-      if (hasBluetooth) {
-        try {
-          setDetectionStatus('Scanning for Bluetooth printers...');
-          // Request Bluetooth device
-          const device = await (navigator as any).bluetooth.requestDevice({
-            filters: [{ services: ['00001101-0000-1000-8000-00805f9b34fb'] }] // Serial Port Profile
-          });
-          
-          if (device.name) {
-            foundPrinters.push({
-              name: device.name,
-              type: 'Bluetooth',
-              address: device.id
-            });
-          }
-        } catch (btError: any) {
-          console.log('Bluetooth scan cancelled or failed:', btError.message);
-        }
-      }
-      
-      // Method 2: Try Web USB API for USB printers (mostly works on Chrome/Edge)
-      if (hasUSB) {
-        try {
-          setDetectionStatus('Scanning for USB printers...');
-          const device = await (navigator as any).usb.requestDevice({
-            filters: [
-              { vendorId: 0x04b8 }, // Epson
-              { vendorId: 0x04f9 }, // Brother
-              { vendorId: 0x0519 }, // Star Micronics
-              { vendorId: 0x0dd4 }, // Custom Engineering
-              { vendorId: 0x1504 }, // Posiflex
-            ]
-          });
-          
-          if (device.productName) {
-            foundPrinters.push({
-              name: device.productName,
-              type: 'USB',
-              address: `${device.vendorId}:${device.productId}`
-            });
-          }
-        } catch (usbError: any) {
-          console.log('USB scan cancelled or failed:', usbError.message);
-        }
-      }
-      
-      // Method 3: For Electron apps, check for serial/COM ports
-      // This is a placeholder - actual implementation would use electron-serial
-      // For now, we'll add some common thermal printer detection logic
-      
-      if (!foundPrinters || foundPrinters.length === 0) {
-        setDetectionStatus('No printers detected. Make sure your printer is connected and powered on.');
-      } else {
-        setDetectionStatus(`Found ${foundPrinters?.length || 0} printer(s)`);
+      if (response.success && response.data?.printers) {
+        const foundPrinters = response.data.printers.map((p: any) => ({
+          name: p.name,
+          type: p.type,
+          address: p.address,
+          connection: p.connection
+        }));
+        
         setDetectedPrinters(foundPrinters);
+        setDetectionStatus(response.data.message || `Found ${foundPrinters.length} printer(s)`);
+      } else {
+        setDetectionStatus(response.error || 'No printers detected. Connect a printer and try again.');
       }
     } catch (error: any) {
       console.error('Printer detection error:', error);
@@ -561,13 +512,29 @@ export function SettingsPage() {
   };
 
   // Select a detected printer
-  const selectDetectedPrinter = (printer: {name: string; type: string; address: string}, isKot: boolean) => {
+  const selectDetectedPrinter = async (printer: {name: string; type: string; address: string; connection?: string}, isKot: boolean) => {
+    const printerIdentifier = printer.address || printer.name;
+    
     if (isKot) {
-      setPrinterForm({ ...printerForm, kotPrinter: printer.name });
+      setPrinterForm({ ...printerForm, kotPrinter: printerIdentifier });
     } else {
-      setPrinterForm({ ...printerForm, billPrinter: printer.name });
+      setPrinterForm({ ...printerForm, billPrinter: printerIdentifier });
     }
-    toast('success', `${printer.name} (${printer.type}) selected`);
+    toast('success', `${printer.name} selected for ${isKot ? 'KOT' : 'Bill'}`);
+    
+    // Offer to test print
+    if (confirm(`Would you like to print a test page on "${printer.name}"?`)) {
+      try {
+        const response = await api.testPrinter(printerIdentifier, printer.type, printer.connection);
+        if (response.success) {
+          toast('success', 'Test print sent successfully');
+        } else {
+          toast('error', response.error || 'Test print failed');
+        }
+      } catch (error) {
+        toast('error', 'Failed to send test print');
+      }
+    }
   };
 
   const handleSaveUserRights = async () => {
@@ -1407,21 +1374,23 @@ export function SettingsPage() {
                       
                       {detectedPrinters && detectedPrinters.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-sm font-medium text-text-secondary">Detected Printers:</p>
+                          <p className="text-sm font-medium text-text-secondary">Detected Printers ({detectedPrinters.length}):</p>
                           {detectedPrinters.map((printer, idx) => (
                             <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background-secondary border border-white/10">
                               <div className="flex items-center gap-3">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                  printer.type === 'Bluetooth' ? 'bg-blue-500/20 text-blue-400' :
-                                  printer.type === 'USB' ? 'bg-green-500/20 text-green-400' :
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  printer.connection === 'usb' ? 'bg-green-500/20 text-green-400' :
+                                  printer.connection === 'serial' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  printer.connection === 'network' ? 'bg-blue-500/20 text-blue-400' :
+                                  printer.connection === 'cups' ? 'bg-purple-500/20 text-purple-400' :
                                   'bg-gray-500/20 text-gray-400'
                                 }`}>
-                                  <Printer className="w-4 h-4" />
+                                  <Printer className="w-5 h-5" />
                                 </div>
                                 <div>
                                   <p className="font-medium">{printer.name}</p>
                                   <p className="text-xs text-text-muted">
-                                    {printer.type} • {printer.address}
+                                    {printer.connection?.toUpperCase() || printer.type} • {printer.address}
                                   </p>
                                 </div>
                               </div>
@@ -1430,15 +1399,17 @@ export function SettingsPage() {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => selectDetectedPrinter(printer, true)}
+                                  title="Set as KOT printer"
                                 >
-                                  Use for KOT
+                                  KOT
                                 </Button>
                                 <Button 
                                   variant="accent" 
                                   size="sm"
                                   onClick={() => selectDetectedPrinter(printer, false)}
+                                  title="Set as Bill printer"
                                 >
-                                  Use for Bill
+                                  Bill
                                 </Button>
                               </div>
                             </div>
