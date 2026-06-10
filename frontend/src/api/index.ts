@@ -667,6 +667,20 @@ class ApiClient {
   async getPrinterConfig() {
     return this.request<any>('/printers/config');
   }
+
+  async printKot(content: string, copies?: number) {
+    return this.request<any>('/printers/print-kot', {
+      method: 'POST',
+      body: JSON.stringify({ content, copies }),
+    });
+  }
+
+  async printBill(content: string, copies?: number) {
+    return this.request<any>('/printers/print-bill', {
+      method: 'POST',
+      body: JSON.stringify({ content, copies }),
+    });
+  }
 }
 
 export const api = new ApiClient();

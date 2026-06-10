@@ -496,7 +496,7 @@ export function SettingsPage() {
   // Detect connected printers (USB/Bluetooth)
   const detectPrinters = async () => {
     setIsDetecting(true);
-    setDetectionStatus('Scanning for printers on server...');
+    setDetectionStatus('Scanning local network for shared printers...');
     setDetectedPrinters([]);
     setScanDiagnostics(null);
     
@@ -515,11 +515,11 @@ export function SettingsPage() {
         setDetectedPrinters(foundPrinters);
         setScanDiagnostics(response.data.diagnostics);
         
-        let statusMsg = response.data.message || `Found ${foundPrinters.length} printer(s)`;
-        if (foundPrinters.length === 0 && response.data.hint) {
-          statusMsg += ' ' + response.data.hint;
+        if (foundPrinters.length > 0) {
+          setDetectionStatus(`Found ${foundPrinters.length} shared printer(s) on network`);
+        } else {
+          setDetectionStatus('No shared printers found. Try manual configuration.');
         }
-        setDetectionStatus(statusMsg);
       } else {
         setDetectionStatus(response.error || 'Scan failed. Try manual configuration below.');
       }
@@ -1427,10 +1427,10 @@ export function SettingsPage() {
                         <div>
                           <h3 className="font-medium flex items-center gap-2">
                             <Printer className="w-5 h-5" />
-                            Detect Connected Printers
+                            Detect Shared Printers on Network
                           </h3>
                           <p className="text-sm text-text-muted mt-1">
-                            Scan for USB, Bluetooth, or network printers
+                            Scan local network for Windows shared printers
                           </p>
                         </div>
                         <Button 
@@ -1438,7 +1438,7 @@ export function SettingsPage() {
                           loading={isDetecting}
                           variant="accent"
                         >
-                          {isDetecting ? 'Scanning...' : '🔍 Scan Printers'}
+                          {isDetecting ? 'Scanning Network...' : '🔍 Scan Network'}
                         </Button>
                       </div>
                       
