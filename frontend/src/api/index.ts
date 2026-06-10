@@ -689,10 +689,10 @@ class ApiClient {
     });
   }
 
-  async printKot(content: string, copies?: number) {
+  async printKot(content: string, copies?: number, printer?: string) {
     return this.request<any>('/printers/print-kot', {
       method: 'POST',
-      body: JSON.stringify({ content, copies }),
+      body: JSON.stringify({ content, copies, printer }),
     });
   }
 

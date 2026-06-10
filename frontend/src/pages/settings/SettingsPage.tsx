@@ -61,7 +61,8 @@ export function SettingsPage() {
 
   // Printer form
   const [printerForm, setPrinterForm] = useState({
-    kotPrinter: '',
+    kotPrinters: [] as string[],
+    defaultKotPrinter: '',
     billPrinter: '',
     printCopies: '1',
     skipLinesBeforeCut: '3',
@@ -255,7 +256,8 @@ export function SettingsPage() {
         isActive: settings.isActive !== undefined ? Boolean(settings.isActive || settings.is_active) : true,
       });
       setPrinterForm({
-        kotPrinter: settings.kotPrinter || settings.kot_printer || '',
+        kotPrinters: settings.kotPrinters || settings.kot_printers || [],
+        defaultKotPrinter: settings.defaultKotPrinter || settings.default_kot_printer || '',
         billPrinter: settings.billPrinter || settings.bill_printer || '',
         printCopies: String(settings.printCopies || settings.print_copies || '1'),
         skipLinesBeforeCut: String(settings.skipLinesBeforeCut || settings.skip_lines_before_cut || '3'),
@@ -475,9 +477,9 @@ export function SettingsPage() {
 
   const handleSavePrinter = async () => {
     setIsSubmitting(true);
-    // Save printer settings first (separate call to ensure empty values are saved)
     const success = await updateSettings({
-      kotPrinter: printerForm.kotPrinter,
+      kotPrinters: printerForm.kotPrinters,
+      defaultKotPrinter: printerForm.defaultKotPrinter,
       billPrinter: printerForm.billPrinter,
       printCopies: parseInt(printerForm.printCopies) || 1,
       skipLinesBeforeCut: parseInt(printerForm.skipLinesBeforeCut) || 3,
@@ -597,14 +599,15 @@ export function SettingsPage() {
   };
 
   // Test print KOT
-  const handleTestPrintKOT = async () => {
-    if (!printerForm.kotPrinter) {
-      toast('error', 'Please enter KOT Printer IP/Name first');
+  const handleTestPrintKOT = async (selectedPrinter?: string) => {
+    const printerToUse = selectedPrinter || printerForm.defaultKotPrinter;
+    if (!printerToUse) {
+      toast('error', 'Please select a KOT Printer first');
       return;
     }
     
     setIsTestPrinting(true);
-    setTestPrintStatus('Sending test print to KOT printer...');
+    setTestPrintStatus(`Sending test print to ${printerToUse}...`);
     
     const testContent = `
 ================================
@@ -625,7 +628,7 @@ Dal Tadka       1     ₹150
 `.trim();
 
     try {
-      const response = await api.printKot(testContent);
+      const response = await api.printKot(testContent, 1, printerToUse);
       if (response.success) {
         setTestPrintStatus('✅ Test KOT printed successfully!');
         toast('success', 'Test KOT printed');
@@ -701,7 +704,15 @@ TOTAL:               ₹620
     const printerIdentifier = printer.address || printer.name;
     
     if (isKot) {
-      setPrinterForm({ ...printerForm, kotPrinter: printerIdentifier });
+      // Add to KOT printers list if not already there
+      const kotPrinters = printerForm.kotPrinters.includes(printerIdentifier)
+        ? printerForm.kotPrinters
+        : [...printerForm.kotPrinters, printerIdentifier];
+      setPrinterForm({ 
+        ...printerForm, 
+        kotPrinters,
+        defaultKotPrinter: printerForm.defaultKotPrinter || printerIdentifier // Set as default if no default
+      });
     } else {
       setPrinterForm({ ...printerForm, billPrinter: printerIdentifier });
     }
@@ -1743,27 +1754,92 @@ TOTAL:               ₹620
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">KOT Printer (IP/Printer Name)</label>
-                          <div className="relative">
+                        {/* KOT Printers Section */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-sm text-text-secondary">KOT Printers</label>
+                            <span className="text-xs text-text-muted">{printerForm.kotPrinters.length} printer(s)</span>
+                          </div>
+                          
+                          {/* Add new KOT printer */}
+                          <div className="flex gap-2">
                             <input
                               type="text"
-                              value={printerForm.kotPrinter}
-                              onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
+                              id="newKotPrinter"
                               placeholder="192.168.0.220/POS-80"
-                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
+                              className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const input = e.currentTarget;
+                                  const value = input.value.trim();
+                                  if (value && !printerForm.kotPrinters.includes(value)) {
+                                    setPrinterForm({ 
+                                      ...printerForm, 
+                                      kotPrinters: [...printerForm.kotPrinters, value],
+                                      defaultKotPrinter: printerForm.defaultKotPrinter || value
+                                    });
+                                    input.value = '';
+                                  }
+                                }
+                              }}
                             />
-                            {printerForm.kotPrinter && (
-                              <button
-                                type="button"
-                                onClick={() => setPrinterForm({ ...printerForm, kotPrinter: '' })}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-400"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const input = document.getElementById('newKotPrinter') as HTMLInputElement;
+                                const value = input?.value.trim();
+                                if (value && !printerForm.kotPrinters.includes(value)) {
+                                  setPrinterForm({ 
+                                    ...printerForm, 
+                                    kotPrinters: [...printerForm.kotPrinters, value],
+                                    defaultKotPrinter: printerForm.defaultKotPrinter || value
+                                  });
+                                  input.value = '';
+                                }
+                              }}
+                            >
+                              Add
+                            </Button>
                           </div>
+                          
+                          {/* List of KOT printers */}
+                          {printerForm.kotPrinters.length > 0 && (
+                            <div className="space-y-2 max-h-40 overflow-y-auto">
+                              {printerForm.kotPrinters.map((printer, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2 bg-background-secondary rounded-lg">
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      name="defaultKotPrinter"
+                                      checked={printerForm.defaultKotPrinter === printer}
+                                      onChange={() => setPrinterForm({ ...printerForm, defaultKotPrinter: printer })}
+                                      className="accent-accent"
+                                    />
+                                    <span className="text-sm font-mono truncate max-w-[180px]" title={printer}>{printer}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      const newPrinters = printerForm.kotPrinters.filter((_, i) => i !== idx);
+                                      setPrinterForm({ 
+                                        ...printerForm, 
+                                        kotPrinters: newPrinters,
+                                        defaultKotPrinter: printerForm.defaultKotPrinter === printer 
+                                          ? (newPrinters[0] || '') 
+                                          : printerForm.defaultKotPrinter
+                                      });
+                                    }}
+                                    className="p-1 text-text-muted hover:text-red-400"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p className="text-xs text-text-muted">Select radio button to set default KOT printer</p>
                         </div>
+                        
+                        {/* Bill Printer */}
                         <div className="relative">
                           <label className="block text-sm text-text-secondary mb-1">Bill Printer (IP/Printer Name)</label>
                           <div className="relative">
@@ -1846,21 +1922,33 @@ TOTAL:               ₹620
                       <Button onClick={handleSavePrinter} loading={isSubmitting}>
                         Save Printer Settings
                       </Button>
-                      <Button 
-                        variant="secondary"
-                        onClick={handleTestPrintKOT}
-                        loading={isTestPrinting}
-                        disabled={!printerForm.kotPrinter}
-                      >
-                        🖨️ Test KOT Print
-                      </Button>
+                      {printerForm.kotPrinters.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary text-sm"
+                            value={printerForm.defaultKotPrinter}
+                            onChange={(e) => setPrinterForm({ ...printerForm, defaultKotPrinter: e.target.value })}
+                          >
+                            {printerForm.kotPrinters.map((p, i) => (
+                              <option key={i} value={p}>{p}</option>
+                            ))}
+                          </select>
+                          <Button 
+                            variant="secondary"
+                            onClick={() => handleTestPrintKOT(printerForm.defaultKotPrinter)}
+                            loading={isTestPrinting}
+                          >
+                            🖨️ Test KOT
+                          </Button>
+                        </div>
+                      )}
                       <Button 
                         variant="secondary"
                         onClick={handleTestPrintBill}
                         loading={isTestPrinting}
                         disabled={!printerForm.billPrinter}
                       >
-                        🧾 Test Bill Print
+                        🧾 Test Bill
                       </Button>
                     </div>
                     

@@ -641,17 +641,24 @@ router.get('/config', authenticateToken, requireRole('admin'), async (req, res) 
   try {
     const { db } = req;
     
-    // Ensure column exists
+    // Ensure columns exist
     try {
       db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
     } catch (e) { /* column may exist */ }
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN kot_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN default_kot_printer TEXT`);
+    } catch (e) { /* column may exist */ }
     
-    const settings = db.prepare('SELECT kot_printer, bill_printer, print_copies, skip_lines_before_cut, saved_printers FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
+    const settings = db.prepare('SELECT kot_printers, default_kot_printer, bill_printer, print_copies, skip_lines_before_cut, saved_printers FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
     
     res.json({
       success: true,
       config: settings ? {
-        kotPrinter: settings.kot_printer,
+        kotPrinters: settings.kot_printers ? JSON.parse(settings.kot_printers) : [],
+        defaultKotPrinter: settings.default_kot_printer,
         billPrinter: settings.bill_printer,
         printCopies: settings.print_copies,
         skipLinesBeforeCut: settings.skip_lines_before_cut,
@@ -670,9 +677,12 @@ router.post('/save-printers', authenticateToken, requireRole('admin'), async (re
     const { printers } = req.body;
     const { db } = req;
     
-    // Ensure column exists
+    // Ensure columns exist
     try {
       db.exec(`ALTER TABLE settings ADD COLUMN saved_printers TEXT`);
+    } catch (e) { /* column may exist */ }
+    try {
+      db.exec(`ALTER TABLE settings ADD COLUMN kot_printers TEXT`);
     } catch (e) { /* column may exist */ }
     
     db.prepare(`UPDATE settings SET saved_printers = ? WHERE restaurant_id = ?`).run(
@@ -749,22 +759,31 @@ router.post('/remove-printer', authenticateToken, requireRole('admin'), async (r
 // Print KOT (Kitchen Order Ticket)
 router.post('/print-kot', authenticateToken, async (req, res) => {
   try {
-    const { content, copies } = req.body;
+    const { content, copies, printer: selectedPrinter } = req.body;
     const { db } = req;
     
     // Get printer settings
-    const settings = db.prepare('SELECT kot_printer, print_copies, skip_lines_before_cut FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
+    const settings = db.prepare('SELECT kot_printers, default_kot_printer, print_copies, skip_lines_before_cut FROM settings WHERE restaurant_id = ?').get(req.user.restaurantId);
     
-    if (!settings?.kot_printer) {
-      return res.status(400).json({ success: false, error: 'KOT printer not configured. Go to Settings > Printer to configure.' });
+    // Determine which printer to use
+    let printer = selectedPrinter; // Use selected printer from request
+    
+    if (!printer && settings?.default_kot_printer) {
+      // Fall back to default KOT printer
+      printer = settings.default_kot_printer;
     }
     
-    const printer = settings.kot_printer;
+    if (!printer) {
+      return res.status(400).json({ success: false, error: 'No KOT printer configured. Go to Settings > Printer to configure.' });
+    }
+    
     const printCopies = copies || settings.print_copies || 1;
     const skipLines = settings.skip_lines_before_cut || 3;
     
-    // Add skip lines before cut if content is for thermal printer
-    const printContent = content + '\n'.repeat(skipLines) + '\x1DV\x0A'; // ESC POS cut command
+    // Get available KOT printers for dropdown
+    const availableKotPrinters = settings.kot_printers ? JSON.parse(settings.kot_printers) : [];
+    
+    const printContent = content + '\n'.repeat(skipLines) + '\x1DV\x0A';
     
     let success = false;
     let output = '';
@@ -876,7 +895,9 @@ router.post('/print-kot', authenticateToken, async (req, res) => {
       output,
       printer,
       copies: printCopies,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      availablePrinters: availableKotPrinters,
+      defaultPrinter: settings?.default_kot_printer
     });
     
   } catch (error) {
