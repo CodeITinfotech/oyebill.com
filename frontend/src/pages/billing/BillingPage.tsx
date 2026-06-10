@@ -345,15 +345,24 @@ export function BillingPage() {
     
     setCart(newCart);
     
-    // Update table status to active_kot when items are added (only if table is available)
-    if (selectedTable && selectedTable.status === 'available') {
-      try {
-        await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
-        setSelectedTable({ ...selectedTable, status: 'active_kot' });
-        // Refresh tables to update UI
-        store.fetchTables(selectedSection || undefined);
-      } catch (error) {
-        console.error('Failed to update table status:', error);
+    // Update table status when items are added
+    // - If table is available, change to active_kot
+    // - If table has pending_billing and new items are added (not KOT'd), change to active_kot
+    if (selectedTable) {
+      const hasNewItems = newCart.some(item => !item.isKot);
+      const shouldUpdateStatus = 
+        (selectedTable.status === 'available') || 
+        (selectedTable.status === 'pending_billing' && hasNewItems);
+      
+      if (shouldUpdateStatus) {
+        try {
+          await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
+          setSelectedTable({ ...selectedTable, status: 'active_kot' });
+          // Refresh tables to update UI
+          store.fetchTables(selectedSection || undefined);
+        } catch (error) {
+          console.error('Failed to update table status:', error);
+        }
       }
     }
   };
