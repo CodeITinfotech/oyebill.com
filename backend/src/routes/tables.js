@@ -38,6 +38,36 @@ router.post('/clear-all', authenticateToken, requireRole('admin'), (req, res) =>
   }
 });
 
+// Clear a specific table
+router.post('/clear/:tableId', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const { tableId } = req.params;
+    
+    // Verify table belongs to restaurant
+    const table = db.prepare('SELECT * FROM tables WHERE id = ? AND restaurant_id = ?').get(tableId, req.user.restaurantId);
+    if (!table) {
+      return res.status(404).json({ success: false, error: 'Table not found' });
+    }
+    
+    // Set table to available
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', tableId);
+    
+    // Delete active orders for this table
+    const deletedOrders = db.prepare(`DELETE FROM orders WHERE table_id = ? AND status NOT IN ('paid', 'cancelled')`).run(tableId);
+    
+    res.json({ 
+      success: true, 
+      message: `Table ${table.number} cleared`,
+      tableNumber: table.number,
+      deletedOrders: deletedOrders.changes
+    });
+  } catch (error) {
+    console.error('Clear table error:', error);
+    res.status(500).json({ error: 'Failed to clear table' });
+  }
+});
+
 // Get all tables
 router.get('/', authenticateToken, (req, res) => {
   try {

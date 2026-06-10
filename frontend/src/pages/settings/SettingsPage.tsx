@@ -8,7 +8,7 @@ import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, T
 import { api } from '../../api';
 import { OnlineOrderingSettings } from './OnlineOrderingSettings';
 
-type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering';
+type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering' | 'maintenance';
 type PrinterTab = 'kot' | 'bill' | 'setup';
 
 export function SettingsPage() {
@@ -860,6 +860,7 @@ TOTAL:               ₹620
       { id: 'tableStatus', label: 'Table Status', icon: Tag },
       { id: 'tableAllocations', label: 'Table-Waiter', icon: LayoutGrid },
       { id: 'onlineOrdering', label: 'Online Orders', icon: Globe },
+      { id: 'maintenance', label: 'Data Mgmt', icon: Trash2 },
     ] : []),
   ];
 
@@ -2664,6 +2665,245 @@ TOTAL:               ₹620
           {/* Online Ordering Settings */}
           {activeTab === 'onlineOrdering' && user?.role === 'admin' && (
             <OnlineOrderingSettings restaurantId={restaurant?.id} />
+          )}
+
+          {/* Data Management (Maintenance) */}
+          {activeTab === 'maintenance' && user?.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold">Data Management</h2>
+                <p className="text-sm text-text-muted">Manage tables, bookings, and KOT data</p>
+              </CardHeader>
+              <CardBody className="space-y-6">
+                {/* Tables Section */}
+                <div className="p-4 rounded-lg border border-white/10 space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">🪑 Tables</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Clear All Tables</p>
+                      <p className="text-xs text-text-muted mb-3">Reset all tables to available and remove active orders</p>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm('⚠️ Clear ALL tables? This will reset all tables and remove active orders.')) return;
+                          try {
+                            const res = await api.clearTables();
+                            if (res.success) {
+                              toast('success', `Cleared ${res.clearedTables} tables`);
+                              fetchTables();
+                            } else {
+                              toast('error', res.error || 'Failed');
+                            }
+                          } catch (e) {
+                            toast('error', 'Failed to clear tables');
+                          }
+                        }}
+                      >
+                        Clear All Tables
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Clear Specific Table</p>
+                      <p className="text-xs text-text-muted mb-3">Select a table to clear</p>
+                      <select
+                        className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm mb-2"
+                        id="clearTableSelect"
+                      >
+                        <option value="">Select Table...</option>
+                        {(tables || []).filter(t => t.status !== 'available').map(t => (
+                          <option key={t.id} value={t.id}>Table {t.number} ({t.status})</option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          const select = document.getElementById('clearTableSelect') as HTMLSelectElement;
+                          if (!select.value) {
+                            toast('warning', 'Select a table first');
+                            return;
+                          }
+                          try {
+                            const res = await api.clearTable(select.value);
+                            if (res.success) {
+                              toast('success', `Table ${res.tableNumber} cleared`);
+                              fetchTables();
+                              select.value = '';
+                            } else {
+                              toast('error', res.error || 'Failed');
+                            }
+                          } catch (e) {
+                            toast('error', 'Failed to clear table');
+                          }
+                        }}
+                      >
+                        Clear Selected
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bookings Section */}
+                <div className="p-4 rounded-lg border border-red-500/20 bg-red-500/5 space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">🧾 Bookings (Paid Bills)</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Delete All Bookings</p>
+                      <p className="text-xs text-text-muted mb-3">Remove all paid bills from history</p>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm('⚠️ DELETE all bookings? This cannot be undone!')) return;
+                          try {
+                            const res = await api.deleteAllBookings();
+                            toast('success', `${res.deleted} bookings deleted`);
+                          } catch (e) {
+                            toast('error', 'Failed to delete bookings');
+                          }
+                        }}
+                      >
+                        Delete All
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Delete by Bill Number</p>
+                      <p className="text-xs text-text-muted mb-3">Enter bill/order ID</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          id="deleteBillInput"
+                          placeholder="Bill Number"
+                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={async () => {
+                            const input = document.getElementById('deleteBillInput') as HTMLInputElement;
+                            if (!input.value.trim()) {
+                              toast('warning', 'Enter bill number');
+                              return;
+                            }
+                            try {
+                              const res = await api.deleteBookingByBill(input.value.trim());
+                              if (res.success) {
+                                toast('success', res.message);
+                                input.value = '';
+                              } else {
+                                toast('error', res.error || 'Not found');
+                              }
+                            } catch (e) {
+                              toast('error', 'Failed to delete');
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Delete by Date</p>
+                      <p className="text-xs text-text-muted mb-3">Delete bookings from specific date</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          id="deleteBookingDateInput"
+                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={async () => {
+                            const input = document.getElementById('deleteBookingDateInput') as HTMLInputElement;
+                            if (!input.value) {
+                              toast('warning', 'Select a date');
+                              return;
+                            }
+                            if (!confirm(`Delete all bookings from ${input.value}?`)) return;
+                            try {
+                              const res = await api.deleteBookingsByDate(input.value);
+                              toast('success', res.message);
+                              input.value = '';
+                            } catch (e) {
+                              toast('error', 'Failed to delete');
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KOT Section */}
+                <div className="p-4 rounded-lg border border-orange-500/20 bg-orange-500/5 space-y-4">
+                  <h3 className="font-medium flex items-center gap-2">📋 KOT (Kitchen Orders)</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Delete All KOTs</p>
+                      <p className="text-xs text-text-muted mb-3">Remove all kitchen order tickets</p>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={async () => {
+                          if (!confirm('⚠️ DELETE all KOTs? This cannot be undone!')) return;
+                          try {
+                            const res = await api.deleteAllKots();
+                            toast('success', `${res.deleted} KOTs deleted`);
+                          } catch (e) {
+                            toast('error', 'Failed to delete KOTs');
+                          }
+                        }}
+                      >
+                        Delete All KOTs
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-background-secondary rounded-lg">
+                      <p className="text-sm font-medium mb-2">Delete KOTs by Date</p>
+                      <p className="text-xs text-text-muted mb-3">Delete KOTs from specific date</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          id="deleteKotDateInput"
+                          className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm"
+                        />
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={async () => {
+                            const input = document.getElementById('deleteKotDateInput') as HTMLInputElement;
+                            if (!input.value) {
+                              toast('warning', 'Select a date');
+                              return;
+                            }
+                            if (!confirm(`Delete all KOTs from ${input.value}?`)) return;
+                            try {
+                              const res = await api.deleteKotsByDate(input.value);
+                              toast('success', res.message);
+                              input.value = '';
+                            } catch (e) {
+                              toast('error', 'Failed to delete');
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
           )}
         </div>
       </div>

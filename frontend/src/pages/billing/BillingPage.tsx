@@ -1888,31 +1888,6 @@ export function BillingPage() {
                   </select>
                 </div>
 
-                {/* Clear All Tables - Admin only */}
-                {user?.role === 'admin' && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm('⚠️ Clear ALL tables? This will reset all tables to available and remove active orders.')) return;
-                      try {
-                        const res = await api.clearTables();
-                        if (res.success) {
-                          toast('success', `Cleared ${res.clearedTables} tables`);
-                          store.fetchTables();
-                          setSelectedTable(null);
-                          setCart([]);
-                        } else {
-                          toast('error', res.error || 'Failed to clear tables');
-                        }
-                      } catch (e) {
-                        toast('error', 'Failed to clear tables');
-                      }
-                    }}
-                    className="w-full mb-3 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-sm text-red-400 hover:bg-red-500/30 transition-colors font-medium"
-                  >
-                    🗑️ Clear All Tables
-                  </button>
-                )}
-
                 {/* Selected Table Badge */}
                 {selectedTable && (
                   <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">

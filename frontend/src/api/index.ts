@@ -693,6 +693,30 @@ class ApiClient {
     return this.request<any>('/tables/clear-all', { method: 'POST' });
   }
 
+  async clearTable(tableId: string) {
+    return this.request<any>(`/tables/clear/${tableId}`, { method: 'POST' });
+  }
+
+  async deleteAllBookings() {
+    return this.request<any>('/orders/bookings/all', { method: 'DELETE' });
+  }
+
+  async deleteBookingByBill(billNumber: string) {
+    return this.request<any>(`/orders/bookings/bill/${billNumber}`, { method: 'DELETE' });
+  }
+
+  async deleteBookingsByDate(date: string) {
+    return this.request<any>(`/orders/bookings/date/${date}`, { method: 'DELETE' });
+  }
+
+  async deleteAllKots() {
+    return this.request<any>('/orders/kot/all', { method: 'DELETE' });
+  }
+
+  async deleteKotsByDate(date: string) {
+    return this.request<any>(`/orders/kot/date/${date}`, { method: 'DELETE' });
+  }
+
   async printKot(content: string, copies?: number, printer?: string) {
     return this.request<any>('/printers/print-kot', {
       method: 'POST',

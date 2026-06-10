@@ -1,8 +1,95 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Delete all bookings (paid orders)
+router.delete('/bookings/all', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const result = db.prepare('DELETE FROM orders WHERE status = ? AND restaurant_id = ?').run('paid', req.user.restaurantId);
+    res.json({ success: true, deleted: result.changes, message: 'All bookings deleted' });
+  } catch (error) {
+    console.error('Delete bookings error:', error);
+    res.status(500).json({ error: 'Failed to delete bookings' });
+  }
+});
+
+// Delete booking by bill number
+router.delete('/bookings/bill/:billNumber', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const { billNumber } = req.params;
+    const result = db.prepare('DELETE FROM orders WHERE id LIKE ? AND restaurant_id = ?').run(`%${billNumber}%`, req.user.restaurantId);
+    if (result.changes === 0) {
+      return res.status(404).json({ success: false, error: 'Booking not found' });
+    }
+    res.json({ success: true, deleted: result.changes, message: `Booking ${billNumber} deleted` });
+  } catch (error) {
+    console.error('Delete booking error:', error);
+    res.status(500).json({ error: 'Failed to delete booking' });
+  }
+});
+
+// Delete bookings by date
+router.delete('/bookings/date/:date', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const { date } = req.params;
+    const result = db.prepare('DELETE FROM orders WHERE DATE(created_at) = ? AND restaurant_id = ?').run(date, req.user.restaurantId);
+    res.json({ success: true, deleted: result.changes, message: `${result.changes} bookings deleted for ${date}` });
+  } catch (error) {
+    console.error('Delete bookings by date error:', error);
+    res.status(500).json({ error: 'Failed to delete bookings' });
+  }
+});
+
+// Delete all KOTs
+router.delete('/kot/all', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    // Get KOT order IDs first
+    const kotOrders = db.prepare(`
+      SELECT DISTINCT o.id FROM orders o
+      INNER JOIN order_items oi ON o.id = oi.order_id
+      WHERE oi.is_kot = 1 AND o.restaurant_id = ?
+    `).all(req.user.restaurantId);
+    
+    let deleted = 0;
+    for (const order of kotOrders) {
+      const r = db.prepare('DELETE FROM orders WHERE id = ?').run(order.id);
+      deleted += r.changes;
+    }
+    res.json({ success: true, deleted, message: 'All KOTs deleted' });
+  } catch (error) {
+    console.error('Delete KOTs error:', error);
+    res.status(500).json({ error: 'Failed to delete KOTs' });
+  }
+});
+
+// Delete KOT by date
+router.delete('/kot/date/:date', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const { date } = req.params;
+    const kotOrders = db.prepare(`
+      SELECT DISTINCT o.id FROM orders o
+      INNER JOIN order_items oi ON o.id = oi.order_id
+      WHERE oi.is_kot = 1 AND DATE(o.created_at) = ? AND o.restaurant_id = ?
+    `).all(date, req.user.restaurantId);
+    
+    let deleted = 0;
+    for (const order of kotOrders) {
+      const r = db.prepare('DELETE FROM orders WHERE id = ?').run(order.id);
+      deleted += r.changes;
+    }
+    res.json({ success: true, deleted, message: `${deleted} KOTs deleted for ${date}` });
+  } catch (error) {
+    console.error('Delete KOTs by date error:', error);
+    res.status(500).json({ error: 'Failed to delete KOTs' });
+  }
+});
 
 // Get all orders (history)
 router.get('/', authenticateToken, (req, res) => {
