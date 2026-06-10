@@ -1,4 +1,5 @@
 import express from 'express';
+import db from '../../database/index.js';
 
 const router = express.Router();
 
@@ -34,6 +35,50 @@ router.post('/notify', (req, res) => {
   } catch (error) {
     console.error('Error sending busser notification:', error);
     res.status(500).json({ success: false, error: 'Failed to send notification' });
+  }
+});
+
+// Mark table as available after cleaning
+router.post('/mark-available', (req, res) => {
+  try {
+    const { tableId } = req.body;
+    
+    if (!tableId) {
+      return res.status(400).json({ success: false, error: 'tableId is required' });
+    }
+    
+    // Check if table exists and is in pending_cleaning status
+    const table = db.prepare('SELECT * FROM tables WHERE id = ?').get(tableId);
+    
+    if (!table) {
+      return res.status(404).json({ success: false, error: 'Table not found' });
+    }
+    
+    if (table.status !== 'pending_cleaning') {
+      return res.status(400).json({ success: false, error: 'Table is not pending cleaning' });
+    }
+    
+    // Check if there's an active order for this table
+    const activeOrder = db.prepare(`
+      SELECT id FROM orders WHERE table_id = ? AND status != 'billed' LIMIT 1
+    `).get(tableId);
+    
+    if (activeOrder) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Cannot mark table as available - there is still an active order' 
+      });
+    }
+    
+    // Mark table as available
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', tableId);
+    
+    console.log(`✅ Table ${table.number} marked as available after cleaning`);
+    
+    res.json({ success: true, message: 'Table marked as available', tableId });
+  } catch (error) {
+    console.error('Error marking table as available:', error);
+    res.status(500).json({ success: false, error: 'Failed to mark table as available' });
   }
 });
 

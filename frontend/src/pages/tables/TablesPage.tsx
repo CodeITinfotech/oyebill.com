@@ -116,10 +116,12 @@ export function TablesPage() {
     switch (status) {
       case 'available':
         return <span className="badge-success badge">Available</span>;
-      case 'occupied':
-        return <span className="badge-warning badge">Occupied</span>;
-      case 'reserved':
-        return <span className="badge-info badge">Reserved</span>;
+      case 'active_kot':
+        return <span className="badge-warning badge">Active KOT</span>;
+      case 'pending_billing':
+        return <span className="badge-error badge">Pending Billing</span>;
+      case 'pending_cleaning':
+        return <span className="badge-secondary badge">Pending Cleaning</span>;
       default:
         return <span className="badge-default badge">{status}</span>;
     }
@@ -223,20 +225,20 @@ export function TablesPage() {
         <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-16 gap-1">
           {filteredTables.map((table) => {
             const isAvailable = table.status === 'available';
+            const isActiveKot = table.status === 'active_kot';
+            const isPendingBilling = table.status === 'pending_billing';
             const isPendingCleaning = table.status === 'pending_cleaning';
-            const isOccupied = table.status === 'occupied' || (table.status !== 'available' && table.status !== 'pending_cleaning' && table.hasCurrentOrder);
-            const isPendingPrint = table.status === 'pending_printing' || table.status === 'billing';
             
             let statusColor = 'bg-success';
             let statusBgClass = 'border-success/30 bg-success/5 hover:border-success';
             
             if (isPendingCleaning) {
-              statusColor = 'bg-red-900';
-              statusBgClass = 'border-red-900/50 bg-red-900/10 hover:border-red-900 cursor-pointer';
-            } else if (isPendingPrint) {
+              statusColor = 'bg-gray-500';
+              statusBgClass = 'border-gray-500/50 bg-gray-500/10 hover:border-gray-500 cursor-pointer';
+            } else if (isPendingBilling) {
               statusColor = 'bg-red-500';
               statusBgClass = 'border-red-500/50 bg-red-500/10 hover:border-red-500';
-            } else if (isOccupied) {
+            } else if (isActiveKot) {
               statusColor = 'bg-orange-500';
               statusBgClass = 'border-orange-500/50 bg-orange-500/10 hover:border-orange-500';
             }
@@ -261,14 +263,14 @@ export function TablesPage() {
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-            <span>Occupied</span>
+            <span>Active KOT</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-red-500"></span>
-            <span>Pending Printing</span>
+            <span>Pending Billing</span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-900"></span>
+            <span className="w-2 h-2 rounded-full bg-gray-500"></span>
             <span>Pending Cleaning</span>
           </div>
         </div>
@@ -297,10 +299,12 @@ export function TablesPage() {
               switch (status) {
                 case 'available':
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-success/20 text-success">Available</span>;
-                case 'occupied':
-                  return <span className="px-2 py-0.5 rounded-full text-xs bg-orange-500/20 text-orange-400">Occupied</span>;
-                case 'reserved':
-                  return <span className="px-2 py-0.5 rounded-full text-xs bg-info/20 text-info">Reserved</span>;
+                case 'active_kot':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-orange-500/20 text-orange-400">Active KOT</span>;
+                case 'pending_billing':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-red-500/20 text-red-400">Pending Billing</span>;
+                case 'pending_cleaning':
+                  return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">Pending Cleaning</span>;
                 default:
                   return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-500/20 text-gray-400">{status}</span>;
               }

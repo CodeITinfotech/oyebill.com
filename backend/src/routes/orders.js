@@ -246,7 +246,7 @@ router.put('/:id/table', authenticateToken, (req, res) => {
 
     // Update the tables
     db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('available', order.table_id);
-    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', tableId);
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', tableId);
 
     console.log('Order moved successfully');
     res.json({ success: true, message: 'Order moved successfully' });
@@ -370,8 +370,8 @@ router.post('/', authenticateToken, (req, res) => {
       UPDATE orders SET subtotal = ?, tax_amount = ?, total = ? WHERE id = ?
     `).run(subtotal, taxAmount, total, orderId);
 
-    // Update table status
-    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', tableId);
+    // Update table status to active_kot (has items)
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', tableId);
 
     // Return order
     const order = db.prepare(`
@@ -456,8 +456,8 @@ router.put('/:id', authenticateToken, (req, res) => {
       UPDATE orders SET subtotal = ?, tax_amount = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
     `).run(subtotal, taxAmount, total, req.params.id);
 
-    // Update table status to occupied when items are added
-    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('occupied', order.table_id);
+    // Update table status to active_kot when items are added
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', order.table_id);
 
     // Return updated order
     const updatedOrder = db.prepare(`
@@ -519,8 +519,8 @@ router.post('/:id/kot', authenticateToken, (req, res) => {
         .run('kot', req.params.id);
     }
 
-    // Update table status to active (KOT generated)
-    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active', order.table_id);
+    // Update table status to pending_billing (KOT generated, ready to bill)
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('pending_billing', order.table_id);
 
     // Return updated order
     const updatedOrder = db.prepare(`

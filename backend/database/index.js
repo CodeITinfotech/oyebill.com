@@ -33,6 +33,18 @@ try {
       console.log(`Added ${col} column to settings table`);
     }
   }
+  
+  // Set default table status colors if not set
+  const settings = db.prepare('SELECT table_status_colors FROM settings LIMIT 1').get();
+  if (settings && !settings.table_status_colors) {
+    const defaultColors = JSON.stringify({
+      available: { bg: '#22c55e', border: '#16a34a', label: 'Available' },
+      active_kot: { bg: '#f97316', border: '#ea580c', label: 'Active KOT' },
+      pending_billing: { bg: '#ef4444', border: '#dc2626', label: 'Pending Billing' },
+      pending_cleaning: { bg: '#6b7280', border: '#4b5563', label: 'Pending Cleaning' }
+    });
+    db.prepare('UPDATE settings SET table_status_colors = ?').run(defaultColors);
+  }
 } catch (err) {
   console.log('Migration note:', err.message);
 }
@@ -137,7 +149,7 @@ db.exec(`
     number TEXT NOT NULL,
     section_id TEXT,
     capacity INTEGER DEFAULT 4,
-    status TEXT DEFAULT 'available' CHECK(status IN ('available', 'occupied', 'reserved', 'pending_cleaning')),
+    status TEXT DEFAULT 'available' CHECK(status IN ('available', 'active_kot', 'pending_billing', 'pending_cleaning')),
     restaurant_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (section_id) REFERENCES sections(id),
