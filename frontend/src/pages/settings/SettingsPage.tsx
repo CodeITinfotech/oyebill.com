@@ -6,6 +6,7 @@ import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
 import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X, Globe } from 'lucide-react';
 import { api } from '../../api';
+import { OnlineOrderingSettings } from './OnlineOrderingSettings';
 
 type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering';
 type PrinterTab = 'kot' | 'bill' | 'setup';
