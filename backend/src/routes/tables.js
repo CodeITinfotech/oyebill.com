@@ -360,11 +360,23 @@ router.post('/sync-status', authenticateToken, (req, res) => {
     for (const table of tables) {
       let newStatus = table.status;
       
-      if (table.kot_items > 0) {
-        newStatus = 'active';
-      } else if (table.active_orders > 0) {
-        newStatus = 'occupied';
-      } else if (table.status !== 'billed' && table.status !== 'pending_cleaning') {
+      // If table is pending_cleaning, don't change it (waiting for busser)
+      if (table.status === 'pending_cleaning') {
+        // If there are no active orders, allow it to be marked available
+        if (table.active_orders === 0 && table.kot_items === 0) {
+          newStatus = 'available';
+        }
+      }
+      // If table has KOT items, it should be pending_billing
+      else if (table.kot_items > 0) {
+        newStatus = 'pending_billing';
+      }
+      // If table has active orders but no KOT items
+      else if (table.active_orders > 0) {
+        newStatus = 'active_kot';
+      }
+      // Table has no active orders - set to available
+      else {
         newStatus = 'available';
       }
       

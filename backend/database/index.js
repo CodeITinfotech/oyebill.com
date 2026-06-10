@@ -149,7 +149,7 @@ db.exec(`
     number TEXT NOT NULL,
     section_id TEXT,
     capacity INTEGER DEFAULT 4,
-    status TEXT DEFAULT 'available' CHECK(status IN ('available', 'active_kot', 'pending_billing', 'pending_cleaning')),
+    status TEXT DEFAULT 'available',
     restaurant_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (section_id) REFERENCES sections(id),
