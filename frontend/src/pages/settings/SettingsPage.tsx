@@ -257,7 +257,9 @@ export function SettingsPage() {
         isActive: settings.isActive !== undefined ? Boolean(settings.isActive || settings.is_active) : true,
       });
       setPrinterForm({
-        kotPrinters: settings.kotPrinters || settings.kot_printers || [],
+        kotPrinters: Array.isArray(settings.kotPrinters) ? settings.kotPrinters : 
+                     (typeof settings.kotPrinters === 'string' ? JSON.parse(settings.kotPrinters) : 
+                     settings.kot_printers || []),
         defaultKotPrinter: settings.defaultKotPrinter || settings.default_kot_printer || '',
         billPrinter: settings.billPrinter || settings.bill_printer || '',
         printCopies: String(settings.printCopies || settings.print_copies || '1'),
@@ -703,12 +705,13 @@ TOTAL:               ₹620
   // Select a detected printer
   const selectDetectedPrinter = async (printer: {name: string; type: string; address: string; connection?: string}, isKot: boolean) => {
     const printerIdentifier = printer.address || printer.name;
+    const currentPrinters = Array.isArray(printerForm.kotPrinters) ? printerForm.kotPrinters : [];
     
     if (isKot) {
       // Add to KOT printers list if not already there
-      const kotPrinters = printerForm.kotPrinters.includes(printerIdentifier)
-        ? printerForm.kotPrinters
-        : [...printerForm.kotPrinters, printerIdentifier];
+      const kotPrinters = currentPrinters.includes(printerIdentifier)
+        ? currentPrinters
+        : [...currentPrinters, printerIdentifier];
       setPrinterForm({ 
         ...printerForm, 
         kotPrinters,

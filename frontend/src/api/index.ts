@@ -689,6 +689,10 @@ class ApiClient {
     });
   }
 
+  async clearTables() {
+    return this.request<any>('/tables/clear-all', { method: 'POST' });
+  }
+
   async printKot(content: string, copies?: number, printer?: string) {
     return this.request<any>('/printers/print-kot', {
       method: 'POST',

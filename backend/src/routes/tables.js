@@ -1,8 +1,42 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Clear all tables - reset to available and delete active orders
+router.post('/clear-all', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const { db } = req;
+    const restaurantId = req.user.restaurantId;
+    
+    // Get all table IDs for this restaurant
+    const tables = db.prepare('SELECT id FROM tables WHERE restaurant_id = ?').all(restaurantId);
+    const tableIds = tables.map(t => t.id);
+    
+    if (tableIds.length === 0) {
+      return res.json({ success: true, message: 'No tables found', cleared: 0 });
+    }
+    
+    // Set all tables to available
+    const placeholders = tableIds.map(() => '?').join(',');
+    db.prepare(`UPDATE tables SET status = 'available' WHERE id IN (${placeholders})`).run(...tableIds);
+    
+    // Delete active orders for these tables
+    const orderPlaceholders = tableIds.map(() => '?').join(',');
+    const deletedOrders = db.prepare(`DELETE FROM orders WHERE table_id IN (${orderPlaceholders}) AND status NOT IN ('paid', 'cancelled')`).run(...tableIds);
+    
+    res.json({ 
+      success: true, 
+      message: 'All tables cleared',
+      clearedTables: tableIds.length,
+      deletedOrders: deletedOrders.changes
+    });
+  } catch (error) {
+    console.error('Clear tables error:', error);
+    res.status(500).json({ error: 'Failed to clear tables' });
+  }
+});
 
 // Get all tables
 router.get('/', authenticateToken, (req, res) => {
