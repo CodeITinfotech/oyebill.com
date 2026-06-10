@@ -512,6 +512,145 @@ class ApiClient {
   async markAllRead(waiterId: string) {
     return this.request(`/notifications/waiter/${waiterId}/read-all`, { method: 'PUT' });
   }
+
+  // Customer Auth (Public - no token required)
+  async sendCustomerOTP(email: string, name?: string, phone?: string) {
+    return this.request<{ message: string; otp: string; expires_in: number }>('/customer-auth/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, name, phone }),
+    });
+  }
+
+  async verifyCustomerOTP(email: string, otp: string) {
+    return this.request<{ message: string; customer: any }>('/customer-auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+  }
+
+  async getCustomerProfile(email: string) {
+    return this.request<any>(`/customer-auth/profile/${email}`);
+  }
+
+  async updateCustomerProfile(id: string, data: any) {
+    return this.request<any>(`/customer-auth/profile/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Customer Catalog (Public)
+  async getOnlineOrderingSettings(restaurantId: string) {
+    return this.request<any>(`/catalog/settings/${restaurantId}`);
+  }
+
+  async getRestaurantInfo(restaurantId: string) {
+    return this.request<any>(`/catalog/restaurant/${restaurantId}`);
+  }
+
+  async getMenuCatalog(restaurantId: string) {
+    return this.request<any>(`/catalog/menu/${restaurantId}`);
+  }
+
+  async checkDeliveryRange(restaurantId: string, distanceKm: number) {
+    return this.request<any>('/catalog/check-delivery-range', {
+      method: 'POST',
+      body: JSON.stringify({ restaurantId, distanceKm }),
+    });
+  }
+
+  async calculateDelivery(restaurantId: string, distanceKm: number, orderType: string) {
+    return this.request<any>('/catalog/calculate-delivery', {
+      method: 'POST',
+      body: JSON.stringify({ restaurantId, distanceKm, orderType }),
+    });
+  }
+
+  // Customer Online Orders (Public)
+  async placeCustomerOrder(orderData: {
+    restaurant_id: string;
+    customer_account_id?: string;
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    delivery_address?: string;
+    order_type: 'pickup' | 'delivery';
+    delivery_distance_km?: number;
+    items: { product_id: string; quantity: number; notes?: string }[];
+    payment_method?: string;
+    special_instructions?: string;
+  }) {
+    return this.request<any>('/customer-orders-public', {
+      method: 'POST',
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  async trackOrder(orderNumber: string) {
+    return this.request<any>(`/customer-orders-public/track/${orderNumber}`);
+  }
+
+  async getCustomerOrders(email: string, limit?: number, offset?: number) {
+    return this.request<any[]>(`/customer-orders-public/by-email/${email}${limit ? `?limit=${limit}&offset=${offset || 0}` : ''}`);
+  }
+
+  async cancelCustomerOrder(orderId: string, reason?: string) {
+    return this.request<any>(`/customer-orders-public/${orderId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async updatePaymentStatus(orderId: string, payment_status: string, payment_method?: string) {
+    return this.request<any>(`/customer-orders-public/${orderId}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({ payment_status, payment_method }),
+    });
+  }
+
+  // Admin Online Ordering Settings
+  async getOnlineOrderingSettingsAdmin() {
+    return this.request<any>('/online-ordering-settings');
+  }
+
+  async updateOnlineOrderingSettings(data: any) {
+    return this.request<any>('/online-ordering-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getCustomerOnlineOrders(status?: string, limit?: number, offset?: number) {
+    let url = '/online-ordering-settings/orders';
+    const params = [];
+    if (status) params.push(`status=${status}`);
+    if (limit) params.push(`limit=${limit}`);
+    if (offset) params.push(`offset=${offset}`);
+    if (params.length) url += '?' + params.join('&');
+    return this.request<any[]>(url);
+  }
+
+  async getCustomerOnlineOrder(id: string) {
+    return this.request<any>(`/online-ordering-settings/orders/${id}`);
+  }
+
+  async updateCustomerOnlineOrderStatus(id: string, status: string) {
+    return this.request<any>(`/online-ordering-settings/orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async linkCustomerOrderToBilling(id: string, billingOrderId: string) {
+    return this.request<any>(`/online-ordering-settings/orders/${id}/link-to-billing`, {
+      method: 'POST',
+      body: JSON.stringify({ billing_order_id: billingOrderId }),
+    });
+  }
+
+  async getOnlineOrderingStats() {
+    return this.request<any>('/online-ordering-settings/stats');
+  }
 }
 
 export const api = new ApiClient();

@@ -4,10 +4,10 @@ import { useAuthStore } from '../../stores/authStore';
 import { useDataStore } from '../../stores/dataStore';
 import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Card, CardBody, CardHeader, toast, Toggle } from '../../components/ui';
-import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X } from 'lucide-react';
+import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X, Globe } from 'lucide-react';
 import { api } from '../../api';
 
-type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations';
+type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering';
 type PrinterTab = 'kot' | 'bill' | 'setup';
 
 export function SettingsPage() {
@@ -16,7 +16,7 @@ export function SettingsPage() {
   const { settings, tables, fetchSettings, updateSettings, fetchTables } = useDataStore();
   
   const urlTab = searchParams.get('tab');
-  const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons', 'tableStatus', 'tableAllocations'].includes(urlTab) 
+  const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons', 'tableStatus', 'tableAllocations', 'onlineOrdering'].includes(urlTab) 
     ? urlTab as SettingsTab 
     : 'restaurant';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -692,6 +692,7 @@ export function SettingsPage() {
       { id: 'rights', label: 'User Rights', icon: Shield },
       { id: 'tableStatus', label: 'Table Status', icon: Tag },
       { id: 'tableAllocations', label: 'Table-Waiter', icon: LayoutGrid },
+      { id: 'onlineOrdering', label: 'Online Orders', icon: Globe },
     ] : []),
   ];
 
@@ -2219,6 +2220,11 @@ export function SettingsPage() {
                 </div>
               </CardBody>
             </Card>
+          )}
+
+          {/* Online Ordering Settings */}
+          {activeTab === 'onlineOrdering' && user?.role === 'admin' && (
+            <OnlineOrderingSettings restaurantId={restaurant?.id} />
           )}
         </div>
       </div>

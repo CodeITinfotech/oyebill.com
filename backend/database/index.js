@@ -362,6 +362,115 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_wn_waiter ON waiter_notifications(waiter_id);
   CREATE INDEX IF NOT EXISTS idx_wn_read ON waiter_notifications(is_read);
   CREATE INDEX IF NOT EXISTS idx_wn_created ON waiter_notifications(created_at);
+  
+  -- Customer OTP for login verification
+  CREATE TABLE IF NOT EXISTS customer_otp (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    otp TEXT NOT NULL,
+    is_verified INTEGER DEFAULT 0,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(email)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_cotp_email ON customer_otp(email);
+  CREATE INDEX IF NOT EXISTS idx_cotp_expires ON customer_otp(expires_at);
+  
+  -- Customer Accounts (for online ordering)
+  CREATE TABLE IF NOT EXISTS customer_accounts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    phone TEXT,
+    address TEXT,
+    default_order_type TEXT DEFAULT 'pickup' CHECK(default_order_type IN ('pickup', 'delivery')),
+    is_active INTEGER DEFAULT 1,
+    restaurant_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_ca_email ON customer_accounts(email);
+  CREATE INDEX IF NOT EXISTS idx_ca_phone ON customer_accounts(phone);
+  CREATE INDEX IF NOT EXISTS idx_ca_restaurant ON customer_accounts(restaurant_id);
+  
+  -- Online Ordering Settings
+  CREATE TABLE IF NOT EXISTS online_ordering_settings (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT UNIQUE NOT NULL,
+    is_enabled INTEGER DEFAULT 1,
+    free_delivery_radius_km REAL DEFAULT 5,
+    paid_delivery_radius_km REAL DEFAULT 10,
+    delivery_charge REAL DEFAULT 0,
+    min_order_amount REAL DEFAULT 0,
+    allow_pickup INTEGER DEFAULT 1,
+    allow_delivery INTEGER DEFAULT 1,
+    estimated_prep_time_minutes INTEGER DEFAULT 20,
+    delivery_instructions TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_oos_restaurant ON online_ordering_settings(restaurant_id);
+  
+  -- Customer Online Orders (placed via catalog)
+  CREATE TABLE IF NOT EXISTS customer_online_orders (
+    id TEXT PRIMARY KEY,
+    order_number TEXT UNIQUE NOT NULL,
+    customer_account_id TEXT,
+    customer_name TEXT NOT NULL,
+    customer_email TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    delivery_address TEXT,
+    order_type TEXT NOT NULL CHECK(order_type IN ('pickup', 'delivery')),
+    delivery_distance_km REAL,
+    delivery_charge REAL DEFAULT 0,
+    subtotal REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0,
+    discount_amount REAL DEFAULT 0,
+    total REAL DEFAULT 0,
+    payment_method TEXT CHECK(payment_method IN ('online', 'cod', 'pay_at_restaurant')),
+    payment_status TEXT DEFAULT 'pending' CHECK(payment_status IN ('pending', 'paid', 'failed', 'refunded')),
+    status TEXT DEFAULT 'new' CHECK(status IN ('new', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'completed', 'cancelled')),
+    estimated_ready_time DATETIME,
+    special_instructions TEXT,
+    notes TEXT,
+    restaurant_id TEXT NOT NULL,
+    linked_order_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_account_id) REFERENCES customer_accounts(id),
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+    FOREIGN KEY (linked_order_id) REFERENCES orders(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_coo_status ON customer_online_orders(status);
+  CREATE INDEX IF NOT EXISTS idx_coo_customer ON customer_online_orders(customer_account_id);
+  CREATE INDEX IF NOT EXISTS idx_coo_restaurant ON customer_online_orders(restaurant_id);
+  CREATE INDEX IF NOT EXISTS idx_coo_created ON customer_online_orders(created_at);
+  CREATE INDEX IF NOT EXISTS idx_coo_order_number ON customer_online_orders(order_number);
+  
+  -- Customer Online Order Items
+  CREATE TABLE IF NOT EXISTS customer_online_order_items (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INTEGER DEFAULT 1,
+    unit_price REAL NOT NULL,
+    tax_rate REAL DEFAULT 0,
+    tax_amount REAL DEFAULT 0,
+    total REAL NOT NULL,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES customer_online_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+  );
+  
+  CREATE INDEX IF NOT EXISTS idx_cooi_order ON customer_online_order_items(order_id);
 `);
 
 export default db;

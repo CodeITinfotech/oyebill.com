@@ -1,0 +1,445 @@
+import React, { useState, useEffect } from 'react';
+import { api } from '../../api';
+import { Card, CardBody, CardHeader, Button, Input, toast } from '../../components/ui';
+import { Globe, MapPin, Clock, Truck, ShoppingBag, ExternalLink, Check } from 'lucide-react';
+
+interface OnlineOrderingSettingsProps {
+  restaurantId: string;
+}
+
+export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ restaurantId }) => {
+  const [settings, setSettings] = useState({
+    isEnabled: true,
+    freeDeliveryRadiusKm: 5,
+    paidDeliveryRadiusKm: 10,
+    deliveryCharge: 0,
+    minOrderAmount: 0,
+    allowPickup: true,
+    allowDelivery: true,
+    estimatedPrepTimeMinutes: 20,
+    deliveryInstructions: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [stats, setStats] = useState<any>(null);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [activeSection, setActiveSection] = useState<'settings' | 'orders'>('settings');
+
+  useEffect(() => {
+    loadSettings();
+    loadStats();
+  }, [restaurantId]);
+
+  const loadSettings = async () => {
+    try {
+      const response = await api.getOnlineOrderingSettingsAdmin();
+      if (response.success && response.data) {
+        setSettings(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const statsResponse = await api.getOnlineOrderingStats();
+      if (statsResponse.success && statsResponse.data) {
+        setStats(statsResponse.data);
+      }
+
+      const ordersResponse = await api.getCustomerOnlineOrders();
+      if (ordersResponse.success && ordersResponse.data) {
+        setOrders(ordersResponse.data);
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const response = await api.updateOnlineOrderingSettings(settings);
+      if (response.success) {
+        toast('success', 'Online ordering settings saved');
+      } else {
+        toast('error', response.error || 'Failed to save settings');
+      }
+    } catch (error) {
+      toast('error', 'Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateStatus = async (orderId: string, status: string) => {
+    try {
+      const response = await api.updateCustomerOnlineOrderStatus(orderId, status);
+      if (response.success) {
+        toast('success', `Order status updated to ${status}`);
+        loadStats();
+      } else {
+        toast('error', response.error || 'Failed to update status');
+      }
+    } catch (error) {
+      toast('error', 'Failed to update status');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <p className="text-text-muted">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Section Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveSection('settings')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeSection === 'settings'
+              ? 'bg-accent text-white'
+              : 'bg-white/10 text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <Globe className="w-4 h-4 inline mr-2" />
+          Settings
+        </button>
+        <button
+          onClick={() => setActiveSection('orders')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeSection === 'orders'
+              ? 'bg-accent text-white'
+              : 'bg-white/10 text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <ShoppingBag className="w-4 h-4 inline mr-2" />
+          Customer Orders
+          {stats?.new > 0 && (
+            <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
+              {stats.new}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeSection === 'settings' && (
+        <>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white/5 rounded-lg p-4">
+              <p className="text-text-muted text-sm">Today's Orders</p>
+              <p className="text-2xl font-bold">{stats?.todayOrders || 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <p className="text-text-muted text-sm">Today's Revenue</p>
+              <p className="text-2xl font-bold">₹{stats?.todayRevenue || 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <p className="text-text-muted text-sm">Pending Orders</p>
+              <p className="text-2xl font-bold">{stats?.new || 0}</p>
+            </div>
+            <div className="bg-white/5 rounded-lg p-4">
+              <p className="text-text-muted text-sm">Total Orders</p>
+              <p className="text-2xl font-bold">{stats?.total || 0}</p>
+            </div>
+          </div>
+
+          {/* Main Settings */}
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold">Online Ordering Configuration</h2>
+              <p className="text-sm text-text-muted">Configure how customers can order from your menu online</p>
+            </CardHeader>
+            <CardBody className="space-y-6">
+              {/* Enable/Disable */}
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <div>
+                  <p className="font-medium">Enable Online Ordering</p>
+                  <p className="text-sm text-text-muted">Allow customers to place orders through your online menu</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.isEnabled}
+                    onChange={(e) => setSettings({ ...settings, isEnabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-accent after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                </label>
+              </div>
+
+              {/* Order Types */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-white/5 rounded-lg flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                    <ShoppingBag className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Pickup</p>
+                    <label className="relative inline-flex items-center cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={settings.allowPickup}
+                        onChange={(e) => setSettings({ ...settings, allowPickup: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:bg-accent after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                  </div>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg flex items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                    <Truck className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Delivery</p>
+                    <label className="relative inline-flex items-center cursor-pointer mt-1">
+                      <input
+                        type="checkbox"
+                        checked={settings.allowDelivery}
+                        onChange={(e) => setSettings({ ...settings, allowDelivery: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-gray-600 rounded-full peer peer-checked:bg-accent after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Delivery Radius */}
+              <div className="space-y-4">
+                <h3 className="font-medium flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Delivery Zones
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Free Delivery Radius (km)"
+                    type="number"
+                    value={settings.freeDeliveryRadiusKm}
+                    onChange={(e) => setSettings({ ...settings, freeDeliveryRadiusKm: parseFloat(e.target.value) || 0 })}
+                    min={0}
+                    step={0.5}
+                  />
+                  <Input
+                    label="Maximum Delivery Radius (km)"
+                    type="number"
+                    value={settings.paidDeliveryRadiusKm}
+                    onChange={(e) => setSettings({ ...settings, paidDeliveryRadiusKm: parseFloat(e.target.value) || 0 })}
+                    min={0}
+                    step={0.5}
+                  />
+                </div>
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Free delivery</strong> for customers within {settings.freeDeliveryRadiusKm}km<br />
+                    <strong>Paid delivery</strong> (₹{settings.deliveryCharge}) for {settings.freeDeliveryRadiusKm}-{settings.paidDeliveryRadiusKm}km<br />
+                    <strong>No delivery</strong> beyond {settings.paidDeliveryRadiusKm}km
+                  </p>
+                </div>
+              </div>
+
+              {/* Delivery Charge */}
+              <Input
+                label="Delivery Charge (₹)"
+                type="number"
+                value={settings.deliveryCharge}
+                onChange={(e) => setSettings({ ...settings, deliveryCharge: parseFloat(e.target.value) || 0 })}
+                min={0}
+              />
+
+              {/* Minimum Order */}
+              <Input
+                label="Minimum Order Amount (₹)"
+                type="number"
+                value={settings.minOrderAmount}
+                onChange={(e) => setSettings({ ...settings, minOrderAmount: parseFloat(e.target.value) || 0 })}
+                min={0}
+              />
+
+              {/* Prep Time */}
+              <div className="flex items-center gap-4">
+                <Clock className="w-5 h-5 text-text-muted" />
+                <div className="flex-1">
+                  <label className="block text-sm font-medium mb-1">Estimated Prep Time (minutes)</label>
+                  <input
+                    type="range"
+                    min={5}
+                    max={60}
+                    step={5}
+                    value={settings.estimatedPrepTimeMinutes}
+                    onChange={(e) => setSettings({ ...settings, estimatedPrepTimeMinutes: parseInt(e.target.value) })}
+                    className="w-full"
+                  />
+                  <p className="text-sm text-text-muted mt-1">Current: {settings.estimatedPrepTimeMinutes} minutes</p>
+                </div>
+              </div>
+
+              {/* Delivery Instructions */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Delivery Instructions (for customers)</label>
+                <textarea
+                  value={settings.deliveryInstructions || ''}
+                  onChange={(e) => setSettings({ ...settings, deliveryInstructions: e.target.value })}
+                  placeholder="E.g., Please ensure someone is available to receive the delivery"
+                  className="w-full px-4 py-3 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                  rows={3}
+                />
+              </div>
+
+              {/* Catalog URL */}
+              <div className="p-4 bg-white/5 rounded-lg">
+                <h4 className="font-medium mb-2">Online Menu Link</h4>
+                <p className="text-sm text-text-muted mb-3">Share this link with customers to access your online menu</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2 bg-background-secondary rounded text-sm">
+                    {typeof window !== 'undefined' ? window.location.origin : ''}/catalog/{restaurantId}/menu
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.open(`/catalog/${restaurantId}/menu`, '_blank')}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex justify-end pt-4 border-t border-white/10">
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Settings'}
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        </>
+      )}
+
+      {activeSection === 'orders' && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold">Customer Online Orders</h2>
+            <p className="text-sm text-text-muted">Manage orders placed through your online menu</p>
+          </CardHeader>
+          <CardBody>
+            {orders.length === 0 ? (
+              <div className="text-center py-8 text-text-muted">
+                <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No customer orders yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {orders.map(order => (
+                  <div key={order.id} className="p-4 bg-white/5 rounded-lg">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-medium">{order.order_number}</p>
+                        <p className="text-sm text-text-muted">
+                          {order.customer_name} • {order.customer_phone}
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {new Date(order.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          order.status === 'new' ? 'bg-yellow-100 text-yellow-800' :
+                          order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                          order.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
+                          order.status === 'ready' ? 'bg-green-100 text-green-800' :
+                          order.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                          order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {order.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                        <p className="font-bold mt-1">₹{order.total.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="text-sm mb-3">
+                      <p className="text-text-secondary">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
+                          order.order_type === 'pickup' ? 'bg-primary/20 text-primary' : 'bg-accent/20 text-accent'
+                        }`}>
+                          {order.order_type.toUpperCase()}
+                        </span>
+                        {order.order_type === 'delivery' && order.delivery_address && (
+                          <span className="ml-2">📍 {order.delivery_address}</span>
+                        )}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {order.items?.map((item: any, idx: number) => (
+                          <p key={idx} className="text-text-muted">
+                            {item.quantity}x {item.product_name} - ₹{item.total.toFixed(2)}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status Actions */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-white/10">
+                      {order.status === 'new' && (
+                        <>
+                          <Button size="sm" onClick={() => updateStatus(order.id, 'confirmed')}>
+                            <Check className="w-4 h-4 mr-1" />
+                            Confirm
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => updateStatus(order.id, 'cancelled')}>
+                            Cancel
+                          </Button>
+                        </>
+                      )}
+                      {order.status === 'confirmed' && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'preparing')}>
+                          Start Preparing
+                        </Button>
+                      )}
+                      {order.status === 'preparing' && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'ready')}>
+                          Mark Ready
+                        </Button>
+                      )}
+                      {order.status === 'ready' && order.order_type === 'delivery' && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'out_for_delivery')}>
+                          Out for Delivery
+                        </Button>
+                      )}
+                      {order.status === 'out_for_delivery' && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'delivered')}>
+                          Delivered
+                        </Button>
+                      )}
+                      {(order.status === 'ready' && order.order_type === 'pickup') && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'completed')}>
+                          Completed (Picked Up)
+                        </Button>
+                      )}
+                      {order.status === 'delivered' && (
+                        <Button size="sm" onClick={() => updateStatus(order.id, 'completed')}>
+                          Completed
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default OnlineOrderingSettings;

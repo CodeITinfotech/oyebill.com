@@ -19,6 +19,7 @@ import { CustomersPage } from './pages/customers/CustomersPage';
 import BusserPage from './pages/busser/BusserPage';
 import { NotFoundPage } from './pages/error/ErrorPage';
 import NFCOrdering from './pages/nfc/NFCOrdering';
+import { OnlineCatalogPage } from './pages/online-catalog/OnlineCatalogPage';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -251,6 +252,28 @@ function App() {
         <Route
           path="/order/:tableNumber"
           element={<NFCOrdering />}
+        />
+
+        {/* Online Catalog - Public Customer Routes */}
+        <Route
+          path="/catalog/:restaurantId"
+          element={<OnlineCatalogPage />}
+        />
+        <Route
+          path="/catalog/:restaurantId/login"
+          element={<OnlineCatalogPage />}
+        />
+        <Route
+          path="/catalog/:restaurantId/menu"
+          element={<OnlineCatalogPage />}
+        />
+        <Route
+          path="/catalog/:restaurantId/checkout"
+          element={<OnlineCatalogPage />}
+        />
+        <Route
+          path="/catalog/:restaurantId/track/:orderNumber"
+          element={<OnlineCatalogPage />}
         />
 
         {/* Default Redirect */}

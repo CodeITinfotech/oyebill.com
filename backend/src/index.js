@@ -20,6 +20,10 @@ import busserRoutes from './routes/busser.js';
 import tableAllocationsRoutes from './routes/table-allocations.js';
 import customerOrdersRoutes from './routes/customer-orders.js';
 import notificationsRoutes from './routes/notifications.js';
+import customerAuthRoutes from './routes/customer-auth.js';
+import customerCatalogRoutes from './routes/customer-catalog.js';
+import customerOrdersPublicRoutes from './routes/customer-orders-public.js';
+import onlineOrderingSettingsRoutes from './routes/online-ordering-settings.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -54,6 +58,10 @@ app.use('/api/setup', setupRoutes);
 app.use('/api/table-allocations', tableAllocationsRoutes);
 app.use('/api/customer-orders', customerOrdersRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/customer-auth', customerAuthRoutes);
+app.use('/api/catalog', customerCatalogRoutes);
+app.use('/api/customer-orders-public', customerOrdersPublicRoutes);
+app.use('/api/online-ordering-settings', onlineOrderingSettingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -66,7 +74,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Oyebill API server running on port ${PORT}`);
 });
 
