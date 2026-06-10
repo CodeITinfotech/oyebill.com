@@ -323,4 +323,47 @@ router.put('/:id/mark-cleaned', authenticateToken, (req, res) => {
   }
 });
 
+// Sync all table statuses based on orders (fixes stale statuses)
+router.post('/sync-status', authenticateToken, (req, res) => {
+  try {
+    const { db } = req;
+
+    // Get all tables with their order status
+    const tables = db.prepare(`
+      SELECT t.*, 
+        (SELECT COUNT(*) FROM orders WHERE table_id = t.id AND status != 'billed') as active_orders,
+        (SELECT COUNT(*) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.table_id = t.id AND oi.is_kot = 1 AND o.status != 'billed') as kot_items
+      FROM tables t
+      WHERE t.restaurant_id = ?
+    `).all(req.user.restaurantId);
+
+    let updated = 0;
+    for (const table of tables) {
+      let newStatus = table.status;
+      
+      if (table.kot_items > 0) {
+        newStatus = 'active';
+      } else if (table.active_orders > 0) {
+        newStatus = 'occupied';
+      } else if (table.status !== 'billed' && table.status !== 'pending_cleaning') {
+        newStatus = 'available';
+      }
+      
+      if (newStatus !== table.status) {
+        db.prepare('UPDATE tables SET status = ? WHERE id = ?').run(newStatus, table.id);
+        updated++;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Synced ${updated} table statuses`,
+      updated 
+    });
+  } catch (error) {
+    console.error('Sync table status error:', error);
+    res.status(500).json({ error: 'Failed to sync table statuses' });
+  }
+});
+
 export default router;

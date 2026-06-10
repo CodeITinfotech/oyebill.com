@@ -377,6 +377,22 @@ export function BillingPage() {
     return () => clearInterval(refreshInterval);
   }, [selectedSection]);
 
+  // Sync table statuses on initial load to fix any stale data
+  useEffect(() => {
+    const syncOnLoad = async () => {
+      try {
+        await api.syncTableStatuses();
+        if (selectedSection) {
+          await store.fetchTables(selectedSection);
+        }
+      } catch (error) {
+        console.error('Failed to sync table statuses on load:', error);
+      }
+    };
+    
+    syncOnLoad();
+  }, []);
+
   // Sync table status with cart - ensure occupied tables show red when they have items
   useEffect(() => {
     const syncTableStatusWithCart = async () => {
@@ -460,7 +476,7 @@ export function BillingPage() {
         
         const order = response.data;
         const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
-        const hasBilledItems = order.items && order.items.length > 0;
+        const hasItems = order.items && order.items.length > 0;
         
         // If table is already billed or cleaning, don't change it
         if (selectedTable.status === 'billed' || selectedTable.status === 'pending_cleaning') {
@@ -476,7 +492,7 @@ export function BillingPage() {
           }
         }
         // If order exists but no KOT items yet, table should be 'occupied'
-        else if (hasBilledItems && !hasKotItems && selectedTable.status === 'available') {
+        else if (hasItems && !hasKotItems && selectedTable.status === 'available') {
           const result = await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
           if (result.success) {
             setSelectedTable({ ...selectedTable, status: 'occupied' });
@@ -490,6 +506,28 @@ export function BillingPage() {
     
     syncTableStatusWithBackend();
   }, [selectedTable?.id]);
+  
+  // Force sync table status when table is selected and has order items
+  useEffect(() => {
+    const forceSyncTableStatus = async () => {
+      if (!selectedTable) return;
+      
+      // If table is available but we have items in cart, force update status
+      if (selectedTable.status === 'available' && cart.length > 0) {
+        try {
+          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+          if (result.success) {
+            setSelectedTable({ ...selectedTable, status: 'occupied' });
+            store.fetchTables(selectedSection || undefined);
+          }
+        } catch (error) {
+          console.error('Force sync failed:', error);
+        }
+      }
+    };
+    
+    forceSyncTableStatus();
+  }, [selectedTable?.id, cart.length > 0]);
 
   // Update item quantity
   const updateQuantity = (itemId: string, delta: number) => {
@@ -833,7 +871,18 @@ export function BillingPage() {
     // Force re-render by updating state with fresh data
     const finalTable = store.tables.find(t => t.id === table.id);
     if (finalTable) {
-      setSelectedTable({ ...finalTable });
+      // If table has items (cart or order), update status to match
+      const hasItems = (cart.length > 0 || (response.success && response.data && response.data.items?.length > 0));
+      if (hasItems && finalTable.status === 'available') {
+        const updateResult = await api.put(`/tables/${finalTable.id}`, { status: 'occupied' });
+        if (updateResult.success) {
+          setSelectedTable({ ...finalTable, status: 'occupied' });
+        } else {
+          setSelectedTable({ ...finalTable });
+        }
+      } else {
+        setSelectedTable({ ...finalTable });
+      }
     }
   };
 

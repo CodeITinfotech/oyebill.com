@@ -197,6 +197,10 @@ class ApiClient {
     return this.request<any[]>(url);
   }
 
+  async syncTableStatuses() {
+    return this.request('/tables/sync-status', { method: 'POST' });
+  }
+
   async createTable(data: any) {
     return this.request<any>('/tables', {
       method: 'POST',
