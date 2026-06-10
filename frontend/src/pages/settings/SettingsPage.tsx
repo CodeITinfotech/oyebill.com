@@ -453,13 +453,12 @@ export function SettingsPage() {
 
   const handleSavePrinter = async () => {
     setIsSubmitting(true);
+    // Save printer settings first (separate call to ensure empty values are saved)
     const success = await updateSettings({
       kotPrinter: printerForm.kotPrinter,
       billPrinter: printerForm.billPrinter,
-      printCopies: parseInt(printerForm.printCopies),
-      skipLinesBeforeCut: parseInt(printerForm.skipLinesBeforeCut),
-      kot_setup: kotSetupForm,
-      bill_setup: billSetupForm,
+      printCopies: parseInt(printerForm.printCopies) || 1,
+      skipLinesBeforeCut: parseInt(printerForm.skipLinesBeforeCut) || 3,
     });
     setIsSubmitting(false);
 
@@ -1572,18 +1571,48 @@ export function SettingsPage() {
                       <h3 className="font-medium">Manual Configuration</h3>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                          label="KOT Printer Name/IP"
-                          value={printerForm.kotPrinter}
-                          onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
-                          placeholder="e.g., EPSON-KOT or 192.168.1.100"
-                        />
-                        <Input
-                          label="Bill Printer Name/IP"
-                          value={printerForm.billPrinter}
-                          onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
-                          placeholder="e.g., EPSON-BILL or 192.168.1.101"
-                        />
+                        <div className="relative">
+                          <label className="block text-sm text-text-secondary mb-1">KOT Printer Name/IP</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={printerForm.kotPrinter}
+                              onChange={(e) => setPrinterForm({ ...printerForm, kotPrinter: e.target.value })}
+                              placeholder="e.g., POS-80 or 192.168.1.100"
+                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                            />
+                            {printerForm.kotPrinter && (
+                              <button
+                                type="button"
+                                onClick={() => setPrinterForm({ ...printerForm, kotPrinter: '' })}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-400"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <label className="block text-sm text-text-secondary mb-1">Bill Printer Name/IP</label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={printerForm.billPrinter}
+                              onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
+                              placeholder="e.g., POS-80 or 192.168.1.101"
+                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
+                            />
+                            {printerForm.billPrinter && (
+                              <button
+                                type="button"
+                                onClick={() => setPrinterForm({ ...printerForm, billPrinter: '' })}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-400"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4">
