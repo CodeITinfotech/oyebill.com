@@ -1307,151 +1307,29 @@ export function BillingPage() {
     return doc.output('dataurlstring');
   };
 
-  // Share PDF via WhatsApp
-  const sharePDFViaWhatsApp = (billData: any) => {
-    // Create and download PDF
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 20;
-    let y = 20;
-
-    // Restaurant Name
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text(settings?.restaurant?.name || 'Restaurant', pageWidth / 2, y, { align: 'center' });
-    y += 10;
-
-    // Restaurant details
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    if (settings?.restaurant?.address) {
-      doc.text(settings.restaurant.address, pageWidth / 2, y, { align: 'center' });
-      y += 5;
+  // Share bill via WhatsApp - uses shareable link instead of local PDF
+  const shareViaWhatsApp = async (billData: any) => {
+    try {
+      // Get the current base URL
+      const baseUrl = window.location.origin;
+      const billLink = `${baseUrl}/bill/${billData.orderId}`;
+      
+      // Open WhatsApp with the bill link
+      const message = encodeURIComponent(
+        `Your bill from ${settings?.restaurant?.name || 'Restaurant'}\n\n` +
+        `Bill No: ${billData.orderId}\n` +
+        `Total: ₹${billData.total.toFixed(2)}\n\n` +
+        `View and download your bill here:\n${billLink}`
+      );
+      
+      const phoneNumber = billData.customerPhone?.replace(/\D/g, '') || '';
+      window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+      
+      toast('success', 'WhatsApp opened with bill link');
+    } catch (error) {
+      console.error('Error sharing via WhatsApp:', error);
+      toast('error', 'Failed to share bill');
     }
-    if (settings?.restaurant?.phone) {
-      doc.text(`Phone: ${settings.restaurant.phone}`, pageWidth / 2, y, { align: 'center' });
-      y += 5;
-    }
-
-    y += 5;
-    doc.setLineWidth(0.5);
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    // Bill Header
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BILL', pageWidth / 2, y, { align: 'center' });
-    y += 10;
-
-    // Bill details
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Bill No: ${billData.orderId}`, margin, y);
-    y += 6;
-    doc.text(`Table: ${billData.tableNumber}`, margin, y);
-    y += 6;
-    doc.text(`Date: ${billData.dateTime}`, margin, y);
-    y += 6;
-    doc.text(`Waiter: ${billData.waiterName}`, margin, y);
-    y += 10;
-
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    // Items Header
-    doc.setFont('helvetica', 'bold');
-    doc.text('Item', margin, y);
-    doc.text('Qty', pageWidth - 60, y);
-    doc.text('Price', pageWidth - 40, y);
-    doc.text('Total', pageWidth - margin, y, { align: 'right' });
-    y += 5;
-
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 5;
-
-    // Items
-    doc.setFont('helvetica', 'normal');
-    billData.items.forEach((item: any) => {
-      if (y > 270) {
-        doc.addPage();
-        y = 20;
-      }
-      const itemTotal = (item.unitPrice * item.quantity).toFixed(2);
-      doc.text(item.productName.substring(0, 30), margin, y);
-      doc.text(String(item.quantity), pageWidth - 60, y);
-      doc.text(`₹${item.unitPrice.toFixed(2)}`, pageWidth - 40, y);
-      doc.text(`₹${itemTotal}`, pageWidth - margin, y, { align: 'right' });
-      y += 6;
-    });
-
-    y += 5;
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    // Totals
-    doc.text('Subtotal:', margin, y);
-    doc.text(`₹${billData.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 6;
-
-    doc.text('Tax:', margin, y);
-    doc.text(`₹${billData.taxAmount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 6;
-
-    if (billData.discount > 0) {
-      doc.text('Discount:', margin, y);
-      doc.text(`-₹${billData.discount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-      y += 6;
-    }
-
-    if (billData.loyaltyDiscount > 0) {
-      doc.text('Loyalty Discount:', margin, y);
-      doc.text(`-₹${billData.loyaltyDiscount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-      y += 6;
-    }
-
-    y += 3;
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 8;
-
-    // Total
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('TOTAL:', margin, y);
-    doc.text(`₹${billData.total.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
-    y += 8;
-
-    // Total in words
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.text(`Amount in Words: ${billData.totalInWords}`, margin, y);
-    y += 15;
-
-    doc.line(margin, y, pageWidth - margin, y);
-    y += 10;
-
-    // Footer
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Thank you for dining with us!', pageWidth / 2, y, { align: 'center' });
-    y += 5;
-    doc.text('Please visit again!', pageWidth / 2, y, { align: 'center' });
-
-    // Save PDF
-    doc.save(`Bill_${billData.orderId}.pdf`);
-    
-    // Open WhatsApp with message
-    const message = encodeURIComponent(
-      `Your bill from ${settings?.restaurant?.name || 'Restaurant'}\n\n` +
-      `Bill No: ${billData.orderId}\n` +
-      `Total: ₹${billData.total.toFixed(2)}\n\n` +
-      `PDF bill has been downloaded. Please check.`
-    );
-    
-    const phoneNumber = billData.customerPhone?.replace(/\D/g, '') || '';
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
-    
-    toast('info', 'PDF downloaded and WhatsApp opened');
   };
 
   // Share PDF via Email
@@ -3662,10 +3540,10 @@ export function BillingPage() {
               {previewContent.type === 'bill' && previewContent.content.customerPhone && (
                 <Button
                   variant="success"
-                  onClick={() => sharePDFViaWhatsApp(previewContent.content)}
+                  onClick={() => shareViaWhatsApp(previewContent.content)}
                 >
                   <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  Send WhatsApp (PDF)
+                  Send WhatsApp (Link)
                 </Button>
               )}
               {previewContent.type === 'bill' && previewContent.content.customerEmail && (

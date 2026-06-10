@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Card, CardBody, CardHeader, Button, Input, toast } from '../../components/ui';
-import { Globe, MapPin, Clock, Truck, ShoppingBag, ExternalLink, Check } from 'lucide-react';
+import { Globe, Clock, Truck, ExternalLink, Check } from 'lucide-react';
 
 interface OnlineOrderingSettingsProps {
   restaurantId: string;
@@ -22,8 +22,6 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState<any>(null);
-  const [orders, setOrders] = useState<any[]>([]);
-  const [activeSection, setActiveSection] = useState<'settings' | 'orders'>('settings');
 
   useEffect(() => {
     loadSettings();
@@ -104,37 +102,6 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
 
   return (
     <div className="space-y-6">
-      {/* Section Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveSection('settings')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeSection === 'settings'
-              ? 'bg-accent text-white'
-              : 'bg-white/10 text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <Globe className="w-4 h-4 inline mr-2" />
-          Settings
-        </button>
-        <button
-          onClick={() => setActiveSection('orders')}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            activeSection === 'orders'
-              ? 'bg-accent text-white'
-              : 'bg-white/10 text-text-secondary hover:text-text-primary'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4 inline mr-2" />
-          Customer Orders
-          {stats?.new > 0 && (
-            <span className="ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">
-              {stats.new}
-            </span>
-          )}
-        </button>
-      </div>
-
       {activeSection === 'settings' && (
         <>
           {/* Quick Stats */}
@@ -329,119 +296,6 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
         </>
       )}
 
-      {activeSection === 'orders' && (
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold">Customer Online Orders</h2>
-            <p className="text-sm text-text-muted">Manage orders placed through your online menu</p>
-          </CardHeader>
-          <CardBody>
-            {orders.length === 0 ? (
-              <div className="text-center py-8 text-text-muted">
-                <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No customer orders yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {orders.map(order => (
-                  <div key={order.id} className="p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-medium">{order.order_number}</p>
-                        <p className="text-sm text-text-muted">
-                          {order.customer_name} • {order.customer_phone}
-                        </p>
-                        <p className="text-xs text-text-muted">
-                          {new Date(order.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          order.status === 'new' ? 'bg-yellow-100 text-yellow-800' :
-                          order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                          order.status === 'preparing' ? 'bg-orange-100 text-orange-800' :
-                          order.status === 'ready' ? 'bg-green-100 text-green-800' :
-                          order.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {order.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                        <p className="font-bold mt-1">₹{order.total.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-sm mb-3">
-                      <p className="text-text-secondary">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          order.order_type === 'pickup' ? 'bg-primary/20 text-primary' : 'bg-accent/20 text-accent'
-                        }`}>
-                          {order.order_type.toUpperCase()}
-                        </span>
-                        {order.order_type === 'delivery' && order.delivery_address && (
-                          <span className="ml-2">📍 {order.delivery_address}</span>
-                        )}
-                      </p>
-                      <div className="mt-2 space-y-1">
-                        {order.items?.map((item: any, idx: number) => (
-                          <p key={idx} className="text-text-muted">
-                            {item.quantity}x {item.product_name} - ₹{item.total.toFixed(2)}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Status Actions */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-white/10">
-                      {order.status === 'new' && (
-                        <>
-                          <Button size="sm" onClick={() => updateStatus(order.id, 'confirmed')}>
-                            <Check className="w-4 h-4 mr-1" />
-                            Confirm
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => updateStatus(order.id, 'cancelled')}>
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                      {order.status === 'confirmed' && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'preparing')}>
-                          Start Preparing
-                        </Button>
-                      )}
-                      {order.status === 'preparing' && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'ready')}>
-                          Mark Ready
-                        </Button>
-                      )}
-                      {order.status === 'ready' && order.order_type === 'delivery' && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'out_for_delivery')}>
-                          Out for Delivery
-                        </Button>
-                      )}
-                      {order.status === 'out_for_delivery' && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'delivered')}>
-                          Delivered
-                        </Button>
-                      )}
-                      {(order.status === 'ready' && order.order_type === 'pickup') && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'completed')}>
-                          Completed (Picked Up)
-                        </Button>
-                      )}
-                      {order.status === 'delivered' && (
-                        <Button size="sm" onClick={() => updateStatus(order.id, 'completed')}>
-                          Completed
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardBody>
-        </Card>
-      )}
     </div>
   );
 };

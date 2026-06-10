@@ -25,6 +25,8 @@ import customerCatalogRoutes from './routes/customer-catalog.js';
 import customerOrdersPublicRoutes from './routes/customer-orders-public.js';
 import onlineOrderingSettingsRoutes from './routes/online-ordering-settings.js';
 import printersRoutes from './routes/printers.js';
+import billPdfRoutes from './routes/bill-pdf.js';
+import billViewRoutes from './routes/bill-view.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -64,6 +66,8 @@ app.use('/api/catalog', customerCatalogRoutes);
 app.use('/api/customer-orders-public', customerOrdersPublicRoutes);
 app.use('/api/online-ordering-settings', onlineOrderingSettingsRoutes);
 app.use('/api/printers', printersRoutes);
+app.use('/api/bill-pdf', billPdfRoutes);
+app.use('/api/bill-view', billViewRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

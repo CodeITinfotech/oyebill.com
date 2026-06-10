@@ -21,6 +21,7 @@ import BusserPage from './pages/busser/BusserPage';
 import { NotFoundPage } from './pages/error/ErrorPage';
 import NFCOrdering from './pages/nfc/NFCOrdering';
 import { OnlineCatalogPage } from './pages/online-catalog/OnlineCatalogPage';
+import { CustomerBillView } from './pages/public/CustomerBillView';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -137,6 +138,12 @@ function App() {
               <Navigate to="/billing" replace />
             )
           }
+        />
+
+        {/* Public Routes */}
+        <Route
+          path="/bill/:orderId"
+          element={<CustomerBillView />}
         />
 
         {/* Protected Routes */}
