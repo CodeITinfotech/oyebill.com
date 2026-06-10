@@ -480,8 +480,8 @@ export function BillingPage() {
         const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
         const hasItems = order.items && order.items.length > 0;
         
-        // If table is pending_cleaning, don't change it
-        if (selectedTable.status === 'pending_cleaning') {
+        // If table is pending_cleaning or available, don't change it via this sync
+        if (selectedTable.status === 'pending_cleaning' || selectedTable.status === 'available') {
           return;
         }
         
@@ -490,15 +490,13 @@ export function BillingPage() {
           const result = await api.put(`/tables/${selectedTable.id}`, { status: 'pending_billing' });
           if (result.success) {
             setSelectedTable({ ...selectedTable, status: 'pending_billing' });
-            store.fetchTables(selectedSection || undefined);
           }
         }
         // If order exists but no KOT items yet, table should be 'active_kot'
-        else if (hasItems && !hasKotItems && selectedTable.status === 'available') {
+        else if (hasItems && !hasKotItems && selectedTable.status === 'active_kot') {
           const result = await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
           if (result.success) {
             setSelectedTable({ ...selectedTable, status: 'active_kot' });
-            store.fetchTables(selectedSection || undefined);
           }
         }
       } catch (error) {
