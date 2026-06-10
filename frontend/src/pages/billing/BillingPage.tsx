@@ -2392,99 +2392,76 @@ export function BillingPage() {
                     <Receipt className="w-3 h-3" />
                     <span>Bill</span>
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      if (appliedCoupon) {
+                        toast('warning', 'Remove coupon first');
+                        return;
+                      }
+                      setShowDiscountModal(true);
+                    }}
+                    disabled={cart.length === 0 || !!appliedCoupon}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <Percent className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      if (discountValue > 0) {
+                        toast('warning', 'Discount applied');
+                        return;
+                      }
+                      setShowCouponModal(true);
+                    }}
+                    disabled={cart.length === 0 || discountValue > 0}
+                    className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
+                  >
+                    <Ticket className="w-3 h-3" />
+                  </Button>
+                  {cart.some(item => item.isKot) && (
+                    <Button
+                      variant="outline"
+                      size="md"
+                      onClick={async () => {
+                        if (!confirm('Are you sure you want to cancel KOT?')) {
+                          return;
+                        }
+                        try {
+                          if (currentOrderId) {
+                            await api.deleteOrder(currentOrderId);
+                          }
+                          if (selectedTable) {
+                            setTableCarts(prev => {
+                              const updated = { ...prev };
+                              delete updated[selectedTable.id];
+                              return updated;
+                            });
+                            await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                            if (selectedSection) {
+                              store.fetchTables(selectedSection);
+                            }
+                          }
+                          setCart([]);
+                          setCurrentOrderId(null);
+                          setDiscountAmount('');
+                          setDiscountReason('');
+                          setAppliedCoupon(null);
+                          toast('success', 'KOT cancelled, table is now available');
+                        } catch (error) {
+                          toast('error', 'Failed to cancel KOT');
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1 h-10 text-xs font-medium text-orange-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
                 </>
               )}
-              <div className="relative z-10">
-                <Button
-                  variant="outline"
-                  size="md"
-                  onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                  className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
-                >
-                  <MoreHorizontal className="w-3 h-3" />
-                </Button>
-                {showMoreDropdown && (
-                  <div className="absolute bottom-full right-0 mb-1 z-50 more-dropdown">
-                    <div className="bg-background-card border border-white/10 rounded-lg shadow-xl overflow-hidden min-w-[140px]">
-                      <button
-                        onClick={() => {
-                          if (appliedCoupon) {
-                            toast('warning', 'Remove coupon first');
-                            setShowMoreDropdown(false);
-                            return;
-                          }
-                          setShowDiscountModal(true);
-                          setShowMoreDropdown(false);
-                        }}
-                        disabled={cart.length === 0 || !!appliedCoupon}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
-                      >
-                        <Percent className="w-3 h-3" />
-                        <span>Discount</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (discountValue > 0) {
-                            toast('warning', 'Discount applied');
-                            setShowMoreDropdown(false);
-                            return;
-                          }
-                          setShowCouponModal(true);
-                          setShowMoreDropdown(false);
-                        }}
-                        disabled={cart.length === 0 || discountValue > 0}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors disabled:opacity-50"
-                      >
-                        <Ticket className="w-3 h-3" />
-                        <span>Coupon</span>
-                      </button>
-                      {cart.some(item => item.isKot) && (
-                        <button
-                          onClick={async () => {
-                            if (!confirm('Are you sure you want to cancel KOT?')) {
-                              setShowMoreDropdown(false);
-                              return;
-                            }
-                            try {
-                              if (currentOrderId) {
-                                await api.deleteOrder(currentOrderId);
-                              }
-                              
-                              // Clear saved cart
-                              if (selectedTable) {
-                                setTableCarts(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[selectedTable.id];
-                                  return updated;
-                                });
-                                
-                                await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                                if (selectedSection) {
-                                  store.fetchTables(selectedSection);
-                                }
-                              }
-                              
-                              setCart([]);
-                              setCurrentOrderId(null);
-                              setDiscountAmount('');
-                              setDiscountReason('');
-                              setAppliedCoupon(null);
-                              setShowMoreDropdown(false);
-                              toast('success', 'KOT cancelled, table is now available');
-                            } catch (error) {
-                              toast('error', 'Failed to cancel KOT');
-                            }
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/10 transition-colors text-orange-400"
-                        >
-                          <X className="w-3 h-3" />
-                          <span>Cancel KOT</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Desktop: Full breakdown */}
