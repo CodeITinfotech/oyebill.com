@@ -343,6 +343,8 @@ router.put('/:id/mark-cleaned', authenticateToken, (req, res) => {
 });
 
 // Sync all table statuses based on orders (fixes stale statuses)
+// DISABLED: This was causing tables to incorrectly change status
+// Table status should ONLY change during explicit order operations
 router.post('/sync-status', authenticateToken, (req, res) => {
   try {
     const { db } = req;
@@ -358,45 +360,49 @@ router.post('/sync-status', authenticateToken, (req, res) => {
 
     let updated = 0;
     for (const table of tables) {
-      let newStatus = table.status;
-      
-      // IMPORTANT: If table is already available or pending_cleaning, DON'T change it
-      // Only sync tables that are in an intermediate state (active_kot, pending_billing)
-      // This prevents incorrectly changing tables based on stale order data
-      if (table.status === 'available' || table.status === 'pending_cleaning') {
-        // Only update if there are KOT items - this means something went wrong
-        if (table.kot_items > 0) {
-          newStatus = 'pending_billing';
-        }
-        // Otherwise keep the current status
-      }
-      // If table has KOT items, it should be pending_billing
-      else if (table.kot_items > 0) {
-        newStatus = 'pending_billing';
-      }
-      // If table has active orders but no KOT items
-      else if (table.active_orders > 0) {
-        newStatus = 'active_kot';
-      }
-      // Table has no active orders - set to available
-      else {
-        newStatus = 'available';
-      }
-      
-      if (newStatus !== table.status) {
-        db.prepare('UPDATE tables SET status = ? WHERE id = ?').run(newStatus, table.id);
-        updated++;
-      }
+      // DON'T update any table status automatically
+      // Status should only change during explicit operations (add items, generate KOT, generate bill)
+      // This prevents incorrect status changes based on stale order data
     }
 
     res.json({ 
       success: true, 
-      message: `Synced ${updated} table statuses`,
-      updated 
+      message: 'Sync disabled - status changes only during explicit operations',
+      updated: 0
     });
   } catch (error) {
     console.error('Sync table status error:', error);
     res.status(500).json({ error: 'Failed to sync table statuses' });
+  }
+});
+
+// Separate endpoint to migrate old status values
+router.post('/migrate-status', authenticateToken, (req, res) => {
+  try {
+    const { db } = req;
+
+    // Map old status values to new ones
+    const migrations = [
+      { old: 'occupied', new: 'available' },
+      { old: 'active', new: 'active_kot' },
+      { old: 'reserved', new: 'available' },
+    ];
+
+    let updated = 0;
+    for (const { old, new: newStatus } of migrations) {
+      const result = db.prepare('UPDATE tables SET status = ? WHERE status = ? AND restaurant_id = ?')
+        .run(newStatus, old, req.user.restaurantId);
+      updated += result.changes;
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Migrated ${updated} table statuses`,
+      updated 
+    });
+  } catch (error) {
+    console.error('Migrate table status error:', error);
+    res.status(500).json({ error: 'Failed to migrate table statuses' });
   }
 });
 

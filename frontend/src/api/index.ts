@@ -201,6 +201,10 @@ class ApiClient {
     return this.request('/tables/sync-status', { method: 'POST' });
   }
 
+  async migrateTableStatuses() {
+    return this.request('/tables/migrate-status', { method: 'POST' });
+  }
+
   async createTable(data: any) {
     return this.request<any>('/tables', {
       method: 'POST',

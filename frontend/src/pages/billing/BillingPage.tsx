@@ -382,7 +382,9 @@ export function BillingPage() {
   useEffect(() => {
     const syncOnLoad = async () => {
       try {
-        await api.syncTableStatuses();
+        // First migrate any old status values to new ones
+        await api.migrateTableStatuses();
+        // Then refresh tables
         if (selectedSection) {
           await store.fetchTables(selectedSection);
         }
