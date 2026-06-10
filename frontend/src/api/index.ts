@@ -50,6 +50,21 @@ class ApiClient {
       });
 
       debug(`Response: ${response.status} ${endpoint}`);
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // Not JSON response - likely HTML error page
+        const text = await response.text();
+        debug('Non-JSON response:', text.substring(0, 200));
+        if (!response.ok) {
+          return {
+            success: false,
+            error: `Server error: ${response.status}`,
+          };
+        }
+      }
+      
       const data = await response.json();
 
       if (!response.ok) {

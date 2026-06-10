@@ -385,9 +385,11 @@ export function BillingPage() {
       // If table is available but has cart items, update status to occupied
       if (selectedTable.status === 'available' && cart.length > 0) {
         try {
-          await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
-          setSelectedTable({ ...selectedTable, status: 'occupied' });
-          store.fetchTables(selectedSection || undefined);
+          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+          if (result.success) {
+            setSelectedTable({ ...selectedTable, status: 'occupied' });
+            store.fetchTables(selectedSection || undefined);
+          }
         } catch (error) {
           console.error('Failed to sync table status:', error);
         }
@@ -406,19 +408,31 @@ export function BillingPage() {
       if (cart.length === 0 && (selectedTable.status === 'occupied' || selectedTable.status === 'active')) {
         try {
           const response = await api.getOrderByTable(selectedTable.id);
-          // If no active order, mark table as available
+          // If no active order (404 or success with no data), mark table as available
           if (response.success && !response.data) {
-            await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-            setSelectedTable({ ...selectedTable, status: 'available' });
-            store.fetchTables(selectedSection || undefined);
+            const result = await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+            if (result.success) {
+              setSelectedTable({ ...selectedTable, status: 'available' });
+              store.fetchTables(selectedSection || undefined);
+            }
           }
           // If there IS an active order with KOT items, ensure status is 'active'
           else if (response.success && response.data) {
             const order = response.data;
             const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
             if (hasKotItems && selectedTable.status !== 'active') {
-              await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
-              setSelectedTable({ ...selectedTable, status: 'active' });
+              const result = await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+              if (result.success) {
+                setSelectedTable({ ...selectedTable, status: 'active' });
+                store.fetchTables(selectedSection || undefined);
+              }
+            }
+          }
+          // If request failed (e.g., no active order), mark available
+          else if (!response.success && response.error?.includes('No active order')) {
+            const result = await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+            if (result.success) {
+              setSelectedTable({ ...selectedTable, status: 'available' });
               store.fetchTables(selectedSection || undefined);
             }
           }
@@ -438,25 +452,33 @@ export function BillingPage() {
       
       try {
         const response = await api.getOrderByTable(selectedTable.id);
-        if (response.success && response.data) {
-          const order = response.data;
-          const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
-          const hasBilledItems = order.items && order.items.length > 0;
-          
-          // If table is already billed or cleaning, don't change it
-          if (selectedTable.status === 'billed' || selectedTable.status === 'pending_cleaning') {
-            return;
-          }
-          
-          // If order has KOT items, table should be 'active'
-          if (hasKotItems && selectedTable.status !== 'active') {
-            await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+        
+        // If no active order, don't change status
+        if (!response.success || !response.data) {
+          return;
+        }
+        
+        const order = response.data;
+        const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
+        const hasBilledItems = order.items && order.items.length > 0;
+        
+        // If table is already billed or cleaning, don't change it
+        if (selectedTable.status === 'billed' || selectedTable.status === 'pending_cleaning') {
+          return;
+        }
+        
+        // If order has KOT items, table should be 'active'
+        if (hasKotItems && selectedTable.status !== 'active') {
+          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'active' });
+          if (result.success) {
             setSelectedTable({ ...selectedTable, status: 'active' });
             store.fetchTables(selectedSection || undefined);
           }
-          // If order exists but no KOT items yet, table should be 'occupied'
-          else if (hasBilledItems && !hasKotItems && selectedTable.status === 'available') {
-            await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+        }
+        // If order exists but no KOT items yet, table should be 'occupied'
+        else if (hasBilledItems && !hasKotItems && selectedTable.status === 'available') {
+          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'occupied' });
+          if (result.success) {
             setSelectedTable({ ...selectedTable, status: 'occupied' });
             store.fetchTables(selectedSection || undefined);
           }
