@@ -40,25 +40,144 @@ async function detectUSBPrintersLinux() {
       }
     }
     
-    // Try cups lpinfo command
+    // Check /dev/usb/* paths (broader search)
     try {
-      const { stdout } = await execAsync('lpinfo -v 2>/dev/null | grep -i printer || true');
-      const lines = stdout.split('\n').filter(l => l.includes('serial') || l.includes('usb'));
+      const allUsbDevices = readdirSync('/dev/usb');
+      for (const device of allUsbDevices) {
+        const path = `/dev/usb/${device}`;
+        if (existsSync(path) && !printers.find(p => p.address === path)) {
+          // Try to get device info
+          try {
+            const { stdout } = await execAsync(`ls -la ${path} 2>/dev/null || echo ""`);
+            printers.push({
+              name: `USB Device (${device})`,
+              type: 'USB',
+              address: path,
+              connection: 'usb'
+            });
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    } catch (e) {
+      // /dev/usb might not exist
+    }
+    
+    // Check all /dev/lp* (parallel port and USB printers)
+    for (let i = 0; i < 10; i++) {
+      const path = `/dev/lp${i}`;
+      if (existsSync(path) && !printers.find(p => p.address === path)) {
+        printers.push({
+          name: `Printer /dev/lp${i}`,
+          type: 'USB',
+          address: path,
+          connection: 'usb'
+        });
+      }
+    }
+    
+    // Try cups lpinfo command for all devices
+    try {
+      const { stdout } = await execAsync('lpinfo -v 2>/dev/null || true');
+      const lines = stdout.split('\n');
       for (const line of lines) {
-        const match = line.match(/device-uri:\s*(.+)/i);
+        // Match various device URI patterns
+        const match = line.match(/device-uri:\s*(.+)/i) || line.match(/(usb:\/\/.+)/i) || line.match(/(serial:\/\/.+)/i);
         if (match) {
           const uri = match[1];
+          const uriLower = uri.toLowerCase();
+          
+          // Skip if already detected
+          if (printers.find(p => p.address === uri)) continue;
+          
+          let name = 'CUPS Printer';
+          if (uriLower.includes('usb')) {
+            // Try to get printer name from CUPS
+            try {
+              const { stdout: nameOut } = await execAsync(`lpinfo -v 2>/dev/null | grep -i "${uri.split('/').pop()}" | head -1 || echo ""`);
+              if (nameOut) {
+                const nameMatch = nameOut.match(/(\S+)\s+(\S+.*)/);
+                if (nameMatch) name = nameMatch[2].trim();
+              }
+            } catch (e) {}
+            name = `USB Printer (${uri.split('/').pop()})`;
+          } else if (uriLower.includes('serial')) {
+            name = `Serial Printer (${uri})`;
+          }
+          
           printers.push({
-            name: `CUPS Printer (${uri.split('/').pop()})`,
-            type: uri.includes('usb') ? 'USB' : 'Network',
+            name,
+            type: uriLower.includes('usb') ? 'USB' : uriLower.includes('serial') ? 'Serial' : 'Network',
             address: uri,
-            connection: uri.includes('usb') ? 'usb' : 'network'
+            connection: uriLower.includes('usb') ? 'usb' : uriLower.includes('serial') ? 'serial' : 'network'
           });
         }
       }
     } catch (e) {
       // lpinfo not available
     }
+    
+    // Try lsusb to get detailed USB device info
+    try {
+      const { stdout } = await execAsync('lsusb 2>/dev/null || true');
+      const lines = stdout.split('\n');
+      
+      // Common printer-related keywords
+      const printerKeywords = ['printer', 'pos', 'thermal', 'receipt', 'label', 'barcode', 'scanner', 'epson', 'brother', 'hp', 'canon', 'samsung', 'zebra', 'dymo', 'star', 'posiflex', 'biT', 'borne', 'elite', 'citan', 'custom', 'xprinter', 'gprinter', 'posline', 'smart', 'elite', 'cbm'];
+      
+      for (const line of lines) {
+        const lineLower = line.toLowerCase();
+        // Check if device might be a printer (by keyword or common vendor IDs)
+        const isPrinter = printerKeywords.some(kw => lineLower.includes(kw));
+        
+        // Also check for common thermal printer vendor IDs (hex)
+        const commonVendorIds = ['04b8', '04f9', '0519', '0dd4', '1504', '1529', '0c15', '1fc9', '0483', '0416', '067b', '1d5f'];
+        const hasCommonVendor = commonVendorIds.some(vid => line.includes(vid));
+        
+        if (isPrinter || hasCommonVendor) {
+          const match = line.match(/Bus\s+(\S+)\s+Device\s+(\S+)\s+ID\s+(\S+)\s+(.+)/);
+          if (match) {
+            const [, bus, device, id, desc] = match;
+            const address = `/dev/bus/usb/${bus}/${device}`;
+            if (!printers.find(p => p.address === address)) {
+              printers.push({
+                name: `USB Printer (${desc.trim()})`,
+                type: 'USB',
+                address,
+                connection: 'usb',
+                vendorId: id.split(':')[0],
+                productId: id.split(':')[1]
+              });
+            }
+          }
+        }
+      }
+      
+      // Also list ALL USB devices as potential printers (for detection purposes)
+      // This helps identify unknown devices
+      for (const line of lines) {
+        const match = line.match(/Bus\s+(\S+)\s+Device\s+(\S+)\s+ID\s+(\S+)\s+(.+)/);
+        if (match) {
+          const [, bus, device, id, desc] = match;
+          const address = `/dev/bus/usb/${bus}/${device}`;
+          // Only add if not already detected and has a description
+          if (!printers.find(p => p.address === address) && desc.trim()) {
+            printers.push({
+              name: `USB Device (${desc.trim()})`,
+              type: 'USB (Unknown)',
+              address,
+              connection: 'usb',
+              vendorId: id.split(':')[0],
+              productId: id.split(':')[1]
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // lsusb not available
+    }
+    
   } catch (error) {
     console.error('USB detection error:', error);
   }
@@ -275,14 +394,50 @@ router.get('/scan', authenticateToken, requireRole('admin'), async (req, res) =>
   try {
     console.log('Starting printer scan...');
     const printers = await detectAllPrinters();
+    const platform = process.platform;
+    
+    // Get diagnostic info
+    const diagnostics = {
+      platform,
+      hasLsbRelease: false,
+      hasLsusb: false,
+      hasUsbDev: false,
+      hasDevLp: false,
+      hasCups: false,
+    };
+    
+    // Check for available tools
+    try {
+      await execAsync('lsusb --version 2>/dev/null || echo "not found"');
+      diagnostics.hasLsusb = true;
+    } catch (e) {}
+    
+    try {
+      await execAsync('ls -la /dev/usb 2>/dev/null || echo "not found"');
+      diagnostics.hasUsbDev = true;
+    } catch (e) {}
+    
+    try {
+      await execAsync('ls -la /dev/lp* 2>/dev/null || echo "not found"');
+      diagnostics.hasDevLp = true;
+    } catch (e) {}
+    
+    try {
+      await execAsync('lpstat -v 2>/dev/null || echo "not found"');
+      diagnostics.hasCups = true;
+    } catch (e) {}
     
     res.json({
       success: true,
       printers,
-      platform: process.platform,
+      platform,
       message: printers.length > 0 
         ? `Found ${printers.length} printer(s)`
-        : 'No printers detected. Make sure your printer is connected and powered on.'
+        : 'No printers detected.',
+      diagnostics,
+      hint: printers.length === 0 && platform === 'linux' 
+        ? 'If running in Docker, ensure USB devices are passed through with --device=/dev/usb:/dev/usb'
+        : (printers.length === 0 ? 'Connect your printer and try again' : '')
     });
   } catch (error) {
     console.error('Printer scan error:', error);
@@ -291,6 +446,26 @@ router.get('/scan', authenticateToken, requireRole('admin'), async (req, res) =>
       error: 'Failed to scan for printers',
       details: error.message
     });
+  }
+});
+
+// Add printer manually
+router.post('/add', authenticateToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { name, address, type, connection } = req.body;
+    
+    if (!name || !address) {
+      return res.status(400).json({ success: false, error: 'Name and address are required' });
+    }
+    
+    res.json({
+      success: true,
+      printer: { name, address, type: type || 'Manual', connection: connection || 'manual' },
+      message: `Printer "${name}" added successfully`
+    });
+  } catch (error) {
+    console.error('Add printer error:', error);
+    res.status(500).json({ success: false, error: 'Failed to add printer' });
   }
 });
 

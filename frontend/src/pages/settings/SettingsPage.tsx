@@ -71,9 +71,19 @@ export function SettingsPage() {
   const [printerTab, setPrinterTab] = useState<PrinterTab>('kot');
   
   // Printer detection state
-  const [detectedPrinters, setDetectedPrinters] = useState<{name: string; type: string; address: string}[]>([]);
+  const [detectedPrinters, setDetectedPrinters] = useState<{name: string; type: string; address: string; connection?: string}[]>([]);
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState<string>('');
+  const [scanDiagnostics, setScanDiagnostics] = useState<any>(null);
+  
+  // Manual printer add state
+  const [showAddPrinter, setShowAddPrinter] = useState(false);
+  const [newPrinterForm, setNewPrinterForm] = useState({
+    name: '',
+    address: '',
+    type: 'USB',
+    connection: 'usb'
+  });
   
   // KOT Setup form
   const [kotSetupForm, setKotSetupForm] = useState({
@@ -489,13 +499,14 @@ export function SettingsPage() {
     setIsDetecting(true);
     setDetectionStatus('Scanning for printers on server...');
     setDetectedPrinters([]);
+    setScanDiagnostics(null);
     
     try {
       // Use server-side printer detection API
       const response = await api.scanPrinters();
       
-      if (response.success && response.data?.printers) {
-        const foundPrinters = response.data.printers.map((p: any) => ({
+      if (response.success && response.data) {
+        const foundPrinters = (response.data.printers || []).map((p: any) => ({
           name: p.name,
           type: p.type,
           address: p.address,
@@ -503,16 +514,42 @@ export function SettingsPage() {
         }));
         
         setDetectedPrinters(foundPrinters);
-        setDetectionStatus(response.data.message || `Found ${foundPrinters.length} printer(s)`);
+        setScanDiagnostics(response.data.diagnostics);
+        
+        let statusMsg = response.data.message || `Found ${foundPrinters.length} printer(s)`;
+        if (foundPrinters.length === 0 && response.data.hint) {
+          statusMsg += ' ' + response.data.hint;
+        }
+        setDetectionStatus(statusMsg);
       } else {
-        setDetectionStatus(response.error || 'No printers detected. Connect a printer and try again.');
+        setDetectionStatus(response.error || 'Scan failed. Try manual configuration below.');
       }
     } catch (error: any) {
       console.error('Printer detection error:', error);
-      setDetectionStatus('Detection failed. Please try again or enter printer manually.');
+      setDetectionStatus('Scan failed. Use manual configuration below.');
     } finally {
       setIsDetecting(false);
     }
+  };
+  
+  // Add printer manually
+  const handleAddPrinter = () => {
+    if (!newPrinterForm.name || !newPrinterForm.address) {
+      toast('error', 'Please enter printer name and address');
+      return;
+    }
+    
+    const newPrinter = {
+      name: newPrinterForm.name,
+      type: newPrinterForm.type,
+      address: newPrinterForm.address,
+      connection: newPrinterForm.connection
+    };
+    
+    setDetectedPrinters([...detectedPrinters, newPrinter]);
+    setNewPrinterForm({ name: '', address: '', type: 'USB', connection: 'usb' });
+    setShowAddPrinter(false);
+    toast('success', `Printer "${newPrinterForm.name}" added`);
   };
 
   // Select a detected printer
@@ -1407,8 +1444,21 @@ export function SettingsPage() {
                       </div>
                       
                       {detectionStatus && (
-                        <div className={`text-sm mb-3 ${detectedPrinters && detectedPrinters.length > 0 ? 'text-success' : 'text-text-muted'}`}>
+                        <div className={`text-sm mb-3 ${detectedPrinters && detectedPrinters.length > 0 ? 'text-success' : 'text-yellow-400'}`}>
                           {detectionStatus}
+                        </div>
+                      )}
+                      
+                      {/* Diagnostics Info */}
+                      {scanDiagnostics && (
+                        <div className="mb-3 p-3 bg-background-secondary rounded-lg text-xs">
+                          <p className="text-text-secondary mb-1">Diagnostics:</p>
+                          <p>Platform: {scanDiagnostics.platform}</p>
+                          <p>USB Access: {scanDiagnostics.hasUsbDev ? '✅' : '❌'}</p>
+                          <p>CUPS: {scanDiagnostics.hasCups ? '✅' : '❌'}</p>
+                          {scanDiagnostics.hint && (
+                            <p className="text-yellow-400 mt-2">{scanDiagnostics.hint}</p>
+                          )}
                         </div>
                       )}
                       
@@ -1454,6 +1504,65 @@ export function SettingsPage() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      )}
+                      
+                      {/* Manual Add Printer */}
+                      {detectedPrinters.length === 0 && (
+                        <div className="mt-4">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setShowAddPrinter(!showAddPrinter)}
+                          >
+                            {showAddPrinter ? 'Cancel' : '+ Add Printer Manually'}
+                          </Button>
+                          
+                          {showAddPrinter && (
+                            <div className="mt-4 p-4 bg-background-secondary rounded-lg space-y-3">
+                              <Input
+                                label="Printer Name"
+                                value={newPrinterForm.name}
+                                onChange={(e) => setNewPrinterForm({...newPrinterForm, name: e.target.value})}
+                                placeholder="e.g., POSTEK G300"
+                              />
+                              <Input
+                                label="Address/Path"
+                                value={newPrinterForm.address}
+                                onChange={(e) => setNewPrinterForm({...newPrinterForm, address: e.target.value})}
+                                placeholder="/dev/usb/lp0 or IP address"
+                              />
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-sm text-text-secondary mb-1">Type</label>
+                                  <select
+                                    value={newPrinterForm.type}
+                                    onChange={(e) => setNewPrinterForm({...newPrinterForm, type: e.target.value})}
+                                    className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary"
+                                  >
+                                    <option value="USB">USB</option>
+                                    <option value="Network">Network</option>
+                                    <option value="Serial">Serial</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm text-text-secondary mb-1">Connection</label>
+                                  <select
+                                    value={newPrinterForm.connection}
+                                    onChange={(e) => setNewPrinterForm({...newPrinterForm, connection: e.target.value})}
+                                    className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary"
+                                  >
+                                    <option value="usb">USB</option>
+                                    <option value="network">Network (IP)</option>
+                                    <option value="serial">Serial Port</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <Button onClick={handleAddPrinter} size="sm">
+                                Add Printer
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
