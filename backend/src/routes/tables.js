@@ -381,18 +381,35 @@ router.post('/migrate-status', authenticateToken, (req, res) => {
   try {
     const { db } = req;
 
-    // Map old status values to new ones
-    const migrations = [
-      { old: 'occupied', new: 'available' },
-      { old: 'active', new: 'active_kot' },
-      { old: 'reserved', new: 'available' },
-    ];
+    // Get all tables with their order status
+    const tables = db.prepare(`
+      SELECT t.*, 
+        (SELECT COUNT(*) FROM orders WHERE table_id = t.id AND status != 'billed') as active_orders,
+        (SELECT COUNT(*) FROM order_items oi JOIN orders o ON oi.order_id = o.id WHERE o.table_id = t.id AND oi.is_kot = 1 AND o.status != 'billed') as kot_items
+      FROM tables t
+      WHERE t.restaurant_id = ?
+    `).all(req.user.restaurantId);
 
     let updated = 0;
-    for (const { old, new: newStatus } of migrations) {
-      const result = db.prepare('UPDATE tables SET status = ? WHERE status = ? AND restaurant_id = ?')
-        .run(newStatus, old, req.user.restaurantId);
-      updated += result.changes;
+    
+    for (const table of tables) {
+      let newStatus = null;
+      
+      // Only migrate old status values
+      if (table.status === 'occupied' || table.status === 'active' || table.status === 'reserved') {
+        if (table.kot_items > 0) {
+          newStatus = 'pending_billing';
+        } else if (table.active_orders > 0) {
+          newStatus = 'active_kot';
+        } else {
+          newStatus = 'available';
+        }
+        
+        if (newStatus !== table.status) {
+          db.prepare('UPDATE tables SET status = ? WHERE id = ?').run(newStatus, table.id);
+          updated++;
+        }
+      }
     }
 
     res.json({ 
