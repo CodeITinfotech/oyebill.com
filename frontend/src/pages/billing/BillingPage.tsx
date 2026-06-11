@@ -53,6 +53,9 @@ export function BillingPage() {
   const [mobileView, setMobileView] = useState<'menu' | 'cart'>('menu');
   const [showMobileCart, setShowMobileCart] = useState(false);
   
+  // Mobile: Show all tables modal
+  const [showAllTablesModal, setShowAllTablesModal] = useState(false);
+  
   // Quick add customer modal
   const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
   const [quickCustomerName, setQuickCustomerName] = useState('');
@@ -2005,9 +2008,9 @@ export function BillingPage() {
                   )}
                 </div>
 
-                {/* Selected Table Badge */}
-                {selectedTable && (
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">
+                {/* Selected Table - Desktop always show, Mobile compact with button */}
+                {!onlineOrder && selectedTable ? (
+                  <div className="hidden lg:flex items-center justify-between p-3 rounded-lg bg-accent/10 border border-accent/20 mb-3">
                     <div className="flex items-center gap-2">
                       <Users className="w-5 h-5 text-accent" />
                       <div>
@@ -2017,16 +2020,45 @@ export function BillingPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
-                      {/* Hide Switch button in mobile cart view */}
-                      {mobileView !== 'cart' && (
-                        <button
-                          onClick={() => setShowSwitchTableModal(true)}
-                          className="text-xs text-accent hover:text-accent/80 font-medium"
-                        >
-                          Switch
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setShowSwitchTableModal(true)}
+                        className="text-xs text-accent hover:text-accent/80 font-medium"
+                      >
+                        Switch
+                      </button>
                     </div>
+                  </div>
+                ) : null}
+
+                {/* Mobile: Selected Table Compact with View Tables Button */}
+                {!onlineOrder && selectedTable ? (
+                  <div className="lg:hidden flex items-center gap-2 p-2 rounded-lg bg-accent/10 border border-accent/20 mb-2">
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
+                      <span className="font-medium text-sm">T{selectedTable.number}</span>
+                    </div>
+                    <button
+                      onClick={() => setShowAllTablesModal(true)}
+                      className="flex items-center gap-1 px-2 py-1 bg-background-secondary hover:bg-white/10 rounded text-xs"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                      Tables
+                    </button>
+                  </div>
+                ) : (
+                  /* Mobile: No table selected - show button */
+                  <div className="lg:hidden mb-2">
+                    <button
+                      onClick={() => setShowAllTablesModal(true)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-accent/20 hover:bg-accent/30 rounded-lg text-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                      Select Table
+                    </button>
                   </div>
                 )}
               </>
@@ -2406,7 +2438,7 @@ export function BillingPage() {
                     variant="accent"
                     size="md"
                     onClick={handleBill}
-                    disabled={cart.length === 0 || !currentOrderId}
+                    disabled={cart.length === 0}
                     className="flex items-center justify-center gap-1 h-10 text-xs font-medium"
                   >
                     <Receipt className="w-3 h-3" />
@@ -2561,7 +2593,7 @@ export function BillingPage() {
                     variant="accent"
                     size="md"
                     onClick={handleBill}
-                    disabled={cart.length === 0 || !currentOrderId}
+                    disabled={cart.length === 0}
                     className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
                   >
                     <Receipt className="w-4 h-4" />
@@ -3485,6 +3517,189 @@ export function BillingPage() {
               onClick={() => setShowSwitchTableModal(false)}
             >
               Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Mobile: All Tables Modal */}
+      <Modal
+        isOpen={showAllTablesModal}
+        onClose={() => setShowAllTablesModal(false)}
+        title="Select Table"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            {selectedTable ? `Currently at Table ${selectedTable.number}` : 'No table selected'}
+          </p>
+          
+          <div className="grid grid-cols-4 gap-2 max-h-80 overflow-y-auto">
+            {tables.map((table) => {
+              // Determine status based on actual table status (including legacy values)
+              const isAvailable = table.status === 'available';
+              const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
+              const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing' || table.status === 'pending_printing';
+              const isPendingCleaning = table.status === 'pending_cleaning';
+              
+              // Get custom colors from settings or use defaults
+              const customColors = store.settings?.tableStatusColors || {};
+              
+              // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
+              const colorMap: Record<string, { dot: string; label: string; bg: string }> = {
+                available: { dot: customColors.available?.bg || 'text-success', label: customColors.available?.label || 'Available', bg: 'bg-success/5' },
+                active_kot: { dot: customColors.active_kot?.bg || 'text-orange-500', label: customColors.active_kot?.label || 'KOT', bg: 'bg-orange-500/10' },
+                pending_billing: { dot: customColors.pending_billing?.bg || 'text-red-500', label: customColors.pending_billing?.label || 'Billing', bg: 'bg-red-500/10' },
+                pending_cleaning: { dot: customColors.pending_cleaning?.bg || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Cleaning', bg: 'bg-gray-500/10' },
+              };
+              
+              let statusDot = colorMap.available.dot;
+              let statusLabel = colorMap.available.label;
+              let statusBg = colorMap.available.bg;
+              
+              if (isPendingCleaning) {
+                statusDot = colorMap.pending_cleaning.dot;
+                statusLabel = colorMap.pending_cleaning.label;
+                statusBg = colorMap.pending_cleaning.bg;
+              } else if (isPendingBilling) {
+                statusDot = colorMap.pending_billing.dot;
+                statusLabel = colorMap.pending_billing.label;
+                statusBg = colorMap.pending_billing.bg;
+              } else if (isActiveKot) {
+                statusDot = colorMap.active_kot.dot;
+                statusLabel = colorMap.active_kot.label;
+                statusBg = colorMap.active_kot.bg;
+              }
+              
+              return (
+                <button
+                  key={table.id}
+                  disabled={isPendingCleaning}
+                  onClick={async () => {
+                    // If same table, just close
+                    if (selectedTable?.id === table.id) {
+                      setShowAllTablesModal(false);
+                      return;
+                    }
+                    
+                    try {
+                      // Handle cart items when switching tables
+                      if (selectedTable && cart.length > 0) {
+                        // Save current cart before switching
+                        const currentTableId = selectedTable.id;
+                        
+                        // Check if target table has an existing order
+                        const existingOrder = await api.getOrderByTable(table.id);
+                        
+                        if (existingOrder.success && existingOrder.data) {
+                          // Target table has an order - merge or confirm
+                          const existingItems = existingOrder.data.items || [];
+                          if (existingItems.length > 0) {
+                            // Merge items into existing order
+                            const mergedItems = [...existingItems, ...cart];
+                            await api.put(`/orders/${existingOrder.data.id}`, { items: mergedItems });
+                            toast('success', `Items merged with Table ${table.number}`);
+                          } else {
+                            // Empty order, just update table
+                            await api.put(`/orders/${existingOrder.data.id}`, { tableId: table.id });
+                            toast('success', `Moved to Table ${table.number}`);
+                          }
+                        } else {
+                          // No existing order - create new order for target table
+                          const cleanItems = cart.map(item => ({
+                            productId: item.productId,
+                            productName: item.productName,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            taxRate: item.taxRate,
+                            taxAmount: item.taxAmount,
+                            total: item.total,
+                            isKot: item.isKot || false
+                          }));
+                          const orderData = {
+                            tableId: table.id,
+                            items: cleanItems,
+                            waiterId: selectedWaiter || undefined,
+                            customerId: selectedCustomer?.id
+                          };
+                          const createResponse = await api.createOrder(orderData);
+                          if (!createResponse.success) {
+                            toast('error', createResponse.error || 'Failed to switch table');
+                            return;
+                          }
+                          setCurrentOrderId(createResponse.data?.id);
+                          toast('success', `Moved to Table ${table.number}`);
+                        }
+                        
+                        // Clear old table cart from state
+                        setTableCarts(prev => {
+                          const updated = { ...prev };
+                          delete updated[currentTableId];
+                          return updated;
+                        });
+                        
+                        // Update old table status
+                        await api.put(`/tables/${currentTableId}`, { status: 'available' });
+                      }
+                      
+                      // Update table status for new table
+                      const newStatus = table.status === 'available' ? 'active_kot' : table.status;
+                      await api.put(`/tables/${table.id}`, { status: newStatus });
+                      
+                      // Refresh tables list
+                      store.fetchTables(selectedSection || undefined);
+                      
+                      // Update local state
+                      setSelectedTable({ ...table, status: newStatus as any });
+                      setShowAllTablesModal(false);
+                      
+                      // Clear cart if this was an available table
+                      if (table.status === 'available') {
+                        setCart([]);
+                        setCurrentOrderId(null);
+                      } else {
+                        // Fetch existing order for this table
+                        const orderResponse = await api.getOrderByTable(table.id);
+                        if (orderResponse.success && orderResponse.data) {
+                          const existingOrder = orderResponse.data;
+                          setCurrentOrderId(existingOrder.id);
+                          // Load existing items into cart
+                          const newCartItems: CartItem[] = existingOrder.items.map((item: any) => ({
+                            ...item,
+                            id: item.id || uuidv4(),
+                          }));
+                          setCart(newCartItems);
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error selecting table:', error);
+                      toast('error', 'Failed to select table');
+                    }
+                  }}
+                  className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                    selectedTable?.id === table.id
+                      ? 'border-accent bg-accent/20'
+                      : isAvailable 
+                        ? 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10 cursor-pointer' 
+                        : isPendingCleaning
+                          ? 'border-white/10 bg-white/5 opacity-50 cursor-not-allowed'
+                          : 'border-orange-500/30 bg-orange-500/10 cursor-pointer'
+                  }`}
+                >
+                  <span className="text-sm font-bold">{table.number}</span>
+                  <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
+                  <span className={`text-[10px] ${statusDot}`}>{statusLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+          
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setShowAllTablesModal(false)}
+            >
+              Close
             </Button>
           </div>
         </div>
