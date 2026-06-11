@@ -101,6 +101,7 @@ export function BillingPage() {
   // Bill generated state for COLLECT/PUSH buttons
   const [billGenerated, setBillGenerated] = useState(false);
   const [billOrderId, setBillOrderId] = useState<string | null>(null);
+  const [lastBillAmount, setLastBillAmount] = useState<number>(0);
 
   // Collect payment modal state
   const [showCollectModal, setShowCollectModal] = useState(false);
@@ -1634,6 +1635,9 @@ export function BillingPage() {
 
       // Store the order ID for Collect/PUSH
       setBillOrderId(orderId);
+      
+      // Store the bill amount for Collect modal
+      setLastBillAmount(total);
 
       // Set billGenerated to true to show COLLECT/PUSH buttons
       setBillGenerated(true);
@@ -4133,7 +4137,7 @@ export function BillingPage() {
         <div className="space-y-4">
           <div className="bg-accent/10 border border-accent/30 rounded-lg p-4 mb-4">
             <div className="text-sm text-text-secondary mb-1">Total Amount</div>
-            <div className="text-2xl font-bold text-accent">{formatCurrency(total)}</div>
+            <div className="text-2xl font-bold text-accent">{formatCurrency(lastBillAmount)}</div>
           </div>
 
           {/* Payment Mode Selection */}
@@ -4190,7 +4194,7 @@ export function BillingPage() {
                 type="number"
                 value={cashAmount}
                 onChange={(e) => setCashAmount(e.target.value)}
-                placeholder={`Enter amount (Total: ₹${total.toFixed(2)})`}
+                placeholder={`Enter amount (Total: ₹${lastBillAmount.toFixed(2)})`}
               />
             </div>
           )}
@@ -4211,7 +4215,7 @@ export function BillingPage() {
                   type="number"
                   value={gpayAmount}
                   onChange={(e) => setGpayAmount(e.target.value)}
-                  placeholder={`₹${total.toFixed(2)}`}
+                  placeholder={`₹${lastBillAmount.toFixed(2)}`}
                 />
               </div>
             </div>
@@ -4223,7 +4227,7 @@ export function BillingPage() {
                 type="number"
                 value={cardAmount}
                 onChange={(e) => setCardAmount(e.target.value)}
-                placeholder={`Enter amount (Total: ₹${total.toFixed(2)})`}
+                placeholder={`Enter amount (Total: ₹${lastBillAmount.toFixed(2)})`}
               />
             </div>
           )}
