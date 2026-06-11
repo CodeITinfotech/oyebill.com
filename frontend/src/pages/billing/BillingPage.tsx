@@ -2569,7 +2569,90 @@ export function BillingPage() {
                   </Button>
                 </>
               )}
-              <div className="relative z-10">
+              
+              {/* Inline Action Buttons for Desktop */}
+              <div className="hidden lg:flex gap-2 w-full">
+                {/* Apply Discount */}
+                <button
+                  onClick={() => {
+                    if (appliedCoupon) {
+                      toast('warning', 'Remove coupon first');
+                      return;
+                    }
+                    setShowDiscountModal(true);
+                  }}
+                  disabled={cart.length === 0 || !!appliedCoupon}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  <Percent className="w-4 h-4 text-accent" />
+                  <span>Discount</span>
+                </button>
+                
+                {/* Apply Coupon */}
+                <button
+                  onClick={() => {
+                    if (discountValue > 0) {
+                      toast('warning', 'Discount applied');
+                      return;
+                    }
+                    setShowCouponModal(true);
+                  }}
+                  disabled={cart.length === 0 || discountValue > 0}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  <Ticket className="w-4 h-4 text-green-400" />
+                  <span>Coupon</span>
+                </button>
+                
+                {/* Clear KOT / Clear Cart */}
+                <button
+                  onClick={async () => {
+                    const hasKot = cart.some(item => item.isKot);
+                    const action = hasKot ? 'cancel KOT' : 'clear cart';
+                    if (!confirm(`Are you sure you want to ${action}? This will free the table.`)) {
+                      return;
+                    }
+                    
+                    try {
+                      if (currentOrderId) {
+                        await api.deleteOrder(currentOrderId);
+                      }
+                      
+                      if (selectedTable) {
+                        setTableCarts(prev => {
+                          const updated = { ...prev };
+                          delete updated[selectedTable.id];
+                          return updated;
+                        });
+                        
+                        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                        if (selectedSection) {
+                          store.fetchTables(selectedSection);
+                        }
+                      }
+                      
+                      setCart([]);
+                      setCurrentOrderId(null);
+                      setDiscountAmount('');
+                      setDiscountReason('');
+                      setAppliedCoupon(null);
+                      
+                      toast('success', `KOT cancelled, table is now free`);
+                    } catch (error) {
+                      console.error('Error clearing:', error);
+                      toast('error', `Failed to ${action}`);
+                    }
+                  }}
+                  disabled={cart.length === 0}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm text-red-400 hover:text-red-300"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{cart.some(item => item.isKot) ? 'Clear KOT' : 'Clear Cart'}</span>
+                </button>
+              </div>
+              
+              {/* Mobile More Dropdown */}
+              <div className="lg:hidden relative z-10">
                 <Button
                   variant="outline"
                   size="md"
