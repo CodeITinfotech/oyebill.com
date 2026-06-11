@@ -118,7 +118,8 @@ const store = create<DataState>((set, get) => ({
     const response = await api.createCategory(data);
     if (response.success) {
       await get().fetchCategories();
-      return true;
+      // Return the created category from response
+      return response.data?.data || response.data || true;
     }
     return false;
   },

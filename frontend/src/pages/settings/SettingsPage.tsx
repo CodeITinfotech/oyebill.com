@@ -219,6 +219,12 @@ export function SettingsPage() {
   });
   
   const [showNewUserForm, setShowNewUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editUserForm, setEditUserForm] = useState({
+    name: '',
+    email: '',
+    role: 'waiter' as 'waiter' | 'accountant' | 'busser',
+  });
   
   // Customer state
   const [customers, setCustomers] = useState<any[]>([]);
@@ -235,12 +241,10 @@ export function SettingsPage() {
 
   // Table Status Colors form
   const [tableStatusForm, setTableStatusForm] = useState({
-    available: { color: 'bg-success', label: 'Available' },
-    occupied: { color: 'bg-red-500', label: 'Occupied' },
-    active: { color: 'bg-accent', label: 'Active - KOT' },
-    billed: { color: 'bg-blue-500', label: 'Billed' },
-    pending_cleaning: { color: 'bg-gray-500', label: 'Cleaning' },
-    pending_printing: { color: 'bg-orange-500', label: 'Pending' },
+    available: { bg: '#22c55e', border: '#16a34a', label: 'Available' },
+    active_kot: { bg: '#f97316', border: '#ea580c', label: 'KOT - In Progress' },
+    pending_billing: { bg: '#ef4444', border: '#dc2626', label: 'Pending Billing' },
+    pending_cleaning: { bg: '#6b7280', border: '#4b5563', label: 'Pending Cleaning' },
   });
 
   useEffect(() => {
@@ -872,6 +876,32 @@ TOTAL:               ₹620
     }
   };
 
+  const handleEditUser = (u: any) => {
+    setEditingUser(u);
+    setEditUserForm({ name: u.name, email: u.email, role: u.role });
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser || !editUserForm.name || !editUserForm.email) {
+      toast('error', 'Please fill all required fields');
+      return;
+    }
+    setIsSubmitting(true);
+    const response = await api.updateUser(editingUser.id, {
+      name: editUserForm.name,
+      email: editUserForm.email,
+      role: editUserForm.role,
+    });
+    setIsSubmitting(false);
+    if (response.success) {
+      toast('success', 'User updated successfully');
+      setEditingUser(null);
+      fetchUsers();
+    } else {
+      toast('error', response.error || 'Failed to update user');
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Are you sure you want to delete this user?')) return;
 
@@ -1129,6 +1159,44 @@ TOTAL:               ₹620
                   </div>
                 )}
 
+                {/* Edit User Form */}
+                {editingUser && (
+                  <div className="mb-6 p-4 rounded-lg bg-background-secondary border border-accent/50 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-medium">Edit User</h3>
+                      <button onClick={() => setEditingUser(null)} className="text-text-muted hover:text-white">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="Full Name"
+                        value={editUserForm.name}
+                        onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                      />
+                      <Input
+                        label="Email"
+                        type="email"
+                        value={editUserForm.email}
+                        onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                      />
+                    </div>
+                    <Select
+                      label="Role"
+                      value={editUserForm.role}
+                      onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value as 'waiter' | 'accountant' | 'busser' })}
+                      options={[
+                        { value: 'waiter', label: 'Waiter' },
+                        { value: 'accountant', label: 'Accountant' },
+                        { value: 'busser', label: 'Busser' },
+                      ]}
+                    />
+                    <Button onClick={handleUpdateUser} loading={isSubmitting}>
+                      Update User
+                    </Button>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   {(users || []).filter(u => u.id !== user?.id).map((u) => (
                     <div key={u.id} className="flex items-center justify-between p-4 rounded-lg bg-background-secondary border border-white/10">
@@ -1152,6 +1220,13 @@ TOTAL:               ₹620
                         {u.mustResetPassword && (
                           <span className="badge-warning badge">Reset Required</span>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditUser(u)}
+                        >
+                          Edit
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -2339,26 +2414,27 @@ TOTAL:               ₹620
                 {/* Available */}
                 <div className="p-4 rounded-lg border border-white/10">
                   <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.available.color}`} />
+                    <div className="w-8 h-8 rounded-full" style={{ backgroundColor: tableStatusForm.available?.bg || '#22c55e' }} />
                     <div className="flex-1">
                       <h3 className="font-medium mb-2">Available</h3>
                       <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.available.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-success">Green</option>
-                          <option value="bg-green-400">Light Green</option>
-                          <option value="bg-emerald-500">Emerald</option>
-                          <option value="bg-teal-500">Teal</option>
-                          <option value="bg-blue-500">Blue</option>
-                          <option value="bg-cyan-500">Cyan</option>
-                          <option value="bg-yellow-500">Yellow</option>
-                        </select>
+                        <div className="flex-1 flex gap-2">
+                          <input
+                            type="color"
+                            value={tableStatusForm.available?.bg || '#22c55e'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, bg: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="color"
+                            value={tableStatusForm.available?.border || '#16a34a'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, border: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                        </div>
                         <input
                           type="text"
-                          value={tableStatusForm.available.label}
+                          value={tableStatusForm.available?.label || 'Available'}
                           onChange={(e) => setTableStatusForm({...tableStatusForm, available: {...tableStatusForm.available, label: e.target.value}})}
                           placeholder="Label"
                           className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
@@ -2368,29 +2444,31 @@ TOTAL:               ₹620
                   </div>
                 </div>
 
-                {/* Active - KOT */}
+                {/* Active KOT */}
                 <div className="p-4 rounded-lg border border-white/10">
                   <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.active.color}`} />
+                    <div className="w-8 h-8 rounded-full" style={{ backgroundColor: tableStatusForm.active_kot?.bg || '#f97316' }} />
                     <div className="flex-1">
-                      <h3 className="font-medium mb-2">Active - KOT</h3>
+                      <h3 className="font-medium mb-2">Active KOT</h3>
                       <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.active.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, active: {...tableStatusForm.active, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-accent">Accent (Default)</option>
-                          <option value="bg-blue-500">Blue</option>
-                          <option value="bg-indigo-500">Indigo</option>
-                          <option value="bg-violet-500">Violet</option>
-                          <option value="bg-purple-500">Purple</option>
-                          <option value="bg-pink-500">Pink</option>
-                        </select>
+                        <div className="flex-1 flex gap-2">
+                          <input
+                            type="color"
+                            value={tableStatusForm.active_kot?.bg || '#f97316'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, active_kot: {...tableStatusForm.active_kot, bg: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="color"
+                            value={tableStatusForm.active_kot?.border || '#ea580c'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, active_kot: {...tableStatusForm.active_kot, border: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                        </div>
                         <input
                           type="text"
-                          value={tableStatusForm.active.label}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, active: {...tableStatusForm.active, label: e.target.value}})}
+                          value={tableStatusForm.active_kot?.label || 'KOT - In Progress'}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, active_kot: {...tableStatusForm.active_kot, label: e.target.value}})}
                           placeholder="Label"
                           className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
                         />
@@ -2399,29 +2477,31 @@ TOTAL:               ₹620
                   </div>
                 </div>
 
-                {/* Occupied - Billing */}
+                {/* Pending Billing */}
                 <div className="p-4 rounded-lg border border-white/10">
                   <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.occupied.color}`} />
+                    <div className="w-8 h-8 rounded-full" style={{ backgroundColor: tableStatusForm.pending_billing?.bg || '#ef4444' }} />
                     <div className="flex-1">
-                      <h3 className="font-medium mb-2">Occupied - Billing</h3>
+                      <h3 className="font-medium mb-2">Pending Billing</h3>
                       <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.occupied.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, occupied: {...tableStatusForm.occupied, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-red-500">Red (Default)</option>
-                          <option value="bg-orange-500">Orange</option>
-                          <option value="bg-amber-500">Amber</option>
-                          <option value="bg-rose-500">Rose</option>
-                          <option value="bg-red-600">Dark Red</option>
-                          <option value="bg-yellow-500">Yellow</option>
-                        </select>
+                        <div className="flex-1 flex gap-2">
+                          <input
+                            type="color"
+                            value={tableStatusForm.pending_billing?.bg || '#ef4444'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, pending_billing: {...tableStatusForm.pending_billing, bg: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="color"
+                            value={tableStatusForm.pending_billing?.border || '#dc2626'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, pending_billing: {...tableStatusForm.pending_billing, border: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                        </div>
                         <input
                           type="text"
-                          value={tableStatusForm.occupied.label}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, occupied: {...tableStatusForm.occupied, label: e.target.value}})}
+                          value={tableStatusForm.pending_billing?.label || 'Pending Billing'}
+                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_billing: {...tableStatusForm.pending_billing, label: e.target.value}})}
                           placeholder="Label"
                           className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
                         />
@@ -2430,87 +2510,31 @@ TOTAL:               ₹620
                   </div>
                 </div>
 
-                {/* Billed */}
+                {/* Pending Cleaning */}
                 <div className="p-4 rounded-lg border border-white/10">
                   <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.billed.color}`} />
+                    <div className="w-8 h-8 rounded-full" style={{ backgroundColor: tableStatusForm.pending_cleaning?.bg || '#6b7280' }} />
                     <div className="flex-1">
-                      <h3 className="font-medium mb-2">Billed</h3>
+                      <h3 className="font-medium mb-2">Pending Cleaning</h3>
                       <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.billed.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, billed: {...tableStatusForm.billed, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-blue-500">Blue (Default)</option>
-                          <option value="bg-indigo-500">Indigo</option>
-                          <option value="bg-violet-500">Violet</option>
-                          <option value="bg-purple-500">Purple</option>
-                          <option value="bg-cyan-500">Cyan</option>
-                        </select>
+                        <div className="flex-1 flex gap-2">
+                          <input
+                            type="color"
+                            value={tableStatusForm.pending_cleaning?.bg || '#6b7280'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, bg: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                          <input
+                            type="color"
+                            value={tableStatusForm.pending_cleaning?.border || '#4b5563'}
+                            onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, border: e.target.value}})}
+                            className="w-10 h-10 rounded cursor-pointer"
+                          />
+                        </div>
                         <input
                           type="text"
-                          value={tableStatusForm.billed.label}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, billed: {...tableStatusForm.billed, label: e.target.value}})}
-                          placeholder="Label"
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cleaning - Pending */}
-                <div className="p-4 rounded-lg border border-white/10">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.pending_cleaning.color}`} />
-                    <div className="flex-1">
-                      <h3 className="font-medium mb-2">Cleaning - Pending</h3>
-                      <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.pending_cleaning.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-gray-500">Grey (Default)</option>
-                          <option value="bg-slate-500">Slate</option>
-                          <option value="bg-zinc-500">Zinc</option>
-                          <option value="bg-neutral-500">Neutral</option>
-                          <option value="bg-stone-500">Stone</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={tableStatusForm.pending_cleaning.label}
+                          value={tableStatusForm.pending_cleaning?.label || 'Pending Cleaning'}
                           onChange={(e) => setTableStatusForm({...tableStatusForm, pending_cleaning: {...tableStatusForm.pending_cleaning, label: e.target.value}})}
-                          placeholder="Label"
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Pending Print */}
-                <div className="p-4 rounded-lg border border-white/10">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-8 h-8 rounded-full ${tableStatusForm.pending_printing.color}`} />
-                    <div className="flex-1">
-                      <h3 className="font-medium mb-2">Pending Print</h3>
-                      <div className="flex gap-4">
-                        <select
-                          value={tableStatusForm.pending_printing.color}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_printing: {...tableStatusForm.pending_printing, color: e.target.value}})}
-                          className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
-                        >
-                          <option value="bg-orange-500">Orange (Default)</option>
-                          <option value="bg-amber-500">Amber</option>
-                          <option value="bg-yellow-500">Yellow</option>
-                          <option value="bg-lime-500">Lime</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={tableStatusForm.pending_printing.label}
-                          onChange={(e) => setTableStatusForm({...tableStatusForm, pending_printing: {...tableStatusForm.pending_printing, label: e.target.value}})}
                           placeholder="Label"
                           className="flex-1 px-3 py-2 rounded-lg bg-background-secondary border border-white/10 text-sm"
                         />

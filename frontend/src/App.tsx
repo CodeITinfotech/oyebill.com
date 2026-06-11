@@ -22,6 +22,7 @@ import { NotFoundPage } from './pages/error/ErrorPage';
 import NFCOrdering from './pages/nfc/NFCOrdering';
 import { OnlineCatalogPage } from './pages/online-catalog/OnlineCatalogPage';
 import { CustomerBillView } from './pages/public/CustomerBillView';
+import DatabaseBrowser from './pages/database/DatabaseBrowser';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
@@ -267,6 +268,15 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/database"
+          element={
+            <ProtectedRoute>
+              <DatabaseBrowser />
+            </ProtectedRoute>
+          }
+        />
+        
 
         {/* NFC/QR Customer Ordering - Public Route */}
         <Route

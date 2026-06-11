@@ -8,6 +8,7 @@ interface Toast {
   id: string;
   type: ToastType;
   message: string;
+  exiting?: boolean;
 }
 
 // Use a stable singleton pattern
@@ -27,9 +28,13 @@ export function ToastContainer() {
   useEffect(() => {
     const listener = (t: Toast) => {
       setToasts((prev) => [...prev, t]);
+      // Auto-dismiss after 2 seconds with slide-out animation
       setTimeout(() => {
-        setToasts((prev) => prev.filter((x) => x.id !== t.id));
-      }, 5000);
+        setToasts((prev) => prev.map(x => x.id === t.id ? { ...x, exiting: true } : x));
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((x) => x.id !== t.id));
+        }, 300); // Slide-out animation duration
+      }, 2000); // Display duration
     };
     listeners.add(listener);
     return () => {
@@ -59,14 +64,20 @@ export function ToastContainer() {
           <div
             key={t.id}
             className={clsx(
-              'flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-sm animate-slide-in min-w-[300px]',
-              colors[t.type]
+              'flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-sm min-w-[300px] transition-all duration-300',
+              colors[t.type],
+              t.exiting ? 'animate-slide-out' : 'animate-slide-in'
             )}
           >
             <Icon className="w-5 h-5 shrink-0" />
             <span className="flex-1 text-sm">{t.message}</span>
             <button
-              onClick={() => setToasts((prev) => prev.filter((to) => to.id !== t.id))}
+              onClick={() => {
+                setToasts((prev) => prev.map(x => x.id === t.id ? { ...x, exiting: true } : x));
+                setTimeout(() => {
+                  setToasts((prev) => prev.filter((to) => to.id !== t.id));
+                }, 300);
+              }}
               className="p-1 hover:bg-white/10 rounded"
             >
               <X className="w-4 h-4" />

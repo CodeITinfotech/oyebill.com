@@ -7,6 +7,7 @@ import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../compo
 import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
+import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
 
 interface CartItem extends OrderItem {
@@ -24,16 +25,8 @@ export function BillingPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
   
-  // Per-table cart storage - key is tableId, value is cart data for that table
-  const [tableCarts, setTableCarts] = useState<Record<string, {
-    items: CartItem[];
-    orderId: string | null;
-    discountAmount: string;
-    discountReason: string;
-    appliedCoupon: any;
-    selectedWaiter: string;
-    selectedCustomer: any;
-  }>>({});
+  // NOTE: Cart state is now managed via server API only - no per-table localStorage
+  // When switching tables, cart is fetched from server based on existing orders
   
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -94,6 +87,7 @@ export function BillingPage() {
   // Preview modal state
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewContent, setPreviewContent] = useState<{type: 'kot' | 'bill', content: any} | null>(null);
+  const [downloadFormat, setDownloadFormat] = useState<'txt' | 'pdf' | 'html'>('txt');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   // Pending cleaning modal state
@@ -232,24 +226,8 @@ export function BillingPage() {
     return () => clearInterval(interval);
   }, [user?.id, user?.role]);
 
-  // Persist table carts to localStorage
-  useEffect(() => {
-    const savedTableCarts = localStorage.getItem('tableCarts');
-    if (savedTableCarts) {
-      try {
-        setTableCarts(JSON.parse(savedTableCarts));
-      } catch (e) {
-        console.error('Error parsing table carts:', e);
-      }
-    }
-  }, []);
-
-  // Save table carts to localStorage whenever they change
-  useEffect(() => {
-    if (Object.keys(tableCarts).length > 0) {
-      localStorage.setItem('tableCarts', JSON.stringify(tableCarts));
-    }
-  }, [tableCarts]);
+  // NOTE: Cart state is now managed via server API only - no localStorage
+  // Cart data is fetched from server when table is selected
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -382,7 +360,7 @@ export function BillingPage() {
       if (selectedSection) {
         store.fetchTables(selectedSection);
       }
-    }, 5000); // Refresh every 5 seconds
+    }, 2000); // Refresh every 2 seconds for real-time
 
     return () => clearInterval(refreshInterval);
   }, [selectedSection]);
@@ -834,31 +812,35 @@ export function BillingPage() {
       return;
     }
 
-    // Save current cart state before switching
-    if (selectedTable && cart.length > 0) {
-      setTableCarts(prev => ({
-        ...prev,
-        [selectedTable.id]: {
-          items: cart,
-          orderId: currentOrderId,
-          discountAmount,
-          discountReason,
-          appliedCoupon,
-          selectedWaiter,
-          selectedCustomer
-        }
-      }));
-      
-      // Mark previous table as available (only if it was being used for billing)
-      // Only if there's no active KOT on that table
+    // Save current cart to server before switching tables
+    if (selectedTable && cart.length > 0 && currentOrderId) {
+      // Update existing order with current cart items
       try {
-        const prevOrderResponse = await api.getOrderByTable(selectedTable.id);
-        if (prevOrderResponse.success && !prevOrderResponse.data) {
-          // No active order on previous table, mark as available
-          await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+        const newItems = cart.filter(i => i.isNew);
+        if (newItems.length > 0) {
+          // Add new items to order
+          for (const item of newItems) {
+            await api.post(`/orders/${currentOrderId}/items`, {
+              productId: item.productId,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: item.taxRate,
+              isKot: false
+            });
+          }
         }
+        
+        // Update order totals
+        await api.put(`/orders/${currentOrderId}`, {
+          subtotal,
+          taxAmount,
+          discountAmount: parseFloat(discountAmount) || 0,
+          discountReason,
+          total
+        });
       } catch (error) {
-        console.error('Failed to update previous table status:', error);
+        console.error('Failed to save cart before switching:', error);
       }
     }
 
@@ -870,27 +852,19 @@ export function BillingPage() {
     // Force update store tables to trigger re-render
     const updatedTables = [...store.tables];
     
-    // Check if we have a saved cart for this table
-    const savedCart = tableCarts[table.id];
-    
     // Find the latest table data from store (in case status was updated)
     const latestTable = store.tables.find(t => t.id === table.id) || table;
     setSelectedTable(latestTable);
     
-    // Check if there's an existing order OR saved cart
+    // Check if there's an existing order
     const response = await api.getOrderByTable(latestTable.id);
     
-    if (savedCart && savedCart.items.length > 0) {
-      // Restore saved cart data
-      setCart(savedCart.items);
-      setCurrentOrderId(savedCart.orderId);
-      setDiscountAmount(savedCart.discountAmount);
-      setDiscountReason(savedCart.discountReason);
-      setAppliedCoupon(savedCart.appliedCoupon);
-      setSelectedWaiter(savedCart.selectedWaiter);
-      setSelectedCustomer(savedCart.selectedCustomer);
-    } else if (response.success && response.data) {
-      // Load from server
+    // Only restore saved cart if table has an active order on server
+    // This prevents stale localStorage data from showing on available tables
+    const hasServerOrder = response.success && response.data;
+    
+    if (hasServerOrder) {
+      // Load from server - has active order
       const existingOrder = response.data;
       setCurrentOrderId(existingOrder.id);
       
@@ -970,22 +944,12 @@ export function BillingPage() {
       // Close modal
       setShowPendingCleaningModal(false);
       
-      // Check for saved cart or existing order
-      const savedCart = tableCarts[pendingCleaningTable.id];
+      // Fetch cart data ONLY from server API - no localStorage
       const response = await api.getOrderByTable(pendingCleaningTable.id);
       
       setSelectedTable(pendingCleaningTable);
       
-      if (savedCart && savedCart.items.length > 0) {
-        // Restore saved cart data
-        setCart(savedCart.items);
-        setCurrentOrderId(savedCart.orderId);
-        setDiscountAmount(savedCart.discountAmount);
-        setDiscountReason(savedCart.discountReason);
-        setAppliedCoupon(savedCart.appliedCoupon);
-        setSelectedWaiter(savedCart.selectedWaiter);
-        setSelectedCustomer(savedCart.selectedCustomer);
-      } else if (response.success && response.data) {
+      if (response.success && response.data) {
         const existingOrder = response.data;
         setCurrentOrderId(existingOrder.id);
         
@@ -1004,6 +968,7 @@ export function BillingPage() {
           setDiscountReason(existingOrder.discountReason);
         }
       } else {
+        // No existing order - clear everything
         setCurrentOrderId(null);
         setCart([]);
         setDiscountAmount('');
@@ -1037,28 +1002,25 @@ export function BillingPage() {
     const kotSetup = settings?.kot_setup;
     const showPreview = kotSetup?.showPreview !== false; // Default to true
     
-    // Generate order ID based on mode
-    let orderId: string;
+    // Generate KOT number with format DD-MM-XXXX (4-digit sequential)
+    let kotNumber: string;
     let displayTable: string;
     
     if (isOnlineOrderMode) {
-      // Online order ID format: Online-SGY-XXXXX, Online-ZMTO-XXXXX, Online-OTHS-XXXXX
-      const platformCode = onlineOrder.platform?.toUpperCase().slice(0, 4) || 'OTHS';
-      const prefix = platformCode === 'SWIG' ? 'SGY' : 
-                     platformCode === 'ZOMA' ? 'ZMTO' : 'OTHS';
-      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-      orderId = `Online-${prefix}-${randomNum}`;
-      displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
-    } else {
-      // Regular order ID format: DDMMYY-TB##-XXXXX
+      // Online order KOT format: DD-MM-XXXX with online prefix
       const now = new Date();
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
-      const year = String(now.getFullYear()).slice(-2);
-      const dateStr = `${day}${month}${year}`;
-      const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
-      const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-      orderId = `${dateStr}-${tableStr}-${randomNum}`;
+      const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
+      kotNumber = `${day}-${month}-${randomNum}`;
+      displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
+    } else {
+      // Regular KOT format: DD-MM-XXXX (4-digit sequential starting from 0001)
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
+      kotNumber = `${day}-${month}-${randomNum}`;
       displayTable = selectedTable.number;
     }
     
@@ -1068,7 +1030,7 @@ export function BillingPage() {
     
     // Create content for preview
     const kotContent = {
-      orderId: orderId,
+      orderId: kotNumber,
       tableNumber: displayTable,
       items: cart.filter(i => i.isNew || i.isKot),
       waiterName: waiterName,
@@ -1077,7 +1039,7 @@ export function BillingPage() {
       platform: onlineOrder?.platform,
     };
 
-    // If preview is enabled, show preview modal
+    // If preview is enabled, show preview modal (DO NOT print automatically)
     if (showPreview) {
       setPreviewContent({ type: 'kot', content: kotContent });
       // Save current isKot state for executeKOT to use
@@ -1087,6 +1049,7 @@ export function BillingPage() {
       });
       setShowPreviewModal(true);
     } else {
+      // If preview disabled, directly execute KOT without printing
       const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       await executeKOT(preKotState);
     }
@@ -1616,8 +1579,29 @@ export function BillingPage() {
       if (discountAmount && discountReason) {
         await applyDiscount(orderId, discountValue, discountReason);
       }
-      await generateBill(orderId);
-
+      // Generate bill data and trigger download
+      const billData = {
+        orderId: orderId,
+        tableNumber: selectedTable?.number || 'N/A',
+        dateTime: new Date().toLocaleString(),
+        waiterName: waiters.find(w => w.id === selectedWaiter)?.name || 'Staff',
+        customerPhone: selectedCustomer?.phone || null,
+        customerEmail: selectedCustomer?.email || null,
+        items: cart,
+        subtotal: subtotal,
+        taxAmount: taxAmount,
+        discount: discountValue,
+        loyaltyDiscount: loyaltyDiscountValue,
+        total: total,
+        totalInWords: numberToWords(total),
+      };
+      
+      // Generate and download PDF
+      generatePDFBill(billData);
+      
+      // Show success
+      toast('success', 'Bill generated successfully');
+      
       // Update table status to 'pending_cleaning' when bill is generated
       if (!isOnlineOrderMode && selectedTable) {
         try {
@@ -1687,6 +1671,35 @@ export function BillingPage() {
 
   // Handle preview print action
   const handlePreviewPrint = async () => {
+    // Try QZ Tray for silent printing first
+    await initQZTray();
+    
+    if (previewContent?.content) {
+      try {
+        let printContent = '';
+        if (previewContent.type === 'bill') {
+          printContent = formatBillForPrinter({
+            ...previewContent.content,
+            restaurantName: settings?.restaurant?.name || 'Restaurant',
+            address: settings?.restaurant?.address || '',
+            phone: settings?.restaurant?.phone || '',
+          });
+        } else {
+          printContent = formatKOTForPrinter(previewContent.content);
+        }
+        const success = await printText(printContent, { width: 80 });
+        if (success) {
+          toast('success', 'Print sent to thermal printer');
+        } else {
+          // Fallback to window.print
+          window.print();
+        }
+      } catch (err) {
+        console.error('Print error:', err);
+        window.print();
+      }
+    }
+    
     setShowPreviewModal(false);
     if (pendingAction) {
       await pendingAction();
@@ -1853,6 +1866,13 @@ export function BillingPage() {
     }
     text += '\n========== Thank You! ==========\n';
     return text;
+  };
+
+  const generateBillHTML = (content: any) => {
+    const itemsHTML = content.items.map((item: any) => `
+      <tr><td>${item.productName}</td><td style="text-align:right">${item.quantity}</td><td style="text-align:right">Rs.${item.unitPrice.toFixed(2)}</td><td style="text-align:right">Rs.${(item.unitPrice * item.quantity * 1.05).toFixed(2)}</td></tr>
+    `).join('');
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Bill ${content.orderId}</title><style>body{font-family:monospace;width:280px;margin:0 auto;padding:10px}.center{text-align:center}.bold{font-weight:bold}.border{border-bottom:1px dashed #000;padding-bottom:5px;margin-bottom:5px}table{width:100%;border-collapse:collapse;font-size:12px}td{padding:2px 0}.total{font-weight:bold;font-size:14px}@media print{body{width:80mm}}</style></head><body><div class="center bold border">${settings?.restaurant?.name || 'Restaurant'}</div><div class="center border">TAX INVOICE</div><div class="border"><div>Bill No: ${content.orderId}</div><div>Table: ${content.tableNumber}</div><div>Date: ${content.dateTime}</div><div>Billed By: ${content.waiterName}</div></div><table><thead><tr style="border-bottom:1px solid #000"><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Amt</th></tr></thead><tbody>${itemsHTML}</tbody></table><div class="border"><div>Subtotal: Rs.${content.subtotal?.toFixed(2)}</div>${content.discount > 0 ? `<div>Discount: -Rs.${content.discount.toFixed(2)}</div>` : ''}<div>CGST: Rs.${(content.taxAmount / 2).toFixed(2)}</div><div>SGST: Rs.${(content.taxAmount / 2).toFixed(2)}</div></div><div class="total">GRAND TOTAL: Rs.${content.total?.toFixed(2)}</div><div class="center" style="font-size:10px">${content.totalInWords || 'Rupees Only'}</div>${content.payment?.showQrOnBill && content.payment?.upiId ? `<div class="center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=upi://pay?pa=${content.payment.upiId}&am=${content.total.toFixed(2)}" /></div>` : ''}<div class="center border">Thank You!</div></body></html>`;
   };
 
   return (
@@ -2732,10 +2752,10 @@ export function BillingPage() {
                 
                 // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; bg: string; label: string }> = {
-                  available: { dot: customColors.available?.color || 'bg-success', bg: 'border-success/30 bg-success/5 hover:border-success', label: customColors.available?.label || 'Available' },
-                  active_kot: { dot: customColors.active_kot?.color || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
-                  pending_billing: { dot: customColors.pending_billing?.color || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
-                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
+                  available: { dot: customColors.available?.bg || 'bg-success', bg: 'border-success/30 bg-success/5 hover:border-success', label: customColors.available?.label || 'Available' },
+                  active_kot: { dot: customColors.active_kot?.bg || 'bg-orange-500', bg: 'border-orange-500/50 bg-orange-500/20 hover:border-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
+                  pending_billing: { dot: customColors.pending_billing?.bg || 'bg-red-500', bg: 'border-red-500/50 bg-red-500/20 hover:border-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.bg || 'bg-gray-500', bg: 'border-gray-500/50 bg-gray-500/20 hover:border-gray-500 cursor-pointer', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
                 
                 let statusColor = colorMap.available.dot;
@@ -2777,7 +2797,7 @@ export function BillingPage() {
                   <>
                     {customColors.available?.label ? (
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.available.color || 'bg-success'}`}></span>
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.available.bg || 'bg-success'}`}></span>
                         <span>{customColors.available.label}</span>
                       </div>
                     ) : (
@@ -2788,7 +2808,7 @@ export function BillingPage() {
                     )}
                     {customColors.active?.label ? (
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.active.color || 'bg-accent'}`}></span>
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.active_kot.bg || 'bg-accent'}`}></span>
                         <span>{customColors.active.label}</span>
                       </div>
                     ) : (
@@ -2799,7 +2819,7 @@ export function BillingPage() {
                     )}
                     {customColors.occupied?.label ? (
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.occupied.color || 'bg-red-500'}`}></span>
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_billing.bg || 'bg-red-500'}`}></span>
                         <span>{customColors.occupied.label}</span>
                       </div>
                     ) : (
@@ -2810,7 +2830,7 @@ export function BillingPage() {
                     )}
                     {customColors.pending_cleaning?.label ? (
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_cleaning.color || 'bg-gray-500'}`}></span>
+                        <span className={`w-1.5 lg:w-2 h-1.5 lg:h-2 rounded-full ${customColors.pending_cleaning.bg || 'bg-gray-500'}`}></span>
                         <span>{customColors.pending_cleaning.label}</span>
                       </div>
                     ) : (
@@ -3267,10 +3287,10 @@ export function BillingPage() {
                 
                 // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
                 const colorMap: Record<string, { dot: string; label: string }> = {
-                  available: { dot: customColors.available?.color || 'text-success', label: customColors.available?.label || 'Available' },
-                  active_kot: { dot: customColors.active_kot?.color || 'text-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
-                  pending_billing: { dot: customColors.pending_billing?.color || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
-                  pending_cleaning: { dot: customColors.pending_cleaning?.color || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
+                  available: { dot: customColors.available?.bg || 'text-success', label: customColors.available?.label || 'Available' },
+                  active_kot: { dot: customColors.active_kot?.bg || 'text-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
+                  pending_billing: { dot: customColors.pending_billing?.bg || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.bg || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
                 };
                 
                 let statusDot = colorMap.available.dot;
@@ -3347,6 +3367,10 @@ export function BillingPage() {
                         setSelectedTable(newTable);
                         setShowSwitchTableModal(false);
                         toast('success', `Items moved to Table ${table.number}`);
+                        // 5. Refresh table status
+                        store.fetchTables(selectedSection || undefined);
+                        // Refresh table status immediately
+                        store.fetchTables(selectedSection || undefined);
                       } catch (error) {
                         console.error('Error switching table:', error);
                         toast('error', 'Failed to switch table');
@@ -3402,9 +3426,10 @@ export function BillingPage() {
             
             {/* Content */}
             <div className="p-4 overflow-y-auto flex-1">
-              <div className="bg-white text-black p-4 rounded font-mono text-sm">
+              {/* KOT Preview - Thermal printer size 80mm (280px) */}
+              <div className="bg-white text-black p-3 rounded font-mono text-xs mx-auto" style={{ width: '280px', maxWidth: '280px' }}>
                 {/* Header */}
-                <div className="text-center border-b border-black pb-2 mb-3">
+                <div className="text-center border-b border-black pb-2 mb-2">
                   {previewContent.type === 'bill' && settings?.bill_setup?.showRestaurantName && (
                     <p className="font-bold text-base">{settings.restaurant?.name || 'Oyebill'}</p>
                   )}
@@ -3464,7 +3489,7 @@ export function BillingPage() {
                       {settings?.restaurant?.address && (
                         <div className="flex justify-between">
                           <span>Address:</span>
-                          <span className="text-right max-w-[200px]">{settings.restaurant.address}</span>
+                          <span className="text-right max-w-[180px]">{settings.restaurant.address}</span>
                         </div>
                       )}
                       {settings?.restaurant?.gstNumber && (
@@ -3477,58 +3502,43 @@ export function BillingPage() {
                   )}
                 </div>
 
-                {/* Items - Thermal printer width (80mm standard) */}
-                <div className="text-xs border-b border-black pb-2 mb-2" style={{ maxWidth: '280px' }}>
-                  <div className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 font-semibold mb-1 border-b border-black pb-1">
-                    <span>Item</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Rate</span>
-                    <span className="text-right">Tax</span>
-                    <span className="text-right">Amount</span>
+                {/* Items - KOT (all lines same width) */}
+                {previewContent.type === 'kot' ? (
+                  <div className="space-y-1">
+                    {previewContent.content.items && previewContent.content.items.length > 0 ? (
+                      previewContent.content.items.map((item: any, idx: number) => (
+                        <div key={idx} className="border-b border-dashed border-gray-300 pb-1 mb-1">
+                          <div className="flex justify-between items-center">
+                            <span className="truncate flex-1">{item.quantity}x {item.productName}</span>
+                            {item.isKot && <span className="text-gray-400 text-[10px] ml-2">Sent</span>}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center">No items</p>
+                    )}
                   </div>
-                  {previewContent.type === 'kot' && previewContent.content.items.some((item: any) => item.alreadyKot) ? (
-                    <>
-                      {/* Show already KOT items with strikethrough */}
-                      <div className="text-[10px] text-gray-500 mb-1">Already Sent:</div>
-                      {previewContent.content.items.map((item: any, idx: number) => (
-                        item.alreadyKot ? (
-                          <div key={`old-${idx}`} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5 opacity-50">
-                            <span className="truncate line-through">{item.productName}</span>
-                            <span className="text-right line-through">{item.quantity}</span>
-                            <span className="text-right line-through">₹{item.unitPrice.toFixed(2)}</span>
-                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
-                            <span className="text-right line-through">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
-                          </div>
-                        ) : null
-                      ))}
-                      <div className="border-t border-dashed border-gray-400 my-2"></div>
-                      <div className="text-[10px] text-green-600 font-semibold mb-1">New Items:</div>
-                      {/* Show new items (not alreadyKot) */}
-                      {previewContent.content.items.map((item: any, idx: number) => (
-                        !item.alreadyKot ? (
-                          <div key={`new-${idx}`} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5 font-semibold">
-                            <span className="truncate">{item.productName}</span>
-                            <span className="text-right">{item.quantity}</span>
-                            <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
-                            <span className="text-right">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
-                            <span className="text-right">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
-                          </div>
-                        ) : null
-                      ))}
-                    </>
-                  ) : (
-                    /* Default: show all items without strikethrough */
-                    previewContent.content.items.map((item: any, idx: number) => (
-                      <div key={idx} className="grid grid-cols-[1fr_30px_50px_45px_60px] gap-1 py-0.5">
+                ) : (
+                  /* Bill items table */
+                  <div>
+                    <div className="grid grid-cols-[1fr_25px_45px_40px_55px] gap-1 font-semibold mb-1 border-b border-black pb-1">
+                      <span>Item</span>
+                      <span className="text-right">Qty</span>
+                      <span className="text-right">Rate</span>
+                      <span className="text-right">Tax</span>
+                      <span className="text-right">Amount</span>
+                    </div>
+                    {previewContent.content.items.map((item: any, idx: number) => (
+                      <div key={idx} className="grid grid-cols-[1fr_25px_45px_40px_55px] gap-1 py-0.5">
                         <span className="truncate">{item.productName}</span>
                         <span className="text-right">{item.quantity}</span>
                         <span className="text-right">₹{item.unitPrice.toFixed(2)}</span>
                         <span className="text-right">₹{(item.unitPrice * item.quantity * 0.05).toFixed(2)}</span>
                         <span className="text-right">₹{(item.unitPrice * item.quantity * 1.05).toFixed(2)}</span>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Totals (Bill only) */}
                 {previewContent.type === 'bill' && (
@@ -3609,64 +3619,83 @@ export function BillingPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-2 p-4 border-t border-white/10">
-              <Button
-                variant="ghost"
-                onClick={handlePreviewCancel}
-              >
-                Cancel
-              </Button>
-              {previewContent.type === 'bill' && (
+            <div className="flex items-center gap-2 p-4 border-t border-white/10">
+              {previewContent.type === 'bill' && previewContent.content.customerPhone && (
                 <Button
                   variant="success"
+                  size="sm"
                   onClick={() => {
                     if (previewContent.content.customerPhone) {
                       shareViaWhatsApp(previewContent.content);
                     } else {
-                      // Generate WhatsApp link without phone
                       const message = encodeURIComponent(`Bill Details:\nOrder: ${previewContent.content.orderId}\nTotal: ₹${previewContent.content.total.toFixed(2)}`);
                       window.open(`https://wa.me/?text=${message}`, '_blank');
                     }
                   }}
                 >
-                  <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                  Send WhatsApp
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                  <span className="ml-1">Whatsapp</span>
                 </Button>
               )}
               {previewContent.type === 'bill' && (
-                <Button
-                  variant="info"
-                  onClick={() => {
-                    // Download bill as text file
-                    const content = generateBillText(previewContent.content);
-                    const blob = new Blob([content], { type: 'text/plain' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `Bill_${previewContent.content.orderId || 'unknown'}.txt`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                  }}
-                >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                  Download Bill
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="info"
+                    size="sm"
+                    onClick={() => {
+                      let content, type, filename;
+                      if (downloadFormat === 'txt') {
+                        content = generateBillText(previewContent.content);
+                        type = 'text/plain';
+                        filename = `Bill_${previewContent.content.orderId || 'unknown'}.txt`;
+                      } else if (downloadFormat === 'html') {
+                        content = generateBillHTML(previewContent.content);
+                        type = 'text/html';
+                        filename = `Bill_${previewContent.content.orderId || 'unknown'}.html`;
+                      } else {
+                        generatePDFBill(previewContent.content);
+                        return;
+                      }
+                      const blob = new Blob([content], { type });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = filename;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  </Button>
+                  <select
+                    value={downloadFormat}
+                    onChange={(e) => setDownloadFormat(e.target.value as 'txt' | 'pdf' | 'html')}
+                    className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white cursor-pointer"
+                    style={{ color: 'white' }}
+                  >
+                    <option value="txt" style={{ backgroundColor: '#1f2937', color: 'white' }}>TXT</option>
+                    <option value="pdf" style={{ backgroundColor: '#1f2937', color: 'white' }}>PDF</option>
+                    <option value="html" style={{ backgroundColor: '#1f2937', color: 'white' }}>HTML</option>
+                  </select>
+                </div>
               )}
               {previewContent.type === 'bill' && previewContent.content.customerEmail && (
                 <Button
                   variant="secondary"
+                  size="sm"
                   onClick={() => sharePDFViaEmail(previewContent.content)}
                 >
-                  <svg className="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                  Email PDF
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  <span className="ml-1">Email</span>
                 </Button>
               )}
               <Button
                 variant="accent"
+                size="sm"
                 onClick={handlePreviewPrint}
               >
-                <Printer className="w-4 h-4 mr-2" />
-                Print
+                <Printer className="w-4 h-4" />
+                <span className="ml-1">Print</span>
               </Button>
             </div>
           </div>

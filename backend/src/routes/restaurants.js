@@ -88,16 +88,21 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req, res) => {
     const { name, address, phone, email, gstNumber, fssaiNumber } = req.body;
     const { db } = req;
 
-    db.prepare(`
+    console.log('Updating restaurant:', req.params.id, { name, address, phone, email, gstNumber, fssaiNumber });
+
+    const stmt = db.prepare(`
       UPDATE restaurants SET
-        name = COALESCE(?, name),
-        address = COALESCE(?, address),
-        phone = COALESCE(?, phone),
-        email = COALESCE(?, email),
-        gst_number = COALESCE(?, gst_number),
-        fssai_number = COALESCE(?, fssai_number)
+        name = ?,
+        address = ?,
+        phone = ?,
+        email = ?,
+        gst_number = ?,
+        fssai_number = ?
       WHERE id = ?
-    `).run(name, address, phone, email, gstNumber, fssaiNumber, req.params.id);
+    `);
+    const result = stmt.run(name, address, phone, email, gstNumber, fssaiNumber, req.params.id);
+
+    console.log('Update result:', result);
 
     const restaurant = db.prepare('SELECT * FROM restaurants WHERE id = ?').get(req.params.id);
     

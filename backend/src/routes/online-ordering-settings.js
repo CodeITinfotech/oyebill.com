@@ -314,4 +314,201 @@ router.get('/stats', authenticateToken, (req, res) => {
   }
 });
 
+// ============ PAYMENT SETTINGS ============
+
+// Get payment settings (admin)
+router.get('/payment-settings', authenticateToken, (req, res) => {
+  try {
+    const restaurantId = req.user.restaurantId;
+    
+    let settings = db.prepare('SELECT * FROM payment_settings WHERE restaurant_id = ?').get(restaurantId);
+    
+    if (!settings) {
+      const id = uuidv4();
+      db.prepare(`
+        INSERT INTO payment_settings (id, restaurant_id)
+        VALUES (?, ?)
+      `).run(id, restaurantId);
+      
+      settings = db.prepare('SELECT * FROM payment_settings WHERE restaurant_id = ?').get(restaurantId);
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        // Pickup settings
+        pickupMinOrderAmount: settings.pickup_min_order_amount,
+        pickupAcceptCash: settings.pickup_accept_cash === 1,
+        pickupAcceptUpi: settings.pickup_accept_upi === 1,
+        pickupAcceptCard: settings.pickup_accept_card === 1,
+        pickupAcceptPaypal: settings.pickup_accept_paypal === 1,
+        // Delivery settings
+        deliveryMinOrderAmount: settings.delivery_min_order_amount,
+        deliveryAcceptCash: settings.delivery_accept_cash === 1,
+        deliveryAcceptUpi: settings.delivery_accept_upi === 1,
+        deliveryAcceptCard: settings.delivery_accept_card === 1,
+        deliveryAcceptPaypal: settings.delivery_accept_paypal === 1,
+        // UPI Settings
+        upiId: settings.upi_id,
+        upiMerchantName: settings.upi_merchant_name,
+        // PhonePe Gateway
+        phonepeMerchantId: settings.phonepe_merchant_id,
+        phonepeMerchantKey: settings.phonepe_merchant_key,
+        phonepeEnvironment: settings.phonepe_environment,
+        phonepeIsEnabled: settings.phonepe_is_enabled === 1,
+        // Stripe Gateway
+        stripeApiKey: settings.stripe_api_key,
+        stripeWebhookSecret: settings.stripe_webhook_secret,
+        stripeEnvironment: settings.stripe_environment,
+        stripeIsEnabled: settings.stripe_is_enabled === 1,
+        // PayPal Gateway
+        paypalClientId: settings.paypal_client_id,
+        paypalClientSecret: settings.paypal_client_secret,
+        paypalEnvironment: settings.paypal_environment,
+        paypalIsEnabled: settings.paypal_is_enabled === 1,
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching payment settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch payment settings' });
+  }
+});
+
+// Update payment settings (admin)
+router.put('/payment-settings', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const restaurantId = req.user.restaurantId;
+    const {
+      pickupMinOrderAmount,
+      pickupAcceptCash,
+      pickupAcceptUpi,
+      pickupAcceptCard,
+      pickupAcceptPaypal,
+      deliveryMinOrderAmount,
+      deliveryAcceptCash,
+      deliveryAcceptUpi,
+      deliveryAcceptCard,
+      deliveryAcceptPaypal,
+      upiId,
+      upiMerchantName,
+      phonepeMerchantId,
+      phonepeMerchantKey,
+      phonepeEnvironment,
+      phonepeIsEnabled,
+      stripeApiKey,
+      stripeWebhookSecret,
+      stripeEnvironment,
+      stripeIsEnabled,
+      paypalClientId,
+      paypalClientSecret,
+      paypalEnvironment,
+      paypalIsEnabled
+    } = req.body;
+    
+    // Check if settings exist
+    let settings = db.prepare('SELECT * FROM payment_settings WHERE restaurant_id = ?').get(restaurantId);
+    
+    if (!settings) {
+      const id = uuidv4();
+      db.prepare(`
+        INSERT INTO payment_settings (id, restaurant_id)
+        VALUES (?, ?)
+      `).run(id, restaurantId);
+      settings = db.prepare('SELECT * FROM payment_settings WHERE restaurant_id = ?').get(restaurantId);
+    }
+    
+    // Update settings
+    db.prepare(`
+      UPDATE payment_settings SET
+        pickup_min_order_amount = COALESCE(?, pickup_min_order_amount),
+        pickup_accept_cash = COALESCE(?, pickup_accept_cash),
+        pickup_accept_upi = COALESCE(?, pickup_accept_upi),
+        pickup_accept_card = COALESCE(?, pickup_accept_card),
+        pickup_accept_paypal = COALESCE(?, pickup_accept_paypal),
+        delivery_min_order_amount = COALESCE(?, delivery_min_order_amount),
+        delivery_accept_cash = COALESCE(?, delivery_accept_cash),
+        delivery_accept_upi = COALESCE(?, delivery_accept_upi),
+        delivery_accept_card = COALESCE(?, delivery_accept_card),
+        delivery_accept_paypal = COALESCE(?, delivery_accept_paypal),
+        upi_id = COALESCE(?, upi_id),
+        upi_merchant_name = COALESCE(?, upi_merchant_name),
+        phonepe_merchant_id = COALESCE(?, phonepe_merchant_id),
+        phonepe_merchant_key = COALESCE(?, phonepe_merchant_key),
+        phonepe_environment = COALESCE(?, phonepe_environment),
+        phonepe_is_enabled = COALESCE(?, phonepe_is_enabled),
+        stripe_api_key = COALESCE(?, stripe_api_key),
+        stripe_webhook_secret = COALESCE(?, stripe_webhook_secret),
+        stripe_environment = COALESCE(?, stripe_environment),
+        stripe_is_enabled = COALESCE(?, stripe_is_enabled),
+        paypal_client_id = COALESCE(?, paypal_client_id),
+        paypal_client_secret = COALESCE(?, paypal_client_secret),
+        paypal_environment = COALESCE(?, paypal_environment),
+        paypal_is_enabled = COALESCE(?, paypal_is_enabled),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE restaurant_id = ?
+    `).run(
+      pickupMinOrderAmount,
+      pickupAcceptCash !== undefined ? (pickupAcceptCash ? 1 : 0) : null,
+      pickupAcceptUpi !== undefined ? (pickupAcceptUpi ? 1 : 0) : null,
+      pickupAcceptCard !== undefined ? (pickupAcceptCard ? 1 : 0) : null,
+      pickupAcceptPaypal !== undefined ? (pickupAcceptPaypal ? 1 : 0) : null,
+      deliveryMinOrderAmount,
+      deliveryAcceptCash !== undefined ? (deliveryAcceptCash ? 1 : 0) : null,
+      deliveryAcceptUpi !== undefined ? (deliveryAcceptUpi ? 1 : 0) : null,
+      deliveryAcceptCard !== undefined ? (deliveryAcceptCard ? 1 : 0) : null,
+      deliveryAcceptPaypal !== undefined ? (deliveryAcceptPaypal ? 1 : 0) : null,
+      upiId,
+      upiMerchantName,
+      phonepeMerchantId,
+      phonepeMerchantKey,
+      phonepeEnvironment,
+      phonepeIsEnabled !== undefined ? (phonepeIsEnabled ? 1 : 0) : null,
+      stripeApiKey,
+      stripeWebhookSecret,
+      stripeEnvironment,
+      stripeIsEnabled !== undefined ? (stripeIsEnabled ? 1 : 0) : null,
+      paypalClientId,
+      paypalClientSecret,
+      paypalEnvironment,
+      paypalIsEnabled !== undefined ? (paypalIsEnabled ? 1 : 0) : null,
+      restaurantId
+    );
+    
+    const updatedSettings = db.prepare('SELECT * FROM payment_settings WHERE restaurant_id = ?').get(restaurantId);
+    
+    res.json({
+      success: true,
+      data: {
+        pickupMinOrderAmount: updatedSettings.pickup_min_order_amount,
+        pickupAcceptCash: updatedSettings.pickup_accept_cash === 1,
+        pickupAcceptUpi: updatedSettings.pickup_accept_upi === 1,
+        pickupAcceptCard: updatedSettings.pickup_accept_card === 1,
+        pickupAcceptPaypal: updatedSettings.pickup_accept_paypal === 1,
+        deliveryMinOrderAmount: updatedSettings.delivery_min_order_amount,
+        deliveryAcceptCash: updatedSettings.delivery_accept_cash === 1,
+        deliveryAcceptUpi: updatedSettings.delivery_accept_upi === 1,
+        deliveryAcceptCard: updatedSettings.delivery_accept_card === 1,
+        deliveryAcceptPaypal: updatedSettings.delivery_accept_paypal === 1,
+        upiId: updatedSettings.upi_id,
+        upiMerchantName: updatedSettings.upi_merchant_name,
+        phonepeMerchantId: updatedSettings.phonepe_merchant_id,
+        phonepeMerchantKey: updatedSettings.phonepe_merchant_key,
+        phonepeEnvironment: updatedSettings.phonepe_environment,
+        phonepeIsEnabled: updatedSettings.phonepe_is_enabled === 1,
+        stripeApiKey: updatedSettings.stripe_api_key,
+        stripeWebhookSecret: updatedSettings.stripe_webhook_secret,
+        stripeEnvironment: updatedSettings.stripe_environment,
+        stripeIsEnabled: updatedSettings.stripe_is_enabled === 1,
+        paypalClientId: updatedSettings.paypal_client_id,
+        paypalClientSecret: updatedSettings.paypal_client_secret,
+        paypalEnvironment: updatedSettings.paypal_environment,
+        paypalIsEnabled: updatedSettings.paypal_is_enabled === 1,
+      }
+    });
+  } catch (error) {
+    console.error('Error updating payment settings:', error);
+    res.status(500).json({ success: false, error: 'Failed to update payment settings' });
+  }
+});
+
 export default router;

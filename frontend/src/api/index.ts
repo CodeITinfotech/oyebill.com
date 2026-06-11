@@ -679,6 +679,18 @@ class ApiClient {
     return this.request<any>('/online-ordering-settings/stats');
   }
 
+  // Payment Settings
+  async getPaymentSettings() {
+    return this.request<any>('/online-ordering-settings/payment-settings');
+  }
+
+  async updatePaymentSettings(data: any) {
+    return this.request<any>('/online-ordering-settings/payment-settings', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Printer Management
   async scanPrinters() {
     return this.request<any>('/printers/scan');

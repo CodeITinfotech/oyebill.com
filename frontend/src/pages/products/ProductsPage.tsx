@@ -14,7 +14,7 @@ const TAX_RATES = [
 ];
 
 export function ProductsPage() {
-  const { products, categories, sections, settings, fetchProducts, fetchCategories, fetchSections, fetchSettings, createProduct, updateProduct, deleteProduct } = useDataStore();
+  const { products, categories, sections, settings, fetchProducts, fetchCategories, fetchSections, fetchSettings, createProduct, updateProduct, deleteProduct, createCategory } = useDataStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterSection, setFilterSection] = useState('');
@@ -22,6 +22,11 @@ export function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  
+  // Quick add category state
+  const [showQuickAddCategory, setShowQuickAddCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -512,17 +517,27 @@ export function ProductsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Category *</label>
-                <select
-                  value={formData.categoryId}
-                  onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {categories.filter(c => c.isActive).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={formData.categoryId}
+                    onChange={(e) => {
+                      if (e.target.value === '__add_new__') {
+                        setShowQuickAddCategory(true);
+                      } else {
+                        setFormData({ ...formData, categoryId: e.target.value });
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent pr-10"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {categories.filter(c => c.isActive).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                    <option value="__add_new__" className="text-accent font-medium">+ Add New Category</option>
+                  </select>
+                  <Plus className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-accent pointer-events-none" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1.5">Description</label>
@@ -638,6 +653,74 @@ export function ProductsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Category Modal */}
+      {showQuickAddCategory && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-background-primary rounded-xl w-full max-w-md border border-white/10">
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+              <h3 className="text-lg font-semibold">Add New Category</h3>
+              <button
+                onClick={() => {
+                  setShowQuickAddCategory(false);
+                  setNewCategoryName('');
+                }}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Category Name *</label>
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Enter category name"
+                  className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickAddCategory(false);
+                    setNewCategoryName('');
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!newCategoryName.trim()) return;
+                    setIsAddingCategory(true);
+                    const newCategory = await createCategory({ name: newCategoryName.trim() });
+                    setIsAddingCategory(false);
+                    if (newCategory && newCategory !== false) {
+                      toast('success', 'Category created successfully');
+                      // Set the newly created category as selected
+                      const categoryId = typeof newCategory === 'object' ? newCategory.id : newCategory;
+                      setFormData({ ...formData, categoryId });
+                      setShowQuickAddCategory(false);
+                      setNewCategoryName('');
+                    } else {
+                      toast('error', 'Failed to create category');
+                    }
+                  }}
+                  disabled={!newCategoryName.trim() || isAddingCategory}
+                  className="flex-1 px-4 py-2.5 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isAddingCategory ? 'Adding...' : 'Add Category'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

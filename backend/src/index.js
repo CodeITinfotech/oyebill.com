@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import http from 'http';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -27,6 +28,7 @@ import onlineOrderingSettingsRoutes from './routes/online-ordering-settings.js';
 import printersRoutes from './routes/printers.js';
 import billPdfRoutes from './routes/bill-pdf.js';
 import billViewRoutes from './routes/bill-view.js';
+import databaseBrowserRoutes from './routes/database-browser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -68,11 +70,32 @@ app.use('/api/online-ordering-settings', onlineOrderingSettingsRoutes);
 app.use('/api/printers', printersRoutes);
 app.use('/api/bill-pdf', billPdfRoutes);
 app.use('/api/bill-view', billViewRoutes);
+app.use('/api/database', databaseBrowserRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Keep-alive: Self-ping every 5 minutes to prevent container from sleeping
+setInterval(() => {
+  const options = {
+    hostname: 'localhost',
+    port: PORT,
+    path: '/api/health',
+    method: 'GET',
+    timeout: 10000
+  };
+  const req = http.request(options, (res) => {
+    console.log('[KEEPALIVE] Self-ping successful:', res.statusCode);
+  });
+  req.on('error', (e) => {
+    console.log('[KEEPALIVE] Self-ping failed:', e.message);
+  });
+  req.end();
+}, 5 * 60 * 1000); // Every 5 minutes
+
+console.log('[KEEPALIVE] Self-ping timer started (every 5 minutes)');
 
 // Error handler
 app.use((err, req, res, next) => {

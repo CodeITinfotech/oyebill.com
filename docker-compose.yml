@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Frontend + API Proxy (nginx)
   frontend:
@@ -9,17 +7,25 @@ services:
     ports:
       - "3000:80"  # HTTP (nginx serves frontend)
       - "5000:5000" # API port
+      - "12000:80"  # External access port 12000 (work-1)
+      - "12001:80"  # External access port 12001 (work-2)
     environment:
       - NODE_ENV=production
+    volumes:
+      # Mount database as a named volume to persist data
+      - oyebill-data:/app/backend/database
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/"]
+      test: ["CMD", "curl", "-f", "http://localhost/", "||", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     networks:
       - oyebill-network
+
+volumes:
+  oyebill-data:
 
 networks:
   oyebill-network:

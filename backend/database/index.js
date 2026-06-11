@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { randomUUID } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -9,45 +10,6 @@ const db = new Database(join(__dirname, 'oyebill.db'));
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
-
-// Migration: Add all missing columns to settings table if they don't exist
-try {
-  const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
-  const existingColumns = tableInfo.map(col => col.name);
-  
-  const columnsToAdd = [
-    'table_status_colors',
-    'skip_lines_before_cut',
-    'tax_name',
-    'is_active',
-    'kot_setup',
-    'bill_setup',
-    'user_rights',
-    'payment'
-  ];
-  
-  for (const col of columnsToAdd) {
-    if (!existingColumns.includes(col)) {
-      const colType = ['kot_setup', 'bill_setup', 'user_rights', 'payment', 'table_status_colors'].includes(col) ? 'TEXT' : 'INTEGER DEFAULT 0';
-      db.exec(`ALTER TABLE settings ADD COLUMN ${col} ${colType}`);
-      console.log(`Added ${col} column to settings table`);
-    }
-  }
-  
-  // Set default table status colors if not set
-  const settings = db.prepare('SELECT table_status_colors FROM settings LIMIT 1').get();
-  if (settings && !settings.table_status_colors) {
-    const defaultColors = JSON.stringify({
-      available: { bg: '#22c55e', border: '#16a34a', label: 'Available' },
-      active_kot: { bg: '#f97316', border: '#ea580c', label: 'Active KOT' },
-      pending_billing: { bg: '#ef4444', border: '#dc2626', label: 'Pending Billing' },
-      pending_cleaning: { bg: '#6b7280', border: '#4b5563', label: 'Pending Cleaning' }
-    });
-    db.prepare('UPDATE settings SET table_status_colors = ?').run(defaultColors);
-  }
-} catch (err) {
-  console.log('Migration note:', err.message);
-}
 
 // Migration: Create performance indexes if they don't exist
 try {
@@ -116,6 +78,7 @@ db.exec(`
     restaurant_id TEXT,
     must_reset_password INTEGER DEFAULT 0,
     is_active INTEGER DEFAULT 1,
+    pin TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
   );
@@ -163,7 +126,7 @@ db.exec(`
     category_id TEXT,
     description TEXT,
     selling_price REAL NOT NULL,
-    mrp REAL DEFAULT 0,
+    mrp REAL DEFAULT 0 CHECK(mrp = ROUND(mrp, 2)),
     tax_rate REAL DEFAULT 0,
     is_active INTEGER DEFAULT 1,
     enable_online INTEGER DEFAULT 0,
@@ -223,8 +186,105 @@ db.exec(`
     kot_printer TEXT,
     bill_printer TEXT,
     print_copies INTEGER DEFAULT 1,
-    table_status_colors TEXT,
+    skip_lines_before_cut INTEGER DEFAULT 3,
+    tax_name TEXT DEFAULT 'GST',
+    is_active INTEGER DEFAULT 1,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- Printer settings table
+  CREATE TABLE IF NOT EXISTS printer_settings (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    printer_name TEXT NOT NULL,
+    printer_type TEXT CHECK(printer_type IN ('kot', 'bill', 'label')) NOT NULL,
+    printer_ip TEXT,
+    printer_port INTEGER DEFAULT 9100,
+    is_default INTEGER DEFAULT 0,
+    paper_width INTEGER DEFAULT 80,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- Tax setup table
+  CREATE TABLE IF NOT EXISTS tax_setup (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    tax_name TEXT NOT NULL,
+    tax_rate REAL NOT NULL,
+    tax_type TEXT CHECK(tax_type IN ('cgst', 'sgst', 'combined', 'igst')) DEFAULT 'combined',
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- Bill setup table
+  CREATE TABLE IF NOT EXISTS bill_setup (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    header_text TEXT,
+    footer_text TEXT,
+    show_logo INTEGER DEFAULT 1,
+    show_qr INTEGER DEFAULT 0,
+    qr_data TEXT,
+    show_tax_breakup INTEGER DEFAULT 1,
+    show_waiter INTEGER DEFAULT 0,
+    show_table INTEGER DEFAULT 1,
+    show_order_no INTEGER DEFAULT 1,
+    paper_size TEXT DEFAULT '80mm',
+    font_size INTEGER DEFAULT 12,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- KOT setup table
+  CREATE TABLE IF NOT EXISTS kot_setup (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    header_text TEXT,
+    footer_text TEXT,
+    show_logo INTEGER DEFAULT 1,
+    show_category INTEGER DEFAULT 1,
+    show_item_notes INTEGER DEFAULT 1,
+    show_modifiers INTEGER DEFAULT 1,
+    paper_size TEXT DEFAULT '80mm',
+    font_size INTEGER DEFAULT 12,
+    auto_print INTEGER DEFAULT 1,
+    print_count INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- User rights table
+  CREATE TABLE IF NOT EXISTS user_rights (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    role TEXT NOT NULL,
+    can_take_orders INTEGER DEFAULT 1,
+    can_print_kot INTEGER DEFAULT 1,
+    can_print_bill INTEGER DEFAULT 1,
+    can_void_order INTEGER DEFAULT 0,
+    can_apply_discount INTEGER DEFAULT 0,
+    can_give_complimentary INTEGER DEFAULT 0,
+    can_view_reports INTEGER DEFAULT 0,
+    can_manage_products INTEGER DEFAULT 0,
+    can_manage_users INTEGER DEFAULT 0,
+    can_manage_settings INTEGER DEFAULT 0,
+    can_refund INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  -- Table status colors table
+  CREATE TABLE IF NOT EXISTS table_status_colors (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT,
+    status_key TEXT NOT NULL,
+    bg TEXT NOT NULL,
+    border TEXT NOT NULL,
+    label TEXT NOT NULL,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
+    UNIQUE(restaurant_id, status_key)
   );
 
   -- Create indexes
@@ -427,6 +487,47 @@ db.exec(`
   );
   
   CREATE INDEX IF NOT EXISTS idx_oos_restaurant ON online_ordering_settings(restaurant_id);
+
+  -- Online Ordering Payment Settings (separate table)
+  CREATE TABLE IF NOT EXISTS payment_settings (
+    id TEXT PRIMARY KEY,
+    restaurant_id TEXT UNIQUE NOT NULL,
+    -- Pickup settings
+    pickup_min_order_amount REAL DEFAULT 0,
+    pickup_accept_cash INTEGER DEFAULT 1,
+    pickup_accept_upi INTEGER DEFAULT 1,
+    pickup_accept_card INTEGER DEFAULT 1,
+    pickup_accept_paypal INTEGER DEFAULT 0,
+    -- Delivery settings
+    delivery_min_order_amount REAL DEFAULT 0,
+    delivery_accept_cash INTEGER DEFAULT 1,
+    delivery_accept_upi INTEGER DEFAULT 1,
+    delivery_accept_card INTEGER DEFAULT 1,
+    delivery_accept_paypal INTEGER DEFAULT 0,
+    -- UPI Settings
+    upi_id TEXT,
+    upi_merchant_name TEXT,
+    -- PhonePe Gateway
+    phonepe_merchant_id TEXT,
+    phonepe_merchant_key TEXT,
+    phonepe_environment TEXT DEFAULT 'sandbox' CHECK(phonepe_environment IN ('sandbox', 'production')),
+    phonepe_is_enabled INTEGER DEFAULT 0,
+    -- Stripe Gateway
+    stripe_api_key TEXT,
+    stripe_webhook_secret TEXT,
+    stripe_environment TEXT DEFAULT 'test' CHECK(stripe_environment IN ('test', 'live')),
+    stripe_is_enabled INTEGER DEFAULT 0,
+    -- PayPal Gateway
+    paypal_client_id TEXT,
+    paypal_client_secret TEXT,
+    paypal_environment TEXT DEFAULT 'sandbox' CHECK(paypal_environment IN ('sandbox', 'production')),
+    paypal_is_enabled INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_ps_restaurant ON payment_settings(restaurant_id);
   
   -- Customer Online Orders (placed via catalog)
   CREATE TABLE IF NOT EXISTS customer_online_orders (
@@ -484,5 +585,53 @@ db.exec(`
   
   CREATE INDEX IF NOT EXISTS idx_cooi_order ON customer_online_order_items(order_id);
 `);
+
+// Create table_status_colors table (separate from settings table)
+try {
+  const existingTables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='table_status_colors'").get();
+  if (!existingTables) {
+    db.exec(`
+      CREATE TABLE table_status_colors (
+        id TEXT PRIMARY KEY,
+        restaurant_id TEXT NOT NULL,
+        status_key TEXT NOT NULL,
+        bg TEXT NOT NULL DEFAULT '#22c55e',
+        border TEXT NOT NULL DEFAULT '#16a34a',
+        label TEXT NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(restaurant_id, status_key)
+      )
+    `);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tsc_restaurant ON table_status_colors(restaurant_id)');
+    console.log('Created table_status_colors table');
+  }
+} catch (err) {
+  console.log('Table status colors creation note:', err.message);
+}
+
+// Set default table status colors for all existing restaurants
+try {
+  const restaurants = db.prepare('SELECT id FROM restaurants').all();
+  for (const restaurant of restaurants) {
+    const existingColors = db.prepare('SELECT COUNT(*) as count FROM table_status_colors WHERE restaurant_id = ?').get(restaurant.id);
+    if (existingColors.count === 0) {
+      const defaultStatuses = [
+        { key: 'available', bg: '#22c55e', border: '#16a34a', label: 'Available' },
+        { key: 'active_kot', bg: '#f97316', border: '#ea580c', label: 'Active KOT' },
+        { key: 'pending_billing', bg: '#ef4444', border: '#dc2626', label: 'Pending Billing' },
+        { key: 'pending_cleaning', bg: '#6b7280', border: '#4b5563', label: 'Pending Cleaning' }
+      ];
+      for (const status of defaultStatuses) {
+        db.prepare(`
+          INSERT OR IGNORE INTO table_status_colors (id, restaurant_id, status_key, bg, border, label)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(randomUUID(), restaurant.id, status.key, status.bg, status.border, status.label);
+      }
+    }
+  }
+} catch (err) {
+  console.log('Default table status colors setup note:', err.message);
+}
 
 export default db;

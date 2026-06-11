@@ -395,12 +395,11 @@ router.post('/migrate-status', authenticateToken, (req, res) => {
     for (const table of tables) {
       let newStatus = null;
       
-      // Only migrate old status values
-      if (table.status === 'occupied' || table.status === 'active' || table.status === 'reserved') {
-        if (table.kot_items > 0) {
-          newStatus = 'pending_billing';
-        } else if (table.active_orders > 0) {
-          newStatus = 'active_kot';
+      // Only migrate old status values to valid statuses only
+      // Valid statuses: 'available', 'occupied', 'reserved', 'pending_cleaning'
+      if (table.status === 'occupied' || table.status === 'reserved' || table.status === 'pending_cleaning') {
+        if (table.active_orders > 0) {
+          newStatus = 'occupied';
         } else {
           newStatus = 'available';
         }

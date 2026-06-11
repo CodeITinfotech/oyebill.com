@@ -109,11 +109,7 @@ export interface Settings {
   billPrinter: string;
   printCopies: number;
   tableStatusColors?: {
-    available?: { color: string; label: string };
-    active?: { color: string; label: string };
-    occupied?: { color: string; label: string };
-    pending_cleaning?: { color: string; label: string };
-    pending_printing?: { color: string; label: string };
+    [statusKey: string]: { bg: string; border: string; label: string };
   };
 }
 

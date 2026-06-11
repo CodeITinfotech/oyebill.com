@@ -208,10 +208,11 @@ router.post('/initial', async (req, res) => {
     ];
 
     products.forEach((prod) => {
+      const mrp = Math.round(prod.price * 1.1 * 100) / 100;
       db.prepare(`
         INSERT INTO products (id, name, category_id, description, selling_price, mrp, tax_rate, is_active, enable_online, restaurant_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
-      `).run(uuidv4(), prod.name, categoryIds[prod.cat], `Fresh ${prod.name.toLowerCase()}`, prod.price, prod.price * 1.1, prod.tax, restaurantId);
+      `).run(uuidv4(), prod.name, categoryIds[prod.cat], `Fresh ${prod.name.toLowerCase()}`, prod.price, mrp, prod.tax, restaurantId);
     });
 
     // Tables
@@ -232,6 +233,20 @@ router.post('/initial', async (req, res) => {
         VALUES (?, ?, ?, ?, 'available', ?)
       `).run(uuidv4(), table.number, sectionIds[table.section], table.capacity, restaurantId);
     });
+
+    // Create default table status colors
+    const defaultStatuses = [
+      { key: 'available', bg: '#22c55e', border: '#16a34a', label: 'Available' },
+      { key: 'active_kot', bg: '#f97316', border: '#ea580c', label: 'Active KOT' },
+      { key: 'pending_billing', bg: '#ef4444', border: '#dc2626', label: 'Pending Billing' },
+      { key: 'pending_cleaning', bg: '#6b7280', border: '#4b5563', label: 'Pending Cleaning' }
+    ];
+    for (const status of defaultStatuses) {
+      db.prepare(`
+        INSERT OR IGNORE INTO table_status_colors (id, restaurant_id, status_key, bg, border, label)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(uuidv4(), restaurantId, status.key, status.bg, status.border, status.label);
+    }
 
     res.json({ message: 'Setup completed successfully', restaurantId });
   } catch (error) {

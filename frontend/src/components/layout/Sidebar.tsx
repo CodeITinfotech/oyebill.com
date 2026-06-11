@@ -16,6 +16,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Database,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { clsx } from 'clsx';
@@ -33,6 +34,7 @@ const navItems = [
   { to: '/tables', icon: LayoutDashboard, label: 'Tables' },
   { to: '/busser', icon: ClipboardList, label: 'Busser Tasks', roles: ['busser'] },
   { to: '/customers', icon: UserPlus, label: 'Customers', roles: ['admin'] },
+  { to: '/database', icon: Database, label: 'Database', roles: ['admin'] },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
