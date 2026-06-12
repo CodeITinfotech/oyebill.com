@@ -46,6 +46,7 @@ export function BillingPage() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [showSwitchTableModal, setShowSwitchTableModal] = useState(false);
+  const [switchTableSectionFilter, setSwitchTableSectionFilter] = useState<string | null>(null);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountReason, setDiscountReason] = useState('');
@@ -70,6 +71,7 @@ export function BillingPage() {
   
   // Mobile: Show all tables modal
   const [showAllTablesModal, setShowAllTablesModal] = useState(false);
+  const [allTablesSectionFilter, setAllTablesSectionFilter] = useState<string | null>(null);
   
   // Quick add customer modal
   const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
@@ -3393,9 +3395,37 @@ export function BillingPage() {
             The old table will be freed.
           </p>
           
-          <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+          {/* Section Filter Chips */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSwitchTableSectionFilter(null)}
+              className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                switchTableSectionFilter === null
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
+              }`}
+            >
+              All
+            </button>
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => setSwitchTableSectionFilter(section.id)}
+                className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                  switchTableSectionFilter === section.id
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
+                }`}
+              >
+                {section.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-64 overflow-y-auto">
             {tables
               .filter(table => table.id !== selectedTable?.id)
+              .filter(table => !switchTableSectionFilter || table.sectionId === switchTableSectionFilter)
               .map((table) => {
                 // Determine status based on actual table status (including legacy values)
                 const isAvailable = table.status === 'available';
@@ -3540,8 +3570,37 @@ export function BillingPage() {
             {selectedTable ? `Currently at Table ${selectedTable.number}` : 'No table selected'}
           </p>
           
-          <div className="grid grid-cols-4 gap-2 max-h-80 overflow-y-auto">
-            {tables.map((table) => {
+          {/* Section Filter Chips */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setAllTablesSectionFilter(null)}
+              className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                allTablesSectionFilter === null
+                  ? 'bg-accent text-white border-accent'
+                  : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
+              }`}
+            >
+              All
+            </button>
+            {sections.map((section) => (
+              <button
+                key={section.id}
+                onClick={() => setAllTablesSectionFilter(section.id)}
+                className={`px-3 py-1 text-xs rounded-full border transition-all ${
+                  allTablesSectionFilter === section.id
+                    ? 'bg-accent text-white border-accent'
+                    : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
+                }`}
+              >
+                {section.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-80 overflow-y-auto">
+            {tables
+              .filter(table => !allTablesSectionFilter || table.sectionId === allTablesSectionFilter)
+              .map((table) => {
               // Determine status based on actual table status (including legacy values)
               const isAvailable = table.status === 'available';
               const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
