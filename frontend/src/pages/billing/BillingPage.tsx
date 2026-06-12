@@ -2985,13 +2985,13 @@ export function BillingPage() {
           </div>
 
           {/* Search Input - Sticky on mobile to stay above keyboard */}
-          <div className="mb-2 lg:mb-4 lg:static fixed top-0 left-0 right-0 z-30 bg-background-primary px-2 pt-2 pb-1 lg:p-0 lg:bg-transparent lg:z-auto">
+          <div className="mb-2 lg:mb-4 sticky top-0 z-20 bg-background-primary lg:static lg:z-auto lg:bg-transparent px-0 lg:p-0 py-2 lg:py-0">
             <input
               type="text"
               placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 lg:px-4 py-1.5 lg:py-2 bg-background-secondary border border-white/10 rounded-lg text-xs lg:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
+              className="w-full px-3 lg:px-4 py-1.5 lg:py-2 bg-background-secondary lg:bg-background-tertiary border border-white/10 rounded-lg text-xs lg:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
             />
             {searchQuery.trim() && (
               <div className="mt-1 text-[10px] lg:text-xs text-text-muted">
