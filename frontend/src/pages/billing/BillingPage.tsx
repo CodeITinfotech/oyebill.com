@@ -46,6 +46,7 @@ export function BillingPage() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [showSwitchTableModal, setShowSwitchTableModal] = useState(false);
+  const [selectedSwitchTable, setSelectedSwitchTable] = useState<Table | null>(null);
   const [switchTableSectionFilter, setSwitchTableSectionFilter] = useState<string | null>(null);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
@@ -3385,20 +3386,15 @@ export function BillingPage() {
       {/* Switch Table Modal */}
       <Modal
         isOpen={showSwitchTableModal}
-        onClose={() => setShowSwitchTableModal(false)}
+        onClose={() => { setShowSwitchTableModal(false); setSelectedSwitchTable(null); }}
         title="Switch Table"
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
-            Moving items from <span className="text-accent font-medium">Table {selectedTable?.number}</span> to a new table.
-            The old table will be freed.
-          </p>
-          
+        <div className="space-y-3 sm:space-y-4">
           {/* Section Filter Chips */}
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setSwitchTableSectionFilter(null)}
+              onClick={() => { setSwitchTableSectionFilter(null); setSelectedSwitchTable(null); }}
               className={`px-3 py-1 text-xs rounded-full border transition-all ${
                 switchTableSectionFilter === null
                   ? 'bg-accent text-white border-accent'
@@ -3410,7 +3406,7 @@ export function BillingPage() {
             {sections.map((section) => (
               <button
                 key={section.id}
-                onClick={() => setSwitchTableSectionFilter(section.id)}
+                onClick={() => { setSwitchTableSectionFilter(section.id); setSelectedSwitchTable(null); }}
                 className={`px-3 py-1 text-xs rounded-full border transition-all ${
                   switchTableSectionFilter === section.id
                     ? 'bg-accent text-white border-accent'
@@ -3422,137 +3418,95 @@ export function BillingPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-64 overflow-y-auto">
+          {/* Table Selection Grid */}
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-48 sm:max-h-64 overflow-y-auto">
             {tables
               .filter(table => table.id !== selectedTable?.id)
               .filter(table => !switchTableSectionFilter || table.sectionId === switchTableSectionFilter)
+              .filter(table => table.status === 'available')
               .map((table) => {
-                // Determine status based on actual table status (including legacy values)
-                const isAvailable = table.status === 'available';
-                const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
-                const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing' || table.status === 'pending_printing';
-                const isPendingCleaning = table.status === 'pending_cleaning';
-                
-                // Get custom colors from settings or use defaults
-                const customColors = store.settings?.tableStatusColors || {};
-                
-                // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
-                const colorMap: Record<string, { dot: string; label: string }> = {
-                  available: { dot: customColors.available?.bg || 'text-success', label: customColors.available?.label || 'Available' },
-                  active_kot: { dot: customColors.active_kot?.bg || 'text-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
-                  pending_billing: { dot: customColors.pending_billing?.bg || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
-                  pending_cleaning: { dot: customColors.pending_cleaning?.bg || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
-                };
-                
-                let statusDot = colorMap.available.dot;
-                let statusLabel = colorMap.available.label;
-                
-                if (isPendingCleaning) {
-                  statusDot = colorMap.pending_cleaning.dot;
-                  statusLabel = colorMap.pending_cleaning.label;
-                } else if (isPendingBilling) {
-                  statusDot = colorMap.pending_billing.dot;
-                  statusLabel = colorMap.pending_billing.label;
-                } else if (isActiveKot) {
-                  statusDot = colorMap.active_kot.dot;
-                  statusLabel = colorMap.active_kot.label;
-                }
-                
+                const isSelected = selectedSwitchTable?.id === table.id;
                 return (
                   <button
                     key={table.id}
-                    disabled={!isAvailable}
-                    onClick={async () => {
-                      if (!selectedTable) return;
-                      
-                      try {
-                        // 1. If we have a current order, update it to the new table
-                        if (currentOrderId) {
-                          // Update the existing order's table_id directly in database
-                          console.log('Moving order:', currentOrderId, 'to table:', table.id);
-                          const updateResponse = await api.put(`/orders/${currentOrderId}/table`, {
-                            tableId: table.id
-                          });
-                          console.log('Update response:', updateResponse);
-                          if (!updateResponse.success) {
-                            toast('error', updateResponse.error || 'Failed to move items to new table');
-                            return;
-                          }
-                        } else if (cart.length > 0) {
-                          // No existing order but have items in cart - create new order for target table
-                          // Clean cart items to remove extra fields that aren't needed
-                          const cleanItems = cart.map(item => ({
-                            productId: item.productId,
-                            productName: item.productName,
-                            quantity: item.quantity,
-                            unitPrice: item.unitPrice,
-                            taxRate: item.taxRate,
-                            taxAmount: item.taxAmount,
-                            total: item.total,
-                            isKot: item.isKot || false
-                          }));
-                          const orderData = {
-                            tableId: table.id,
-                            items: cleanItems,
-                            waiterId: selectedWaiter || undefined,
-                            customerId: selectedCustomer?.id
-                          };
-                          console.log('Creating order for table switch:', orderData);
-                          const createResponse = await api.createOrder(orderData);
-                          console.log('Create response:', createResponse);
-                          if (!createResponse.success) {
-                            toast('error', createResponse.error || 'Failed to move items to new table');
-                            return;
-                          }
-                          setCurrentOrderId(createResponse.data?.id);
-                        }
-                        
-                        // 2. Mark old table as available
-                        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                        
-                        // 3. Refresh tables list to update UI
-                        store.fetchTables(selectedSection || undefined);
-                        
-                        // 4. Update local state
-                        const newTable = { ...table, status: 'occupied' as const };
-                        setSelectedTable(newTable);
-                        setShowSwitchTableModal(false);
-                        toast('success', `Items moved to Table ${table.number}`);
-                        // 5. Refresh table status
-                        store.fetchTables(selectedSection || undefined);
-                        // Refresh table status immediately
-                        store.fetchTables(selectedSection || undefined);
-                      } catch (error) {
-                        console.error('Error switching table:', error);
-                        toast('error', 'Failed to switch table');
-                      }
-                    }}
-                    className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
-                      isAvailable 
-                        ? 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10 cursor-pointer' 
-                        : 'border-white/10 bg-white/5 opacity-50 cursor-not-allowed'
+                    onClick={() => setSelectedSwitchTable(isSelected ? null : table)}
+                    className={`p-2 sm:p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                      isSelected
+                        ? 'border-accent bg-accent/10 ring-2 ring-accent'
+                        : 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10'
                     }`}
                   >
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
-                    <span className={`text-[10px] ${statusDot}`}>{statusLabel}</span>
                   </button>
                 );
               })}
           </div>
-          
-          {tables.filter(t => t.id !== selectedTable?.id && t.status === 'available').length === 0 && (
+
+          {tables.filter(t => t.id !== selectedTable?.id && t.status === 'available' && (!switchTableSectionFilter || t.sectionId === switchTableSectionFilter)).length === 0 && (
             <p className="text-sm text-text-muted text-center py-4">
               No available tables to switch to.
             </p>
           )}
-          
-          <div className="flex justify-end pt-2">
+
+          {/* Selected Table Info */}
+          <div className="text-sm text-text-secondary text-center">
+            {selectedSwitchTable ? (
+              <>Selected: <span className="text-accent font-medium">Table {selectedSwitchTable.number}</span></>
+            ) : (
+              <>Tap a table to select, then tap OK</>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2">
             <Button
               variant="ghost"
-              onClick={() => setShowSwitchTableModal(false)}
+              onClick={() => { setShowSwitchTableModal(false); setSelectedSwitchTable(null); }}
             >
               Cancel
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!selectedSwitchTable}
+              onClick={async () => {
+                if (!selectedSwitchTable || !selectedTable) return;
+                try {
+                  if (currentOrderId) {
+                    const updateResponse = await api.put(`/orders/${currentOrderId}/table`, { tableId: selectedSwitchTable.id });
+                    if (!updateResponse.success) {
+                      toast('error', updateResponse.error || 'Failed to move items');
+                      return;
+                    }
+                  } else if (cart.length > 0) {
+                    const cleanItems = cart.map(item => ({
+                      productId: item.productId, productName: item.productName, quantity: item.quantity,
+                      unitPrice: item.unitPrice, taxRate: item.taxRate, taxAmount: item.taxAmount,
+                      total: item.total, isKot: item.isKot || false
+                    }));
+                    const createResponse = await api.createOrder({
+                      tableId: selectedSwitchTable.id, items: cleanItems,
+                      waiterId: selectedWaiter || undefined, customerId: selectedCustomer?.id
+                    });
+                    if (!createResponse.success) {
+                      toast('error', createResponse.error || 'Failed to move items');
+                      return;
+                    }
+                    setCurrentOrderId(createResponse.data?.id);
+                  }
+                  await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                  store.fetchTables(selectedSection || undefined);
+                  setSelectedTable({ ...selectedSwitchTable, status: 'occupied' as const });
+                  setSelectedSwitchTable(null);
+                  setShowSwitchTableModal(false);
+                  toast('success', `Moved to Table ${selectedSwitchTable.number}`);
+                } catch (error) {
+                  console.error('Error switching table:', error);
+                  toast('error', 'Failed to switch table');
+                }
+              }}
+            >
+              OK
             </Button>
           </div>
         </div>
