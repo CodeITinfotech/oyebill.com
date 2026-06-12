@@ -169,6 +169,7 @@ export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: strin
     showGstVat: true,
     showGrandTotal: true,
     specialMessage: 'Thank you for visiting!',
+    greetingMessage: 'We hope to see you again!',
     showPreview: true,
   });
 

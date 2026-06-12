@@ -1658,6 +1658,9 @@ export function BillingPage() {
 
       // Set billGenerated to true to show COLLECT/PUSH buttons
       setBillGenerated(true);
+
+      // Show single success toast
+      toast('success', 'Bill generated successfully');
     } else {
       // No orderId - this shouldn't happen but handle gracefully
       console.error('No orderId available for bill generation');
@@ -1680,10 +1683,8 @@ export function BillingPage() {
         setBillOrderId(null);
       } catch (error) {
         console.error('Error updating online order status:', error);
-        toast('success', 'Bill Generated (Status update failed)');
+
       }
-    } else {
-      toast('success', 'Bill Generated successfully');
     }
     
     // Print Bill (simulated) - Only if not from preview

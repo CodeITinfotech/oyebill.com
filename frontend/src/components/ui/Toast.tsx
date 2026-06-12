@@ -9,14 +9,15 @@ interface Toast {
   type: ToastType;
   message: string;
   exiting?: boolean;
+  duration?: number; // Custom duration in ms, default 1500
 }
 
 // Use a stable singleton pattern
 let toastId = 0;
 const listeners: Set<(toast: Toast) => void> = new Set();
 
-export function toast(type: ToastType, message: string) {
-  const newToast: Toast = { id: String(++toastId), type, message };
+export function toast(type: ToastType, message: string, duration: number = 1500) {
+  const newToast: Toast = { id: String(++toastId), type, message, duration };
   setTimeout(() => {
     listeners.forEach((listener) => listener(newToast));
   }, 0);
@@ -28,13 +29,14 @@ export function ToastContainer() {
   useEffect(() => {
     const listener = (t: Toast) => {
       setToasts((prev) => [...prev, t]);
-      // Auto-dismiss after 2 seconds with slide-out animation
+      // Auto-dismiss after specified duration with slide-right animation
+      const displayDuration = t.duration || 1500;
       setTimeout(() => {
         setToasts((prev) => prev.map(x => x.id === t.id ? { ...x, exiting: true } : x));
         setTimeout(() => {
           setToasts((prev) => prev.filter((x) => x.id !== t.id));
         }, 300); // Slide-out animation duration
-      }, 2000); // Display duration
+      }, displayDuration);
     };
     listeners.add(listener);
     return () => {
@@ -66,7 +68,7 @@ export function ToastContainer() {
             className={clsx(
               'flex items-center gap-3 px-4 py-3 rounded-lg border backdrop-blur-sm min-w-[300px] transition-all duration-300',
               colors[t.type],
-              t.exiting ? 'animate-slide-out' : 'animate-slide-in'
+              t.exiting ? '-translate-x-full opacity-0' : 'translate-x-0 opacity-100'
             )}
           >
             <Icon className="w-5 h-5 shrink-0" />
