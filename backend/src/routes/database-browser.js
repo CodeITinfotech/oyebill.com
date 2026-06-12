@@ -118,7 +118,7 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
         document.getElementById('tableCount').textContent = '(' + data.tables.length + ' tables)';
         
         grid.innerHTML = data.tables.map(t => 
-          '<button class="table-btn" onclick="selectTable(\\'' + t + '\\')">' + t + '</button>'
+          '<button class="table-btn" onclick="selectTable(\'' + t + '\')">' + t + '</button>'
         ).join('');
       } catch (e) {
         document.getElementById('tablesGrid').innerHTML = '<div class="error">Failed to load tables</div>';
@@ -269,10 +269,10 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
       const table = currentTable || 'table_name';
       
       const templates = {
-        select: `SELECT * FROM ${table} WHERE id = 'xxx' LIMIT 10`,
-        insert: `INSERT INTO ${table} (name, is_active) VALUES ('New Item', 1)`,
-        update: `UPDATE ${table} SET name = 'Updated Name' WHERE id = 'xxx'`,
-        delete: `DELETE FROM ${table} WHERE id = 'xxx'`
+        select: "SELECT * FROM " + table + " WHERE id = 'xxx' LIMIT 10",
+        insert: "INSERT INTO " + table + " (name, is_active) VALUES ('New Item', 1)",
+        update: "UPDATE " + table + " SET name = 'Updated Name' WHERE id = 'xxx'",
+        delete: "DELETE FROM " + table + " WHERE id = 'xxx'"
       };
       
       textarea.value = templates[type] || templates.select;
