@@ -2641,7 +2641,7 @@ export function BillingPage() {
                     size="md"
                     onClick={handleKOT}
                     disabled={cart.filter(i => i.isNew).length === 0}
-                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium min-w-[125px]"
                   >
                     <Printer className="w-4 h-4" />
                     <span>KOT</span>
@@ -2651,7 +2651,7 @@ export function BillingPage() {
                     size="md"
                     onClick={handleBill}
                     disabled={cart.length === 0}
-                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium min-w-[125px]"
                   >
                     <Receipt className="w-4 h-4" />
                     <span>Bill</span>
