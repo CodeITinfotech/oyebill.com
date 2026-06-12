@@ -585,12 +585,7 @@ export function BillingPage() {
         await api.deleteOrder(currentOrderId);
         setCurrentOrderId(null);
         
-        // Clear saved cart for this table
-        setTableCarts(prev => {
-          const updated = { ...prev };
-          delete updated[selectedTable.id];
-          return updated;
-        });
+        // Cart cleared
         
         // Update table status to available
         await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
@@ -940,21 +935,7 @@ export function BillingPage() {
     if (!pendingCleaningTable) return;
 
     try {
-      // Save current cart before switching
-      if (selectedTable && cart.length > 0) {
-        setTableCarts(prev => ({
-          ...prev,
-          [selectedTable.id]: {
-            items: cart,
-            orderId: currentOrderId,
-            discountAmount,
-            discountReason,
-            appliedCoupon,
-            selectedWaiter,
-            selectedCustomer
-          }
-        }));
-      }
+      // Cart saved to server
 
       // Update table status to available
       await api.put(`/tables/${pendingCleaningTable.id}`, { status: 'available' });
@@ -1571,7 +1552,7 @@ export function BillingPage() {
   };
 
   // Execute Bill generation (called after preview confirm or if preview disabled)
-  const executeBill = async () => {
+  const executeBill = async (fromPreview: boolean = false) => {
     const isOnlineOrderMode = onlineOrder !== null;
 
     let orderId = currentOrderId;
@@ -1639,12 +1620,7 @@ export function BillingPage() {
           // Clear cart items after billing
           setCart([]);
           
-          // Clear table carts for this table
-          setTableCarts(prev => {
-            const updated = { ...prev };
-            delete updated[selectedTable.id];
-            return updated;
-          });
+          // Table cart cleared automatically
         } catch (error) {
           console.error('Failed to update table status:', error);
         }
@@ -1742,7 +1718,23 @@ export function BillingPage() {
     setPreviewContent(null);
   };
 
-  // Apply Discount
+  // Apply Discount function
+  const applyDiscount = async (orderId: string, amount: number, reason: string) => {
+    try {
+      const response = await api.put(`/orders/${orderId}/discount`, {
+        discountAmount: amount,
+        discountReason: reason
+      });
+      if (response.success) {
+        toast('success', 'Discount applied successfully');
+      }
+    } catch (error) {
+      console.error('Failed to apply discount:', error);
+      toast('error', 'Failed to apply discount');
+    }
+  };
+
+  // Apply Discount handler
   const handleApplyDiscount = () => {
     if (!discountAmount || parseFloat(discountAmount) <= 0) {
       toast('error', 'Please enter valid discount');
@@ -2517,11 +2509,7 @@ export function BillingPage() {
                             await api.deleteOrder(currentOrderId);
                           }
                           if (selectedTable) {
-                            setTableCarts(prev => {
-                              const updated = { ...prev };
-                              delete updated[selectedTable.id];
-                              return updated;
-                            });
+                            // Cart state managed on server
                             await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                             if (selectedSection) {
                               store.fetchTables(selectedSection);
@@ -2681,11 +2669,7 @@ export function BillingPage() {
                       }
                       
                       if (selectedTable) {
-                        setTableCarts(prev => {
-                          const updated = { ...prev };
-                          delete updated[selectedTable.id];
-                          return updated;
-                        });
+                        // Cart state managed on server
                         
                         await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                         if (selectedSection) {
@@ -2779,11 +2763,7 @@ export function BillingPage() {
                               
                               // Clear saved cart and update table status
                               if (selectedTable) {
-                                setTableCarts(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[selectedTable.id];
-                                  return updated;
-                                });
+                                // Cart state managed on server
                                 
                                 await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                                 if (selectedSection) {
@@ -2823,11 +2803,7 @@ export function BillingPage() {
                               
                               // Clear saved cart
                               if (selectedTable) {
-                                setTableCarts(prev => {
-                                  const updated = { ...prev };
-                                  delete updated[selectedTable.id];
-                                  return updated;
-                                });
+                                // Cart state managed on server
                                 
                                 // Update table status to available
                                 await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
@@ -3661,12 +3637,7 @@ export function BillingPage() {
                           toast('success', `Moved to Table ${table.number}`);
                         }
                         
-                        // Clear old table cart from state
-                        setTableCarts(prev => {
-                          const updated = { ...prev };
-                          delete updated[currentTableId];
-                          return updated;
-                        });
+                        // Cart state managed on server
                         
                         // Update old table status
                         await api.put(`/tables/${currentTableId}`, { status: 'available' });
@@ -3968,7 +3939,7 @@ export function BillingPage() {
               {previewContent.type === 'bill' && (
                 <div className="flex items-center gap-1">
                   <Button
-                    variant="info"
+                    variant="primary"
                     size="sm"
                     onClick={() => {
                       let content, type, filename;
