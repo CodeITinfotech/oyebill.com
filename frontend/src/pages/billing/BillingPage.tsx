@@ -2657,7 +2657,7 @@ export function BillingPage() {
               </div>
 
               {/* Desktop Action Buttons */}
-              <div className="hidden lg:flex gap-2 w-full">
+              <div className="hidden lg:flex flex-wrap gap-2 w-full">
                 {/* Apply Discount */}
                 <button
                   onClick={() => {
@@ -2668,7 +2668,7 @@ export function BillingPage() {
                     setShowDiscountModal(true);
                   }}
                   disabled={cart.length === 0 || !!appliedCoupon}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm min-w-[90px]"
                 >
                   <Percent className="w-4 h-4 text-accent" />
                   <span>Discount</span>
@@ -2684,7 +2684,7 @@ export function BillingPage() {
                     setShowCouponModal(true);
                   }}
                   disabled={cart.length === 0 || discountValue > 0}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm min-w-[90px]"
                 >
                   <Ticket className="w-4 h-4 text-green-400" />
                   <span>Coupon</span>
