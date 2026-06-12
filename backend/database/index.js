@@ -40,7 +40,8 @@ try {
   const columnsToAdd = [
     { name: 'waiter_id', type: 'TEXT' },
     { name: 'customer_id', type: 'TEXT' },
-    { name: 'loyalty_discount', type: 'REAL DEFAULT 0' }
+    { name: 'loyalty_discount', type: 'REAL DEFAULT 0' },
+    { name: 'linked_customer_order_id', type: 'TEXT' }
   ];
   
   for (const col of columnsToAdd) {
@@ -51,6 +52,66 @@ try {
   }
 } catch (err) {
   console.log('Orders migration note:', err.message);
+}
+
+// Migration: Add modifiers and cooking_instructions columns to order_items
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(order_items)").all();
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  const columnsToAdd = [
+    { name: 'cooking_instructions', type: 'TEXT' },
+    { name: 'modifiers', type: 'TEXT' }  // JSON string for modifiers array
+  ];
+  
+  for (const col of columnsToAdd) {
+    if (!existingColumns.includes(col.name)) {
+      db.exec(`ALTER TABLE order_items ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`Added ${col.name} column to order_items table`);
+    }
+  }
+} catch (err) {
+  console.log('Order items modifiers migration note:', err.message);
+}
+
+// Migration: Add modifiers and cooking_instructions columns to customer_order_items
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(customer_order_items)").all();
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  const columnsToAdd = [
+    { name: 'cooking_instructions', type: 'TEXT' },
+    { name: 'modifiers', type: 'TEXT' }  // JSON string for modifiers array
+  ];
+  
+  for (const col of columnsToAdd) {
+    if (!existingColumns.includes(col.name)) {
+      db.exec(`ALTER TABLE customer_order_items ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`Added ${col.name} column to customer_order_items table`);
+    }
+  }
+} catch (err) {
+  console.log('Customer order items modifiers migration note:', err.message);
+}
+
+// Migration: Add modifiers and cooking_instructions columns to customer_online_order_items
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(customer_online_order_items)").all();
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  const columnsToAdd = [
+    { name: 'cooking_instructions', type: 'TEXT' },
+    { name: 'modifiers', type: 'TEXT' }  // JSON string for modifiers array
+  ];
+  
+  for (const col of columnsToAdd) {
+    if (!existingColumns.includes(col.name)) {
+      db.exec(`ALTER TABLE customer_online_order_items ADD COLUMN ${col.name} ${col.type}`);
+      console.log(`Added ${col.name} column to customer_online_order_items table`);
+    }
+  }
+} catch (err) {
+  console.log('Customer online order items modifiers migration note:', err.message);
 }
 
 // Create tables

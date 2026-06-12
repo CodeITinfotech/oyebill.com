@@ -1,8 +1,25 @@
 import express from 'express';
 import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import db from '../../database/index.js';
 
 const router = express.Router();
+
+// Helper function to map customer order item from DB to API format
+function mapCustomerOrderItem(item) {
+  return {
+    id: item.id,
+    productId: item.product_id,
+    productName: item.product_name,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    taxRate: item.tax_rate,
+    taxAmount: item.tax_amount,
+    total: item.total,
+    cookingInstructions: item.cooking_instructions || null,
+    modifiers: item.modifiers ? JSON.parse(item.modifiers) : [],
+  };
+}
 
 // Get table info by table number (for NFC/QR scan)
 router.get('/table/:tableNumber', (req, res) => {
@@ -81,11 +98,12 @@ router.post('/', (req, res) => {
     
     // Insert order items
     const insertItem = db.prepare(`
-      INSERT INTO customer_order_items (id, customer_order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO customer_order_items (id, customer_order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, cooking_instructions, modifiers)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     for (const item of processedItems) {
+      const modifiersJson = item.modifiers ? JSON.stringify(item.modifiers) : null;
       insertItem.run(
         crypto.randomUUID(),
         orderId,
@@ -95,7 +113,9 @@ router.post('/', (req, res) => {
         item.unitPrice,
         item.taxRate || 0,
         item.taxAmount,
-        item.total
+        item.total,
+        item.cookingInstructions || null,
+        modifiersJson
       );
     }
     
@@ -180,7 +200,7 @@ router.get('/waiter/:waiterId/pending', (req, res) => {
       const items = db.prepare(`
         SELECT * FROM customer_order_items WHERE customer_order_id = ?
       `).all(order.id);
-      return { ...order, items };
+      return { ...order, items: items.map(mapCustomerOrderItem) };
     });
     
     res.json({ success: true, data: ordersWithItems });
@@ -301,7 +321,7 @@ router.get('/:id', (req, res) => {
     
     res.json({ 
       success: true, 
-      data: { ...order, items } 
+      data: { ...order, items: items.map(mapCustomerOrderItem) } 
     });
   } catch (error) {
     console.error('Error fetching order:', error);
@@ -346,13 +366,119 @@ router.get('/', (req, res) => {
     // Get items for each order
     const ordersWithItems = orders.map(order => {
       const items = db.prepare('SELECT * FROM customer_order_items WHERE customer_order_id = ?').all(order.id);
-      return { ...order, items };
+      return { ...order, items: items.map(mapCustomerOrderItem) };
     });
     
     res.json({ success: true, data: ordersWithItems });
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch orders' });
+  }
+});
+
+// Convert customer order to KOT (create internal order with modifiers)
+router.post('/:id/to-kot', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body; // Waiter/admin who is creating the KOT
+    
+    // Get customer order
+    const customerOrder = db.prepare('SELECT * FROM customer_orders WHERE id = ?').get(id);
+    
+    if (!customerOrder) {
+      return res.status(404).json({ success: false, error: 'Customer order not found' });
+    }
+    
+    if (customerOrder.status === 'declined' || customerOrder.status === 'completed') {
+      return res.status(400).json({ success: false, error: 'Order cannot be converted to KOT' });
+    }
+    
+    // Get customer order items
+    const customerItems = db.prepare('SELECT * FROM customer_order_items WHERE customer_order_id = ?').all(id);
+    
+    // Check if there's already a linked KOT order
+    const existingKot = db.prepare('SELECT * FROM orders WHERE linked_customer_order_id = ?').get(id);
+    if (existingKot) {
+      // Update existing KOT with new items
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(existingKot.id);
+      
+      let subtotal = 0;
+      let taxAmount = 0;
+      
+      for (const item of customerItems) {
+        const itemId = uuidv4();
+        const modifiersJson = item.modifiers;
+        const modifiersArray = modifiersJson ? JSON.parse(modifiersJson) : [];
+        
+        db.prepare(`
+          INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        `).run(itemId, existingKot.id, item.product_id, item.product_name, item.quantity, item.unit_price, item.tax_rate, item.tax_amount, item.total, item.cooking_instructions, modifiersJson);
+        
+        subtotal += item.total;
+        taxAmount += item.tax_amount;
+      }
+      
+      db.prepare(`
+        UPDATE orders SET subtotal = ?, tax_amount = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(subtotal, taxAmount, subtotal + taxAmount, existingKot.id);
+      
+      // Update table status
+      db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', customerOrder.table_id);
+      
+      return res.json({ 
+        success: true, 
+        message: 'KOT updated successfully',
+        orderId: existingKot.id 
+      });
+    }
+    
+    // Create new KOT order
+    const orderId = uuidv4();
+    let subtotal = 0;
+    let taxAmount = 0;
+    
+    // Create the KOT order
+    db.prepare(`
+      INSERT INTO orders (id, table_id, user_id, waiter_id, status, subtotal, tax_amount, total, linked_customer_order_id)
+      VALUES (?, ?, ?, ?, 'kot', ?, ?, ?, ?)
+    `).run(orderId, customerOrder.table_id, userId || null, userId || null, 0, 0, 0, id);
+    
+    // Insert items with modifiers and cooking instructions
+    for (const item of customerItems) {
+      const itemId = uuidv4();
+      const modifiersJson = item.modifiers;
+      
+      db.prepare(`
+        INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(itemId, orderId, item.product_id, item.product_name, item.quantity, item.unit_price, item.tax_rate, item.tax_amount, item.total, item.cooking_instructions, modifiersJson);
+      
+      subtotal += item.total;
+      taxAmount += item.tax_amount;
+    }
+    
+    // Update order totals
+    db.prepare(`
+      UPDATE orders SET subtotal = ?, tax_amount = ?, total = ? WHERE id = ?
+    `).run(subtotal, taxAmount, subtotal + taxAmount, orderId);
+    
+    // Update customer order status
+    db.prepare(`
+      UPDATE customer_orders SET status = 'preparing', updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `).run(id);
+    
+    // Update table status
+    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', customerOrder.table_id);
+    
+    res.json({ 
+      success: true, 
+      message: 'KOT created successfully',
+      orderId: orderId
+    });
+  } catch (error) {
+    console.error('Error converting customer order to KOT:', error);
+    res.status(500).json({ success: false, error: 'Failed to convert order to KOT' });
   }
 });
 

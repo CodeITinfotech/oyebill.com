@@ -4,6 +4,23 @@ import db from '../../database/index.js';
 
 const router = express.Router();
 
+// Helper function to map online order item from DB to API format
+function mapOnlineOrderItem(item) {
+  return {
+    id: item.id,
+    productId: item.product_id,
+    productName: item.product_name,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    taxRate: item.tax_rate,
+    taxAmount: item.tax_amount,
+    total: item.total,
+    notes: item.notes,
+    cookingInstructions: item.cooking_instructions || null,
+    modifiers: item.modifiers ? JSON.parse(item.modifiers) : [],
+  };
+}
+
 // Generate order number
 function generateOrderNumber() {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -90,6 +107,9 @@ router.post('/', (req, res) => {
       const itemTotal = unitPrice * quantity;
       const taxAmount = calculateTaxes(itemTotal, product.tax_rate || 0);
       
+      // Handle modifiers
+      const modifiersJson = item.modifiers ? JSON.stringify(item.modifiers) : null;
+      
       subtotal += itemTotal;
       totalTax += taxAmount;
       
@@ -102,7 +122,9 @@ router.post('/', (req, res) => {
         tax_rate: product.tax_rate || 0,
         tax_amount: taxAmount,
         total: itemTotal,
-        notes: item.notes || null
+        notes: item.notes || null,
+        cooking_instructions: item.cookingInstructions || null,
+        modifiers: modifiersJson
       };
     });
     
@@ -152,8 +174,8 @@ router.post('/', (req, res) => {
     
     // Insert order items
     const insertItem = db.prepare(`
-      INSERT INTO customer_online_order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO customer_online_order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, notes, cooking_instructions, modifiers)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     for (const item of orderItems) {
@@ -167,7 +189,9 @@ router.post('/', (req, res) => {
         item.tax_rate,
         item.tax_amount,
         item.total,
-        item.notes
+        item.notes,
+        item.cooking_instructions,
+        item.modifiers
       );
     }
     
@@ -179,7 +203,7 @@ router.post('/', (req, res) => {
       success: true,
       data: {
         ...order,
-        items: orderItemsList,
+        items: orderItemsList.map(mapOnlineOrderItem),
         restaurant: {
           name: db.prepare('SELECT name FROM restaurants WHERE id = ?').get(restaurant_id)?.name
         }
@@ -209,7 +233,7 @@ router.get('/track/:orderNumber', (req, res) => {
       success: true,
       data: {
         ...order,
-        items,
+        items: items.map(mapOnlineOrderItem),
         restaurant
       }
     });
@@ -235,7 +259,7 @@ router.get('/by-email/:email', (req, res) => {
     // Get items for each order
     const ordersWithItems = orders.map(order => {
       const items = db.prepare('SELECT * FROM customer_online_order_items WHERE order_id = ?').all(order.id);
-      return { ...order, items };
+      return { ...order, items: items.map(mapOnlineOrderItem) };
     });
     
     res.json({

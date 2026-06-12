@@ -149,6 +149,7 @@ export function formatKOTForPrinter(kotData: any): string {
   const divider = '='.repeat(width);
   const center = (text: string) => text.padStart((width + text.length) / 2).padEnd(width);
   const left = (label: string, value: string) => `${label}: ${value}`.padEnd(width);
+  const indent = (text: string) => '  ' + text;
   
   let output = '';
   output += COMMANDS.INIT + COMMANDS.BOLD_ON + COMMANDS.DOUBLE_SIZE;
@@ -159,12 +160,29 @@ export function formatKOTForPrinter(kotData: any): string {
   output += left('Table', kotData.tableNumber || '') + '\n';
   output += left('Date', kotData.dateTime || '') + '\n';
   if (kotData.waiterName) output += left('Waiter', kotData.waiterName) + '\n';
+  if (kotData.customerName) output += left('Customer', kotData.customerName) + '\n';
   output += divider + '\n';
   
   kotData.items?.forEach((item: any, idx: number) => {
     output += COMMANDS.BOLD_ON + COMMANDS.DOUBLE_HEIGHT;
     output += `${idx + 1}. ${item.productName || 'Item'}\n`;
     output += COMMANDS.NORMAL_SIZE + left('', `Qty: ${item.quantity || 1}`) + '\n';
+    
+    // Print modifiers
+    if (item.modifiers && Array.isArray(item.modifiers) && item.modifiers.length > 0) {
+      output += COMMANDS.BOLD_ON + indent('MODIFIERS:') + COMMANDS.BOLD_OFF + '\n';
+      item.modifiers.forEach((mod: any) => {
+        const modName = typeof mod === 'string' ? mod : mod.name || mod;
+        const modQty = typeof mod === 'object' && mod.quantity ? ` x${mod.quantity}` : '';
+        output += indent(`• ${modName}${modQty}`) + '\n';
+      });
+    }
+    
+    // Print cooking instructions
+    if (item.cookingInstructions) {
+      output += COMMANDS.BOLD_ON + indent('NOTE:') + COMMANDS.BOLD_OFF + '\n';
+      output += indent(`⚠ ${item.cookingInstructions}`) + '\n';
+    }
   });
   
   output += divider + '\n' + COMMANDS.FEED_LINES(3) + COMMANDS.CUT;

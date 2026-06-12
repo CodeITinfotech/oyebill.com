@@ -4,6 +4,23 @@ import { authenticateToken, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Helper function to map order item from DB to API format
+function mapOrderItem(item) {
+  return {
+    id: item.id,
+    productId: item.product_id,
+    productName: item.product_name,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    taxRate: item.tax_rate,
+    taxAmount: item.tax_amount,
+    total: item.total,
+    isKot: item.is_kot === 1,
+    cookingInstructions: item.cooking_instructions || null,
+    modifiers: item.modifiers ? JSON.parse(item.modifiers) : [],
+  };
+}
+
 // Delete all bookings (paid orders)
 router.delete('/bookings/all', authenticateToken, requireRole('admin'), (req, res) => {
   try {
@@ -130,17 +147,7 @@ router.get('/', authenticateToken, (req, res) => {
         userId: order.user_id,
         userName: order.user_name,
         status: order.status,
-        items: items.map(item => ({
-          id: item.id,
-          productId: item.product_id,
-          productName: item.product_name,
-          quantity: item.quantity,
-          unitPrice: item.unit_price,
-          taxRate: item.tax_rate,
-          taxAmount: item.tax_amount,
-          total: item.total,
-          isKot: item.is_kot === 1,
-        })),
+        items: items.map(item => mapOrderItem(item)),
         subtotal: order.subtotal,
         taxAmount: order.tax_amount,
         discountAmount: order.discount_amount,
@@ -187,17 +194,7 @@ router.get('/table/:tableId', authenticateToken, (req, res) => {
       userId: order.user_id,
       userName: order.user_name,
       status: order.status,
-      items: items.map(item => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        taxRate: item.tax_rate,
-        taxAmount: item.tax_amount,
-        total: item.total,
-        isKot: item.is_kot === 1,
-      })),
+      items: items.map(item => mapOrderItem(item)),
       subtotal: order.subtotal,
       taxAmount: order.tax_amount,
       discountAmount: order.discount_amount,
@@ -389,17 +386,7 @@ router.post('/', authenticateToken, (req, res) => {
       tableNumber: order.table_number,
       userId: order.user_id,
       status: order.status,
-      items: orderItems.map(item => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        taxRate: item.tax_rate,
-        taxAmount: item.tax_amount,
-        total: item.total,
-        isKot: item.is_kot === 1,
-      })),
+      items: orderItems.map(item => mapOrderItem(item)),
       subtotal: order.subtotal,
       taxAmount: order.tax_amount,
       discountAmount: order.discount_amount,
@@ -441,10 +428,13 @@ router.put('/:id', authenticateToken, (req, res) => {
       const itemTotal = item.unitPrice * item.quantity;
       const itemTax = item.taxAmount * item.quantity;
       
+      // Handle modifiers - store as JSON string
+      const modifiersJson = item.modifiers ? JSON.stringify(item.modifiers) : null;
+      
       db.prepare(`
-        INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(itemId, req.params.id, item.productId, item.productName, item.quantity, item.unitPrice, item.taxRate, item.taxAmount, itemTotal + itemTax, item.isKot ? 1 : 0);
+        INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(itemId, req.params.id, item.productId, item.productName, item.quantity, item.unitPrice, item.taxRate, item.taxAmount, itemTotal + itemTax, item.isKot ? 1 : 0, item.cookingInstructions || null, modifiersJson);
 
       subtotal += itemTotal;
       taxAmount += itemTax;
@@ -475,17 +465,7 @@ router.put('/:id', authenticateToken, (req, res) => {
       tableNumber: updatedOrder.table_number,
       userId: updatedOrder.user_id,
       status: updatedOrder.status,
-      items: orderItems.map(item => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        taxRate: item.tax_rate,
-        taxAmount: item.tax_amount,
-        total: item.total,
-        isKot: item.is_kot === 1,
-      })),
+      items: orderItems.map(item => mapOrderItem(item)),
       subtotal: updatedOrder.subtotal,
       taxAmount: updatedOrder.tax_amount,
       discountAmount: updatedOrder.discount_amount,
@@ -538,17 +518,7 @@ router.post('/:id/kot', authenticateToken, (req, res) => {
       tableNumber: updatedOrder.table_number,
       userId: updatedOrder.user_id,
       status: updatedOrder.status,
-      items: orderItems.map(item => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        taxRate: item.tax_rate,
-        taxAmount: item.tax_amount,
-        total: item.total,
-        isKot: item.is_kot === 1,
-      })),
+      items: orderItems.map(item => mapOrderItem(item)),
       subtotal: updatedOrder.subtotal,
       taxAmount: updatedOrder.tax_amount,
       discountAmount: updatedOrder.discount_amount,
@@ -620,17 +590,7 @@ router.post('/:id/discount', authenticateToken, (req, res) => {
       tableNumber: updatedOrder.table_number,
       userId: updatedOrder.user_id,
       status: updatedOrder.status,
-      items: orderItems.map(item => ({
-        id: item.id,
-        productId: item.product_id,
-        productName: item.product_name,
-        quantity: item.quantity,
-        unitPrice: item.unit_price,
-        taxRate: item.tax_rate,
-        taxAmount: item.tax_amount,
-        total: item.total,
-        isKot: item.is_kot === 1,
-      })),
+      items: orderItems.map(item => mapOrderItem(item)),
       subtotal: updatedOrder.subtotal,
       taxAmount: updatedOrder.tax_amount,
       discountAmount: updatedOrder.discount_amount,
