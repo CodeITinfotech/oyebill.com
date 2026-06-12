@@ -10,6 +10,21 @@ import { jsPDF } from 'jspdf';
 import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
 
+// Category Icons - Maps category names to icons
+const CATEGORY_ICONS: Record<string, string> = {
+  'beverages': '🥤',
+  'starters': '🍢',
+  'main course': '🍛',
+  'desserts': '🍰',
+  'specials': '⭐',
+  'default': '🍽️',
+};
+
+const getCategoryIcon = (categoryName: string): string => {
+  const name = categoryName.toLowerCase().trim();
+  return CATEGORY_ICONS[name] || CATEGORY_ICONS[name.split(' ')[0]] || CATEGORY_ICONS['default'];
+};
+
 interface CartItem extends OrderItem {
   isNew?: boolean;
   isOnlineOrder?: boolean;
@@ -1016,7 +1031,7 @@ export function BillingPage() {
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-      kotNumber = `${day}-${month}-${randomNum}`;
+      kotNumber = `${day}${month}-${randomNum.slice(-3)}`;
       displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
     } else {
       // Regular KOT format: DD-MM-XXXX (4-digit sequential starting from 0001)
@@ -1024,7 +1039,7 @@ export function BillingPage() {
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-      kotNumber = `${day}-${month}-${randomNum}`;
+      kotNumber = `${day}${month}-${randomNum.slice(-3)}`;
       displayTable = selectedTable.number;
     }
     
@@ -1049,7 +1064,7 @@ export function BillingPage() {
       // Save current isKot state for executeKOT to use
       const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       setPendingAction(async () => {
-        await executeKOT(preKotState);
+        await executeKOT(preKotState, true); // fromPreview = true
       });
       setShowPreviewModal(true);
     } else {
@@ -1060,7 +1075,7 @@ export function BillingPage() {
   };
 
   // Execute KOT generation (called after preview confirm or if preview disabled)
-  const executeKOT = async (preKotState: any[]) => {
+  const executeKOT = async (preKotState: any[], fromPreview: boolean = false) => {
     // Mark items as KOT and track which ones were already KOT'd
     const kotItems = cart.map(item => {
       // Check if this item was already KOT'd before this round
@@ -1130,11 +1145,13 @@ export function BillingPage() {
       }
     }
     
-    // Print KOT (simulated)
+    // Print KOT (simulated) - Only if not from preview
+    if (!fromPreview) {
     setTimeout(() => {
       console.log('KOT Print triggered');
       toast('info', 'KOT sent to printer');
     }, 500);
+    }
   };
 
   // Number to words conversion
@@ -1507,7 +1524,7 @@ export function BillingPage() {
       const dateStr = `${day}${month}${year}`;
       const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
       const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-      orderId = `${dateStr}-${tableStr}-${randomNum}`;
+      orderId = `${dateStr}-${randomNum.slice(-4)}`;
       displayTable = selectedTable.number;
     }
     
@@ -1545,11 +1562,11 @@ export function BillingPage() {
     if (showPreview) {
       setPreviewContent({ type: 'bill', content: billContent });
       setPendingAction(async () => {
-        await executeBill();
+        await executeBill(true); // fromPreview = true
       });
       setShowPreviewModal(true);
     } else {
-      await executeBill();
+      await executeBill(false); // fromPreview = false
     }
   };
 
@@ -1669,11 +1686,13 @@ export function BillingPage() {
       toast('success', 'Bill Generated successfully');
     }
     
-    // Print Bill (simulated)
+    // Print Bill (simulated) - Only if not from preview
+    if (!fromPreview) {
     setTimeout(() => {
       console.log('Bill Print triggered');
       toast('info', 'Bill sent to printer');
     }, 500);
+    }
   };
 
   // Handle preview print action
