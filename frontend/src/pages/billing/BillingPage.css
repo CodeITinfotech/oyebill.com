@@ -25,6 +25,18 @@
     display: flex;
     flex-direction: column;
   }
+  
+  /* Cart items area should scroll */
+  .order-panel > div.flex-1 {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  
+  /* Totals section stays at bottom */
+  .order-panel > .space-y-3 {
+    flex-shrink: 0;
+  }
 }
 
 /* Hide scrollbar on category pills */
