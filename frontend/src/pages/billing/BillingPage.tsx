@@ -2572,7 +2572,41 @@ export function BillingPage() {
             </div>
 
             {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
-            <div className="hidden lg:grid lg:grid-cols-3 gap-2">
+            {/* Mobile Action Buttons */}
+            <div className="flex lg:hidden gap-2 w-full">
+              <button
+                onClick={() => setShowDiscountModal(true)}
+                disabled={cart.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
+              >
+                <Percent className="w-4 h-4 text-accent" />
+                <span>Discount</span>
+              </button>
+              <button
+                onClick={() => setShowCouponModal(true)}
+                disabled={cart.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
+              >
+                <Ticket className="w-4 h-4 text-green-400" />
+                <span>Coupon</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (!confirm("Clear cart?")) return;
+                  if (currentOrderId) api.deleteOrder(currentOrderId);
+                  setCart([]); setCurrentOrderId(null);
+                  toast("success", "Cart cleared");
+                }}
+                disabled={cart.length === 0}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 text-sm text-red-400"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Clear</span>
+              </button>
+            </div>
+
+            {/* Desktop Action Buttons */}
+            <div className="hidden lg:flex flex-wrap gap-2 w-full">
               {billGenerated ? (
                 <>
                   <Button
@@ -2623,39 +2657,6 @@ export function BillingPage() {
                 </>
               )}
               
-              {/* Mobile Action Buttons */}
-              <div className="flex lg:hidden gap-2 w-full">
-                <button
-                  onClick={() => setShowDiscountModal(true)}
-                  disabled={cart.length === 0}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  <Percent className="w-4 h-4 text-accent" />
-                  <span>Discount</span>
-                </button>
-                <button
-                  onClick={() => setShowCouponModal(true)}
-                  disabled={cart.length === 0}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  <Ticket className="w-4 h-4 text-green-400" />
-                  <span>Coupon</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (!confirm('Clear cart?')) return;
-                    if (currentOrderId) api.deleteOrder(currentOrderId);
-                    setCart([]); setCurrentOrderId(null);
-                    toast('success', 'Cart cleared');
-                  }}
-                  disabled={cart.length === 0}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 text-sm text-red-400"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Clear</span>
-                </button>
-              </div>
-
               {/* Desktop Action Buttons */}
               <div className="hidden lg:flex flex-wrap gap-2 w-full">
                 {/* Apply Discount */}
