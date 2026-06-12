@@ -15,6 +15,10 @@
   .order-panel.mobile-cart-open {
     transform: translateX(0);
   }
+
+  .order-panel.mobile-menu-open {
+    transform: translateX(0);
+  }
 }
 
 /* Desktop: Full height panel with proper scrolling */

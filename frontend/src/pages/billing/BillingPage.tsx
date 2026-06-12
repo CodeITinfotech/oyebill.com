@@ -1930,7 +1930,7 @@ export function BillingPage() {
       {/* Desktop: Two column layout, Mobile: Single column with cart toggle */}
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-0 lg:gap-6 min-h-0">
         {/* Left: Order Panel - Desktop always visible, Mobile: Toggle */}
-        <div className={`flex flex-col card order-panel ${showMobileCart ? 'mobile-cart-open' : ''}`}>
+        <div className={`flex flex-col card order-panel ${showMobileCart ? 'mobile-cart-open' : 'mobile-menu-open'}`}>
           {/* Mobile: View Toggle */}
           <div className="lg:hidden flex border-b border-white/10">
             <button
