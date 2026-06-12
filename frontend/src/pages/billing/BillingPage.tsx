@@ -2626,8 +2626,8 @@ export function BillingPage() {
                   </>
                 )}
               </div>
-              {/* Secondary Row: Discount, Coupon, Clear */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Secondary Row: Discount, Coupon, Clear - Centered on new line */}
+              <div className="flex justify-center gap-2">
                 <button
                   onClick={() => {
                     if (appliedCoupon) { toast('warning', 'Remove coupon first'); return; }
