@@ -2903,8 +2903,8 @@ export function BillingPage() {
           </div>
         </div>
 
-        {/* Right: Product Selection - Desktop only, hidden on mobile when cart view is active */}
-        <div className={`flex flex-col ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
+        {/* Right: Product Selection - Desktop only */}
+        <div className="hidden lg:flex flex-col">
           {/* Table Tiles - Always show all tables */}
           <div className="mb-3 lg:mb-4">
             <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Tables</h3>
