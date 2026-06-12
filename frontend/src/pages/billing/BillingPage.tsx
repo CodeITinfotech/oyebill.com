@@ -9,22 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
 import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
-import './BillingPage.css';
-
-// Category Icons - Maps category names to icons
-const CATEGORY_ICONS: Record<string, string> = {
-  'beverages': '🥤',
-  'starters': '🍢',
-  'main course': '🍛',
-  'desserts': '🍰',
-  'specials': '⭐',
-  'default': '🍽️',
-};
-
-const getCategoryIcon = (categoryName: string): string => {
-  const name = categoryName.toLowerCase().trim();
-  return CATEGORY_ICONS[name] || CATEGORY_ICONS[name.split(' ')[0]] || CATEGORY_ICONS['default'];
-};
 
 interface CartItem extends OrderItem {
   isNew?: boolean;
@@ -47,8 +31,6 @@ export function BillingPage() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showCouponModal, setShowCouponModal] = useState(false);
   const [showSwitchTableModal, setShowSwitchTableModal] = useState(false);
-  const [selectedSwitchTable, setSelectedSwitchTable] = useState<Table | null>(null);
-  const [switchTableSectionFilter, setSwitchTableSectionFilter] = useState<string | null>(null);
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountReason, setDiscountReason] = useState('');
@@ -73,7 +55,6 @@ export function BillingPage() {
   
   // Mobile: Show all tables modal
   const [showAllTablesModal, setShowAllTablesModal] = useState(false);
-  const [allTablesSectionFilter, setAllTablesSectionFilter] = useState<string | null>(null);
   
   // Quick add customer modal
   const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
@@ -589,7 +570,12 @@ export function BillingPage() {
         await api.deleteOrder(currentOrderId);
         setCurrentOrderId(null);
         
-        // Cart cleared
+        // Clear saved cart for this table
+        setTableCarts(prev => {
+          const updated = { ...prev };
+          delete updated[selectedTable.id];
+          return updated;
+        });
         
         // Update table status to available
         await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
@@ -904,21 +890,33 @@ export function BillingPage() {
       }
     } else {
       // New table, no saved cart, no existing order
-      // Keep current cart items - user might have added items before selecting table
       setCurrentOrderId(null);
+      setCart([]);
       setDiscountAmount('');
       setDiscountReason('');
       setAppliedCoupon(null);
-      // Don't clear cart, setSelectedWaiter, or setSelectedCustomer
+      setSelectedWaiter('');
+      setSelectedCustomer(null);
     }
     
     // Final refresh to ensure UI shows latest status
     await store.fetchTables(selectedSection || undefined);
     
-    // Update selected table with fresh data from store
+    // Force re-render by updating state with fresh data
     const finalTable = store.tables.find(t => t.id === table.id);
     if (finalTable) {
-      setSelectedTable({ ...finalTable });
+      // If table has items (cart or order), update status to match
+      const hasItems = (cart.length > 0 || (response.success && response.data && response.data.items?.length > 0));
+      if (hasItems && finalTable.status === 'available') {
+        const updateResult = await api.put(`/tables/${finalTable.id}`, { status: 'occupied' });
+        if (updateResult.success) {
+          setSelectedTable({ ...finalTable, status: 'occupied' });
+        } else {
+          setSelectedTable({ ...finalTable });
+        }
+      } else {
+        setSelectedTable({ ...finalTable });
+      }
     }
   };
 
@@ -927,7 +925,21 @@ export function BillingPage() {
     if (!pendingCleaningTable) return;
 
     try {
-      // Cart saved to server
+      // Save current cart before switching
+      if (selectedTable && cart.length > 0) {
+        setTableCarts(prev => ({
+          ...prev,
+          [selectedTable.id]: {
+            items: cart,
+            orderId: currentOrderId,
+            discountAmount,
+            discountReason,
+            appliedCoupon,
+            selectedWaiter,
+            selectedCustomer
+          }
+        }));
+      }
 
       // Update table status to available
       await api.put(`/tables/${pendingCleaningTable.id}`, { status: 'available' });
@@ -1004,7 +1016,7 @@ export function BillingPage() {
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-      kotNumber = `${day}${month}-${randomNum.slice(-3)}`;
+      kotNumber = `${day}-${month}-${randomNum}`;
       displayTable = onlineOrder.externalOrderId || onlineOrder.platform;
     } else {
       // Regular KOT format: DD-MM-XXXX (4-digit sequential starting from 0001)
@@ -1012,7 +1024,7 @@ export function BillingPage() {
       const day = String(now.getDate()).padStart(2, '0');
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const randomNum = String(Math.floor(Math.random() * 9999)).padStart(4, '0');
-      kotNumber = `${day}${month}-${randomNum.slice(-3)}`;
+      kotNumber = `${day}-${month}-${randomNum}`;
       displayTable = selectedTable.number;
     }
     
@@ -1037,7 +1049,7 @@ export function BillingPage() {
       // Save current isKot state for executeKOT to use
       const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       setPendingAction(async () => {
-        await executeKOT(preKotState, true); // fromPreview = true
+        await executeKOT(preKotState);
       });
       setShowPreviewModal(true);
     } else {
@@ -1048,7 +1060,7 @@ export function BillingPage() {
   };
 
   // Execute KOT generation (called after preview confirm or if preview disabled)
-  const executeKOT = async (preKotState: any[], fromPreview: boolean = false) => {
+  const executeKOT = async (preKotState: any[]) => {
     // Mark items as KOT and track which ones were already KOT'd
     const kotItems = cart.map(item => {
       // Check if this item was already KOT'd before this round
@@ -1118,13 +1130,11 @@ export function BillingPage() {
       }
     }
     
-    // Print KOT (simulated) - Only if not from preview
-    if (!fromPreview) {
+    // Print KOT (simulated)
     setTimeout(() => {
       console.log('KOT Print triggered');
       toast('info', 'KOT sent to printer');
     }, 500);
-    }
   };
 
   // Number to words conversion
@@ -1497,7 +1507,7 @@ export function BillingPage() {
       const dateStr = `${day}${month}${year}`;
       const tableStr = selectedTable.number.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 4).padEnd(4, '0');
       const randomNum = String(Math.floor(Math.random() * 99999)).padStart(5, '0');
-      orderId = `${dateStr}-${randomNum.slice(-4)}`;
+      orderId = `${dateStr}-${tableStr}-${randomNum}`;
       displayTable = selectedTable.number;
     }
     
@@ -1535,16 +1545,16 @@ export function BillingPage() {
     if (showPreview) {
       setPreviewContent({ type: 'bill', content: billContent });
       setPendingAction(async () => {
-        await executeBill(true); // fromPreview = true
+        await executeBill();
       });
       setShowPreviewModal(true);
     } else {
-      await executeBill(false); // fromPreview = false
+      await executeBill();
     }
   };
 
   // Execute Bill generation (called after preview confirm or if preview disabled)
-  const executeBill = async (fromPreview: boolean = false) => {
+  const executeBill = async () => {
     const isOnlineOrderMode = onlineOrder !== null;
 
     let orderId = currentOrderId;
@@ -1612,7 +1622,12 @@ export function BillingPage() {
           // Clear cart items after billing
           setCart([]);
           
-          // Table cart cleared automatically
+          // Clear table carts for this table
+          setTableCarts(prev => {
+            const updated = { ...prev };
+            delete updated[selectedTable.id];
+            return updated;
+          });
         } catch (error) {
           console.error('Failed to update table status:', error);
         }
@@ -1626,9 +1641,6 @@ export function BillingPage() {
 
       // Set billGenerated to true to show COLLECT/PUSH buttons
       setBillGenerated(true);
-
-      // Show single success toast
-      toast('success', 'Bill generated successfully');
     } else {
       // No orderId - this shouldn't happen but handle gracefully
       console.error('No orderId available for bill generation');
@@ -1651,17 +1663,17 @@ export function BillingPage() {
         setBillOrderId(null);
       } catch (error) {
         console.error('Error updating online order status:', error);
-
+        toast('success', 'Bill Generated (Status update failed)');
       }
+    } else {
+      toast('success', 'Bill Generated successfully');
     }
     
-    // Print Bill (simulated) - Only if not from preview
-    if (!fromPreview) {
+    // Print Bill (simulated)
     setTimeout(() => {
       console.log('Bill Print triggered');
       toast('info', 'Bill sent to printer');
     }, 500);
-    }
   };
 
   // Handle preview print action
@@ -1710,23 +1722,7 @@ export function BillingPage() {
     setPreviewContent(null);
   };
 
-  // Apply Discount function
-  const applyDiscount = async (orderId: string, amount: number, reason: string) => {
-    try {
-      const response = await api.put(`/orders/${orderId}/discount`, {
-        discountAmount: amount,
-        discountReason: reason
-      });
-      if (response.success) {
-        toast('success', 'Discount applied successfully');
-      }
-    } catch (error) {
-      console.error('Failed to apply discount:', error);
-      toast('error', 'Failed to apply discount');
-    }
-  };
-
-  // Apply Discount handler
+  // Apply Discount
   const handleApplyDiscount = () => {
     if (!discountAmount || parseFloat(discountAmount) <= 0) {
       toast('error', 'Please enter valid discount');
@@ -1931,7 +1927,7 @@ export function BillingPage() {
       {/* Desktop: Two column layout, Mobile: Single column with cart toggle */}
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-[380px_1fr] gap-0 lg:gap-6 min-h-0">
         {/* Left: Order Panel - Desktop always visible, Mobile: Toggle */}
-        <div className={`flex flex-col card order-panel ${showMobileCart ? 'mobile-cart-open' : 'mobile-menu-open'}`}>
+        <div className={`flex flex-col card order-panel ${showMobileCart ? 'mobile-cart-open' : ''}`}>
           {/* Mobile: View Toggle */}
           <div className="lg:hidden flex border-b border-white/10">
             <button
@@ -2030,47 +2026,29 @@ export function BillingPage() {
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
                       <button
                         onClick={() => setShowSwitchTableModal(true)}
-                        disabled={!currentOrderId}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
-                          currentOrderId
-                            ? 'bg-accent hover:bg-accent/80 text-white'
-                            : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                        }`}
-                        title={currentOrderId ? 'Switch Table' : 'Generate KOT first to switch table'}
+                        className="text-xs text-accent hover:text-accent/80 font-medium"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                        Switch Table
+                        Switch
                       </button>
                     </div>
                   </div>
                 ) : null}
 
-                {/* Mobile: Selected Table Compact with Switch Table Button */}
+                {/* Mobile: Selected Table Compact with View Tables Button */}
                 {!onlineOrder && selectedTable ? (
                   <div className="lg:hidden flex items-center gap-2 p-2 rounded-lg bg-accent/10 border border-accent/20 mb-2">
                     <div className="flex-1 flex items-center gap-2">
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
-                      <div>
-                        <span className="font-medium text-sm">Table {selectedTable.number}</span>
-                        <span className="text-xs text-text-muted ml-1">({selectedTable.capacity} seats)</span>
-                      </div>
+                      <span className="font-medium text-sm">T{selectedTable.number}</span>
                     </div>
                     <button
-                      onClick={() => setShowSwitchTableModal(true)}
-                      disabled={!currentOrderId}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium ${
-                        currentOrderId
-                          ? 'bg-accent hover:bg-accent/80 text-white'
-                          : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                      }`}
-                      title={currentOrderId ? 'Switch Table' : 'Generate KOT first to switch table'}
+                      onClick={() => setShowAllTablesModal(true)}
+                      className="flex items-center gap-1 px-2 py-1 bg-background-secondary hover:bg-white/10 rounded text-xs"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                       </svg>
-                      Switch Table
+                      Tables
                     </button>
                   </div>
                 ) : (
@@ -2513,7 +2491,11 @@ export function BillingPage() {
                             await api.deleteOrder(currentOrderId);
                           }
                           if (selectedTable) {
-                            // Cart state managed on server
+                            setTableCarts(prev => {
+                              const updated = { ...prev };
+                              delete updated[selectedTable.id];
+                              return updated;
+                            });
                             await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                             if (selectedSection) {
                               store.fetchTables(selectedSection);
@@ -2572,10 +2554,8 @@ export function BillingPage() {
               </div>
             </div>
 
-
-
-            {/* Desktop Action Buttons */}
-            <div className="hidden lg:flex flex-wrap gap-2 w-full">
+            {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
+            <div className="hidden lg:grid lg:grid-cols-3 gap-2">
               {billGenerated ? (
                 <>
                   <Button
@@ -2608,7 +2588,7 @@ export function BillingPage() {
                     size="md"
                     onClick={handleKOT}
                     disabled={cart.filter(i => i.isNew).length === 0}
-                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium min-w-[125px]"
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
                   >
                     <Printer className="w-4 h-4" />
                     <span>KOT</span>
@@ -2618,7 +2598,7 @@ export function BillingPage() {
                     size="md"
                     onClick={handleBill}
                     disabled={cart.length === 0}
-                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium min-w-[125px]"
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
                   >
                     <Receipt className="w-4 h-4" />
                     <span>Bill</span>
@@ -2626,8 +2606,8 @@ export function BillingPage() {
                 </>
               )}
               
-              {/* Desktop Action Buttons */}
-              <div className="hidden lg:flex flex-wrap gap-2 w-full">
+              {/* Inline Action Buttons for Desktop */}
+              <div className="hidden lg:flex gap-2 w-full">
                 {/* Apply Discount */}
                 <button
                   onClick={() => {
@@ -2638,7 +2618,7 @@ export function BillingPage() {
                     setShowDiscountModal(true);
                   }}
                   disabled={cart.length === 0 || !!appliedCoupon}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm min-w-[90px]"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   <Percent className="w-4 h-4 text-accent" />
                   <span>Discount</span>
@@ -2654,7 +2634,7 @@ export function BillingPage() {
                     setShowCouponModal(true);
                   }}
                   disabled={cart.length === 0 || discountValue > 0}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm min-w-[90px]"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                   <Ticket className="w-4 h-4 text-green-400" />
                   <span>Coupon</span>
@@ -2675,7 +2655,11 @@ export function BillingPage() {
                       }
                       
                       if (selectedTable) {
-                        // Cart state managed on server
+                        setTableCarts(prev => {
+                          const updated = { ...prev };
+                          delete updated[selectedTable.id];
+                          return updated;
+                        });
                         
                         await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                         if (selectedSection) {
@@ -2769,7 +2753,11 @@ export function BillingPage() {
                               
                               // Clear saved cart and update table status
                               if (selectedTable) {
-                                // Cart state managed on server
+                                setTableCarts(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[selectedTable.id];
+                                  return updated;
+                                });
                                 
                                 await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
                                 if (selectedSection) {
@@ -2809,7 +2797,11 @@ export function BillingPage() {
                               
                               // Clear saved cart
                               if (selectedTable) {
-                                // Cart state managed on server
+                                setTableCarts(prev => {
+                                  const updated = { ...prev };
+                                  delete updated[selectedTable.id];
+                                  return updated;
+                                });
                                 
                                 // Update table status to available
                                 await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
@@ -2861,8 +2853,8 @@ export function BillingPage() {
           </div>
         </div>
 
-        {/* Right: Product Selection - Desktop only */}
-        <div className="hidden lg:flex flex-col">
+        {/* Right: Product Selection - Desktop only, hidden on mobile when cart view is active */}
+        <div className={`flex flex-col ${mobileView === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
           {/* Table Tiles - Always show all tables */}
           <div className="mb-3 lg:mb-4">
             <h3 className="text-xs lg:text-sm font-medium text-text-secondary mb-2">Tables</h3>
@@ -2972,14 +2964,14 @@ export function BillingPage() {
             </div>
           </div>
 
-          {/* Search Input - Sticky on mobile to stay above keyboard */}
-          <div className="mb-2 lg:mb-4 sticky top-0 z-20 bg-background-primary lg:static lg:z-auto lg:bg-transparent px-0 lg:p-0 py-2 lg:py-0">
+          {/* Search Input */}
+          <div className="mb-2 lg:mb-4">
             <input
               type="text"
               placeholder="Search items..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-3 lg:px-4 py-1.5 lg:py-2 bg-background-secondary lg:bg-background-tertiary border border-white/10 rounded-lg text-xs lg:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
+              className="w-full px-3 lg:px-4 py-1.5 lg:py-2 bg-background-secondary border border-white/10 rounded-lg text-xs lg:text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors"
             />
             {searchQuery.trim() && (
               <div className="mt-1 text-[10px] lg:text-xs text-text-muted">
@@ -3389,127 +3381,146 @@ export function BillingPage() {
       {/* Switch Table Modal */}
       <Modal
         isOpen={showSwitchTableModal}
-        onClose={() => { setShowSwitchTableModal(false); setSelectedSwitchTable(null); }}
+        onClose={() => setShowSwitchTableModal(false)}
         title="Switch Table"
         size="md"
       >
-        <div>
-          {/* Section Filter Chips */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => { setSwitchTableSectionFilter(null); setSelectedSwitchTable(null); }}
-              className={`px-3 py-1 text-xs rounded-full border transition-all ${
-                switchTableSectionFilter === null
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
-              }`}
-            >
-              All
-            </button>
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => { setSwitchTableSectionFilter(section.id); setSelectedSwitchTable(null); }}
-                className={`px-3 py-1 text-xs rounded-full border transition-all ${
-                  switchTableSectionFilter === section.id
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
-                }`}
-              >
-                {section.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Table Selection Grid */}
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-48 sm:max-h-64 overflow-y-auto">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Moving items from <span className="text-accent font-medium">Table {selectedTable?.number}</span> to a new table.
+            The old table will be freed.
+          </p>
+          
+          <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto">
             {tables
               .filter(table => table.id !== selectedTable?.id)
-              .filter(table => !switchTableSectionFilter || table.sectionId === switchTableSectionFilter)
-              .filter(table => table.status === 'available')
               .map((table) => {
-                const isSelected = selectedSwitchTable?.id === table.id;
+                // Determine status based on actual table status (including legacy values)
+                const isAvailable = table.status === 'available';
+                const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
+                const isPendingBilling = table.status === 'pending_billing' || table.status === 'billing' || table.status === 'pending_printing';
+                const isPendingCleaning = table.status === 'pending_cleaning';
+                
+                // Get custom colors from settings or use defaults
+                const customColors = store.settings?.tableStatusColors || {};
+                
+                // Default colors mapping - follows the flow: Available → KOT - In Progress → Pending Billing → Pending Cleaning → Available
+                const colorMap: Record<string, { dot: string; label: string }> = {
+                  available: { dot: customColors.available?.bg || 'text-success', label: customColors.available?.label || 'Available' },
+                  active_kot: { dot: customColors.active_kot?.bg || 'text-orange-500', label: customColors.active_kot?.label || 'KOT - In Progress' },
+                  pending_billing: { dot: customColors.pending_billing?.bg || 'text-red-500', label: customColors.pending_billing?.label || 'Pending Billing' },
+                  pending_cleaning: { dot: customColors.pending_cleaning?.bg || 'text-gray-400', label: customColors.pending_cleaning?.label || 'Pending Cleaning' },
+                };
+                
+                let statusDot = colorMap.available.dot;
+                let statusLabel = colorMap.available.label;
+                
+                if (isPendingCleaning) {
+                  statusDot = colorMap.pending_cleaning.dot;
+                  statusLabel = colorMap.pending_cleaning.label;
+                } else if (isPendingBilling) {
+                  statusDot = colorMap.pending_billing.dot;
+                  statusLabel = colorMap.pending_billing.label;
+                } else if (isActiveKot) {
+                  statusDot = colorMap.active_kot.dot;
+                  statusLabel = colorMap.active_kot.label;
+                }
+                
                 return (
                   <button
                     key={table.id}
-                    onClick={() => setSelectedSwitchTable(isSelected ? null : table)}
-                    className={`p-2 sm:p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
-                      isSelected
-                        ? 'border-accent bg-accent/10 ring-2 ring-accent'
-                        : 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10'
+                    disabled={!isAvailable}
+                    onClick={async () => {
+                      if (!selectedTable) return;
+                      
+                      try {
+                        // 1. If we have a current order, update it to the new table
+                        if (currentOrderId) {
+                          // Update the existing order's table_id directly in database
+                          console.log('Moving order:', currentOrderId, 'to table:', table.id);
+                          const updateResponse = await api.put(`/orders/${currentOrderId}/table`, {
+                            tableId: table.id
+                          });
+                          console.log('Update response:', updateResponse);
+                          if (!updateResponse.success) {
+                            toast('error', updateResponse.error || 'Failed to move items to new table');
+                            return;
+                          }
+                        } else if (cart.length > 0) {
+                          // No existing order but have items in cart - create new order for target table
+                          // Clean cart items to remove extra fields that aren't needed
+                          const cleanItems = cart.map(item => ({
+                            productId: item.productId,
+                            productName: item.productName,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            taxRate: item.taxRate,
+                            taxAmount: item.taxAmount,
+                            total: item.total,
+                            isKot: item.isKot || false
+                          }));
+                          const orderData = {
+                            tableId: table.id,
+                            items: cleanItems,
+                            waiterId: selectedWaiter || undefined,
+                            customerId: selectedCustomer?.id
+                          };
+                          console.log('Creating order for table switch:', orderData);
+                          const createResponse = await api.createOrder(orderData);
+                          console.log('Create response:', createResponse);
+                          if (!createResponse.success) {
+                            toast('error', createResponse.error || 'Failed to move items to new table');
+                            return;
+                          }
+                          setCurrentOrderId(createResponse.data?.id);
+                        }
+                        
+                        // 2. Mark old table as available
+                        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
+                        
+                        // 3. Refresh tables list to update UI
+                        store.fetchTables(selectedSection || undefined);
+                        
+                        // 4. Update local state
+                        const newTable = { ...table, status: 'occupied' as const };
+                        setSelectedTable(newTable);
+                        setShowSwitchTableModal(false);
+                        toast('success', `Items moved to Table ${table.number}`);
+                        // 5. Refresh table status
+                        store.fetchTables(selectedSection || undefined);
+                        // Refresh table status immediately
+                        store.fetchTables(selectedSection || undefined);
+                      } catch (error) {
+                        console.error('Error switching table:', error);
+                        toast('error', 'Failed to switch table');
+                      }
+                    }}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center justify-center transition-all ${
+                      isAvailable 
+                        ? 'border-success/30 bg-success/5 hover:border-success hover:bg-success/10 cursor-pointer' 
+                        : 'border-white/10 bg-white/5 opacity-50 cursor-not-allowed'
                     }`}
                   >
                     <span className="text-sm font-bold">{table.number}</span>
                     <span className="text-[10px] text-text-muted">{table.capacity} pax</span>
+                    <span className={`text-[10px] ${statusDot}`}>{statusLabel}</span>
                   </button>
                 );
               })}
           </div>
-
-          {tables.filter(t => t.id !== selectedTable?.id && t.status === 'available' && (!switchTableSectionFilter || t.sectionId === switchTableSectionFilter)).length === 0 && (
+          
+          {tables.filter(t => t.id !== selectedTable?.id && t.status === 'available').length === 0 && (
             <p className="text-sm text-text-muted text-center py-4">
               No available tables to switch to.
             </p>
           )}
-
-          {/* Selected Table Info */}
-          <div className="text-sm text-text-secondary text-center">
-            {selectedSwitchTable ? (
-              <>Selected: <span className="text-accent font-medium">Table {selectedSwitchTable.number}</span></>
-            ) : (
-              <>Tap a table to select, then tap OK</>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
+          
+          <div className="flex justify-end pt-2">
             <Button
               variant="ghost"
-              onClick={() => { setShowSwitchTableModal(false); setSelectedSwitchTable(null); }}
+              onClick={() => setShowSwitchTableModal(false)}
             >
               Cancel
-            </Button>
-            <Button
-              variant="primary"
-              disabled={!selectedSwitchTable}
-              onClick={async () => {
-                if (!selectedSwitchTable || !selectedTable) return;
-                try {
-                  if (currentOrderId) {
-                    const updateResponse = await api.put(`/orders/${currentOrderId}/table`, { tableId: selectedSwitchTable.id });
-                    if (!updateResponse.success) {
-                      toast('error', updateResponse.error || 'Failed to move items');
-                      return;
-                    }
-                  } else if (cart.length > 0) {
-                    const cleanItems = cart.map(item => ({
-                      productId: item.productId, productName: item.productName, quantity: item.quantity,
-                      unitPrice: item.unitPrice, taxRate: item.taxRate, taxAmount: item.taxAmount,
-                      total: item.total, isKot: item.isKot || false
-                    }));
-                    const createResponse = await api.createOrder({
-                      tableId: selectedSwitchTable.id, items: cleanItems,
-                      waiterId: selectedWaiter || undefined, customerId: selectedCustomer?.id
-                    });
-                    if (!createResponse.success) {
-                      toast('error', createResponse.error || 'Failed to move items');
-                      return;
-                    }
-                    setCurrentOrderId(createResponse.data?.id);
-                  }
-                  await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                  store.fetchTables(selectedSection || undefined);
-                  setSelectedTable({ ...selectedSwitchTable, status: 'occupied' as const });
-                  setSelectedSwitchTable(null);
-                  setShowSwitchTableModal(false);
-                  toast('success', `Moved to Table ${selectedSwitchTable.number}`);
-                } catch (error) {
-                  console.error('Error switching table:', error);
-                  toast('error', 'Failed to switch table');
-                }
-              }}
-            >
-              OK
             </Button>
           </div>
         </div>
@@ -3522,42 +3533,13 @@ export function BillingPage() {
         title="Select Table"
         size="md"
       >
-        <div>
-          <p className="text-sm text-text-secondary mb-3">
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
             {selectedTable ? `Currently at Table ${selectedTable.number}` : 'No table selected'}
           </p>
           
-          {/* Section Filter Chips */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setAllTablesSectionFilter(null)}
-              className={`px-3 py-1 text-xs rounded-full border transition-all ${
-                allTablesSectionFilter === null
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
-              }`}
-            >
-              All
-            </button>
-            {sections.map((section) => (
-              <button
-                key={section.id}
-                onClick={() => setAllTablesSectionFilter(section.id)}
-                className={`px-3 py-1 text-xs rounded-full border transition-all ${
-                  allTablesSectionFilter === section.id
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-white/5 text-text-secondary border-white/20 hover:border-accent/50'
-                }`}
-              >
-                {section.name}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 max-h-80 overflow-y-auto">
-            {tables
-              .filter(table => !allTablesSectionFilter || table.sectionId === allTablesSectionFilter)
-              .map((table) => {
+          <div className="grid grid-cols-4 gap-2 max-h-80 overflow-y-auto">
+            {tables.map((table) => {
               // Determine status based on actual table status (including legacy values)
               const isAvailable = table.status === 'available';
               const isActiveKot = table.status === 'active_kot' || table.status === 'occupied' || table.status === 'active';
@@ -3653,7 +3635,12 @@ export function BillingPage() {
                           toast('success', `Moved to Table ${table.number}`);
                         }
                         
-                        // Cart state managed on server
+                        // Clear old table cart from state
+                        setTableCarts(prev => {
+                          const updated = { ...prev };
+                          delete updated[currentTableId];
+                          return updated;
+                        });
                         
                         // Update old table status
                         await api.put(`/tables/${currentTableId}`, { status: 'available' });
@@ -3955,7 +3942,7 @@ export function BillingPage() {
               {previewContent.type === 'bill' && (
                 <div className="flex items-center gap-1">
                   <Button
-                    variant="primary"
+                    variant="info"
                     size="sm"
                     onClick={() => {
                       let content, type, filename;
