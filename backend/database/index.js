@@ -21,10 +21,17 @@ try {
     'CREATE INDEX IF NOT EXISTS idx_products_restaurant ON products(restaurant_id)',
     'CREATE INDEX IF NOT EXISTS idx_tables_restaurant ON tables(restaurant_id)',
     'CREATE INDEX IF NOT EXISTS idx_tables_status ON tables(status)',
+    'CREATE INDEX IF NOT EXISTS idx_tables_section ON tables(section_id)',
     'CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_table ON orders(table_id)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_restaurant ON orders(restaurant_id)',
+    'CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)',
     'CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id)',
     'CREATE INDEX IF NOT EXISTS idx_categories_restaurant ON categories(restaurant_id)',
-    'CREATE INDEX IF NOT EXISTS idx_sections_restaurant ON sections(restaurant_id)'
+    'CREATE INDEX IF NOT EXISTS idx_sections_restaurant ON sections(restaurant_id)',
+    'CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)',
+    'CREATE INDEX IF NOT EXISTS idx_customers_restaurant ON customers(restaurant_id)'
   ];
   
   for (const idx of indexesToCreate) {

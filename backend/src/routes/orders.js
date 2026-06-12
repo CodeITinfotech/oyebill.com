@@ -137,17 +137,15 @@ router.get('/', authenticateToken, (req, res) => {
 
     const orders = db.prepare(query).all(...params);
 
-    // Get items for each order
-    const ordersWithItems = orders.map(order => {
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order.id);
-      return {
-        id: order.id,
-        tableId: order.table_id,
-        tableNumber: order.table_number,
-        userId: order.user_id,
-        userName: order.user_name,
-        status: order.status,
-        items: items.map(item => mapOrderItem(item)),
+    // Batch fetch all items at once for better performance
+    let ordersWithItems = orders.map(order => ({
+      id: order.id,
+      tableId: order.table_id,
+      tableNumber: order.table_number,
+      userId: order.user_id,
+      userName: order.user_name,
+      status: order.status,
+      items: [],
         subtotal: order.subtotal,
         taxAmount: order.tax_amount,
         discountAmount: order.discount_amount,
