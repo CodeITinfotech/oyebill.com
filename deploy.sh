@@ -47,14 +47,18 @@ start_node_server() {
     
     # Start server with nohup for long-running process
     cd "$SCRIPT_DIR/backend"
-    nohup node src/server.js > /tmp/oyebill.log 2>&1 &
+    PORT=12000 nohup node src/server.js > /tmp/oyebill.log 2>&1 &
+    
+    # Also start on port 12001 for secondary access
+    PORT=12001 nohup node src/server.js > /tmp/oyebill-12001.log 2>&1 &
     
     sleep 3
     
     # Verify server started
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/ | grep -q "200"; then
+    if curl -s -o /dev/null -w "%{http_code}" http://localhost:12000/ | grep -q "200"; then
         echo -e "${GREEN}✅ Oyebill server started successfully!${NC}"
-        echo "   Frontend & API: http://localhost:5000"
+        echo "   Frontend & API: http://localhost:12000"
+        echo "   Secondary: http://localhost:12001"
         echo "   Logs: /tmp/oyebill.log"
     else
         echo -e "${RED}❌ Server failed to start. Check logs at /tmp/oyebill.log${NC}"
