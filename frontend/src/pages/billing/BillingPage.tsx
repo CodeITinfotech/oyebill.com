@@ -2572,7 +2572,8 @@ export function BillingPage() {
             </div>
 
             {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
-            {/* Mobile Action Buttons */}
+            {/* Mobile Action Buttons - only show in cart view */}
+            {mobileView === 'cart' && (
             <div className="flex lg:hidden gap-2 w-full">
               <button
                 onClick={() => setShowDiscountModal(true)}
@@ -2604,6 +2605,7 @@ export function BillingPage() {
                 <span>Clear</span>
               </button>
             </div>
+            )}
 
             {/* Desktop Action Buttons */}
             <div className="hidden lg:flex flex-wrap gap-2 w-full">
