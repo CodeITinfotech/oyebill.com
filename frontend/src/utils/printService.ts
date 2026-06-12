@@ -74,8 +74,7 @@ export async function getPrinters(): Promise<string[]> {
 
 export async function printText(content: string, config: PrintConfig = {}): Promise<boolean> {
   if (!window.qz || !isQZConnected) {
-    console.log('QZ Tray not connected - using browser print');
-    window.print();
+    console.log('QZ Tray not connected - skipping print');
     return false;
   }
   try {
@@ -85,7 +84,7 @@ export async function printText(content: string, config: PrintConfig = {}): Prom
       { type: 'raw', format: 'plain', data: content },
       { type: 'raw', format: 'plain', data: COMMANDS.FEED_LINES(3) + COMMANDS.CUT },
     ];
-    await window.qz.print({}, { printer, size: { width: config.width || 80, height: config.height || 200, units: 'mm' } });
+    await window.qz.print({ printer, size: { width: config.width || 80, height: config.height || 200, units: 'mm' } }, printData);
     console.log('Print sent to:', printer);
     return true;
   } catch (err) {

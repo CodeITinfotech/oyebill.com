@@ -1687,12 +1687,11 @@ export function BillingPage() {
         if (success) {
           toast('success', 'Print sent to thermal printer');
         } else {
-          // Fallback to window.print
-          window.print();
+          toast('warning', 'QZ Tray error - check printer connection');
         }
       } catch (err) {
         console.error('Print error:', err);
-        window.print();
+        toast('error', 'Print failed - check QZ Tray');
       }
     }
     
