@@ -9,7 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
 import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
-import './BillingPage.css';
 
 // Category Icons - Maps category names to icons
 const CATEGORY_ICONS: Record<string, string> = {
@@ -904,13 +903,12 @@ export function BillingPage() {
       }
     } else {
       // New table, no saved cart, no existing order
+      // Keep current cart items - user might have added items before selecting table
       setCurrentOrderId(null);
-      setCart([]);
       setDiscountAmount('');
       setDiscountReason('');
       setAppliedCoupon(null);
-      setSelectedWaiter('');
-      setSelectedCustomer(null);
+      // Don't clear cart, setSelectedWaiter, or setSelectedCustomer
     }
     
     // Final refresh to ensure UI shows latest status
@@ -1668,11 +1666,8 @@ export function BillingPage() {
   // Handle preview print action
   const handlePreviewPrint = async () => {
     // Try QZ Tray for silent printing first
-    const qzAvailable = await initQZTray();
-    if (!qzAvailable) {
-      toast('warning', 'QZ Tray not available - install for silent printing');
-      return;
-    }
+    await initQZTray();
+    
     if (previewContent?.content) {
       try {
         let printContent = '';
@@ -1690,11 +1685,12 @@ export function BillingPage() {
         if (success) {
           toast('success', 'Print sent to thermal printer');
         } else {
-          toast('warning', 'QZ Tray error - check printer connection');
+          // Fallback to window.print
+          window.print();
         }
       } catch (err) {
         console.error('Print error:', err);
-        toast('error', 'Print failed - check QZ Tray');
+        window.print();
       }
     }
     
@@ -2575,109 +2571,57 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* Desktop Action Buttons - After totals */}
-            <div className="hidden lg:block space-y-2">
-              {/* Primary Row: KOT/Bill or Collect/Push */}
-              <div className="grid grid-cols-2 gap-2">
-                {billGenerated ? (
-                  <>
-                    <Button
-                      variant="success"
-                      size="md"
-                      onClick={() => setShowCollectModal(true)}
-                      className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <span>COLLECT</span>
-                    </Button>
-                    <Button
-                      variant="warning"
-                      size="md"
-                      onClick={() => setShowPushModal(true)}
-                      className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                      </svg>
-                      <span>PUSH</span>
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      variant="secondary"
-                      size="md"
-                      onClick={handleKOT}
-                      disabled={cart.filter(i => i.isNew).length === 0}
-                      className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-                    >
-                      <Printer className="w-4 h-4" />
-                      <span>KOT</span>
-                    </Button>
-                    <Button
-                      variant="accent"
-                      size="md"
-                      onClick={handleBill}
-                      disabled={cart.length === 0}
-                      className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
-                    >
-                      <Receipt className="w-4 h-4" />
-                      <span>Bill</span>
-                    </Button>
-                  </>
-                )}
-              </div>
-              {/* Secondary Row: Discount, Coupon, Clear - Centered on new line */}
-              <div className="flex justify-center gap-2">
-                <button
-                  onClick={() => {
-                    if (appliedCoupon) { toast('warning', 'Remove coupon first'); return; }
-                    setShowDiscountModal(true);
-                  }}
-                  disabled={cart.length === 0 || !!appliedCoupon}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  <Percent className="w-4 h-4 text-accent" />
-                  <span>Discount</span>
-                </button>
-                <button
-                  onClick={() => {
-                    if (discountValue > 0) { toast('warning', 'Discount applied'); return; }
-                    setShowCouponModal(true);
-                  }}
-                  disabled={cart.length === 0 || discountValue > 0}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50 text-sm"
-                >
-                  <Ticket className="w-4 h-4 text-green-400" />
-                  <span>Coupon</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    const hasKot = cart.some(item => item.isKot);
-                    if (!confirm(`Are you sure you want to ${hasKot ? 'cancel KOT' : 'clear cart'}?`)) return;
-                    try {
-                      if (currentOrderId) await api.deleteOrder(currentOrderId);
-                      if (selectedTable) {
-                        await api.put(`/tables/${selectedTable.id}`, { status: 'available' });
-                        if (selectedSection) store.fetchTables(selectedSection);
-                      }
-                      setCart([]); setCurrentOrderId(null);
-                      setDiscountAmount(''); setDiscountReason(''); setAppliedCoupon(null);
-                      toast('success', `KOT cancelled, table is now free`);
-                    } catch (error) {
-                      toast('error', `Failed`);
-                    }
-                  }}
-                  disabled={cart.length === 0}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 text-sm text-red-400"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>{cart.some(item => item.isKot) ? 'Clear KOT' : 'Clear'}</span>
-                </button>
-              </div>
-            </div>
+            {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
+            <div className="hidden lg:grid lg:grid-cols-3 gap-2">
+              {billGenerated ? (
+                <>
+                  <Button
+                    variant="success"
+                    size="md"
+                    onClick={() => setShowCollectModal(true)}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>COLLECT</span>
+                  </Button>
+                  <Button
+                    variant="warning"
+                    size="md"
+                    onClick={() => setShowPushModal(true)}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                    </svg>
+                    <span>PUSH</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={handleKOT}
+                    disabled={cart.filter(i => i.isNew).length === 0}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>KOT</span>
+                  </Button>
+                  <Button
+                    variant="accent"
+                    size="md"
+                    onClick={handleBill}
+                    disabled={cart.length === 0}
+                    className="flex items-center justify-center gap-2 h-12 text-sm font-medium"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    <span>Bill</span>
+                  </Button>
+                </>
+              )}
               
               {/* Mobile Action Buttons */}
               <div className="flex lg:hidden gap-2 w-full">
