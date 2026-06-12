@@ -34,8 +34,9 @@ const navItems = [
   { to: '/tables', icon: LayoutDashboard, label: 'Tables' },
   { to: '/busser', icon: ClipboardList, label: 'Busser Tasks', roles: ['busser'] },
   { to: '/customers', icon: UserPlus, label: 'Customers', roles: ['admin'] },
-  { to: '/database', icon: Database, label: 'Database', roles: ['admin'] },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/database', icon: Database, label: 'Database', roles: ['admin'], desktopOnly: true },
+  { to: '/settings', icon: Settings, label: 'Settings', desktopOnly: true },
+  { to: '/profile', icon: User, label: 'Profile', roles: ['admin'], mobileOnly: true },
 ];
 
 const roleLabels = {
@@ -189,6 +190,10 @@ export function Sidebar() {
           showFullContent ? 'space-y-1' : 'space-y-2'
         )}>
           {navItems.map((item) => {
+            // Filter based on device visibility
+            if (item.desktopOnly && viewMode === 'mobile') return null;
+            if (item.mobileOnly && viewMode !== 'mobile') return null;
+
             if (user?.role === 'admin') {
               return (
                 <NavLink

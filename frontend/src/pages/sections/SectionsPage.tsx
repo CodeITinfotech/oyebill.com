@@ -305,7 +305,7 @@ export function SectionsPage() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-                {editingSection ? 'Update Section' : 'Add Section'}
+                {editingSection ? 'Update' : 'Add Section'}
               </Button>
             </div>
           </form>
@@ -366,18 +366,11 @@ export function SectionsPage() {
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2 pb-4">
                 <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : (editingSection ? 'Update Section' : 'Add Section')}
+                  {isSubmitting ? 'Saving...' : (editingSection ? 'Update' : 'Add Section')}
                 </button>
               </div>
             </form>

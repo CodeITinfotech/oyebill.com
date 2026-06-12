@@ -306,11 +306,11 @@ export function CategoriesPage() {
             </div>
 
             <div className="flex gap-3 pt-4">
+              <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
+                {editingCategory ? 'Update' : 'Add Category'}
+              </Button>
               <Button type="button" variant="ghost" className="flex-1" onClick={() => setShowModal(false)}>
                 Cancel
-              </Button>
-              <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-                {editingCategory ? 'Update Category' : 'Add Category'}
               </Button>
             </div>
           </form>
@@ -371,18 +371,18 @@ export function CategoriesPage() {
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2 pb-4">
                 <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Saving...' : (editingCategory ? 'Update' : 'Add Category')}
+                </button>
+                <button
                   type="button"
                   onClick={() => setShowModal(false)}
                   className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Saving...' : (editingCategory ? 'Update Category' : 'Add Category')}
                 </button>
               </div>
             </form>

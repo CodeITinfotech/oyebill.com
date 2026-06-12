@@ -2983,8 +2983,8 @@ export function BillingPage() {
             </div>
           </div>
 
-          {/* Search Input */}
-          <div className="mb-2 lg:mb-4">
+          {/* Search Input - Sticky on mobile to stay above keyboard */}
+          <div className="mb-2 lg:mb-4 lg:static fixed top-0 left-0 right-0 z-30 bg-background-primary px-2 pt-2 pb-1 lg:p-0 lg:bg-transparent lg:z-auto">
             <input
               type="text"
               placeholder="Search items..."

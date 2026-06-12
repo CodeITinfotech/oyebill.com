@@ -14,7 +14,7 @@ import { OnlineOrderingSettings } from './OnlineOrderingSettings';
 type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering' | 'maintenance';
 type PrinterTab = 'kot' | 'bill' | 'setup';
 
-export function SettingsPage() {
+export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: string }) {
   const [searchParams] = useSearchParams();
   const { user, restaurant, setRestaurant } = useAuthStore();
   const { settings, tables, fetchSettings, updateSettings, fetchTables } = useDataStore();
@@ -22,7 +22,7 @@ export function SettingsPage() {
   const urlTab = searchParams.get('tab');
   const initialTab = urlTab && ['restaurant', 'profile', 'users', 'tax', 'printer', 'rights', 'coupons', 'tableStatus', 'tableAllocations', 'onlineOrdering'].includes(urlTab) 
     ? urlTab as SettingsTab 
-    : 'restaurant';
+    : (defaultTab as SettingsTab) || 'restaurant';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [isSubmitting, setIsSubmitting] = useState(false);
 

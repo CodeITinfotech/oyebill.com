@@ -426,7 +426,7 @@ export function TablesPage() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-                {editingTable ? 'Update Table' : 'Add Table'}
+                {editingTable ? 'Update' : 'Add Table'}
               </Button>
             </div>
           </form>
@@ -517,18 +517,11 @@ export function TablesPage() {
                   </button>
                 )}
                 <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : (editingTable ? 'Update Table' : 'Add Table')}
+                  {isSubmitting ? 'Saving...' : (editingTable ? 'Update' : 'Add Table')}
                 </button>
               </div>
             </form>

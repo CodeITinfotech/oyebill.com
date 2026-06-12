@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/layout';
 import { Button, Input, Select, Textarea, Toggle, Table, Modal, toast } from '../../components/ui';
 import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight, Settings, X } from 'lucide-react';
 import type { Product } from '../../types';
+import { PRODUCT_ICONS } from '../../types';
 
 const TAX_RATES = [
   { value: '0', label: '0%' },
@@ -37,6 +38,7 @@ export function ProductsPage() {
     taxRate: '18',
     isActive: true,
     enableOnline: false,
+    icon: '🍽️',
     sectionPrices: [] as { sectionId: string; price: string }[],
   });
 
@@ -85,6 +87,7 @@ export function ProductsPage() {
         taxRate: String(product.taxRate),
         isActive: product.isActive,
         enableOnline: product.enableOnline,
+        icon: product.icon || '🍽️',
         sectionPrices,
       });
     } else {
@@ -131,6 +134,7 @@ export function ProductsPage() {
       taxRate: parseFloat(formData.taxRate),
       isActive: formData.isActive,
       enableOnline: formData.enableOnline,
+      icon: formData.icon,
       sectionPrices,
     };
 
@@ -335,7 +339,7 @@ export function ProductsPage() {
               >
                 <div className="p-3">
                   <div className="w-full aspect-square bg-gradient-to-br from-accent/20 to-primary/20 rounded-lg mb-2 flex items-center justify-center">
-                    <span className="text-3xl">🍽️</span>
+                    <span className="text-3xl">{product.icon || '🍽️'}</span>
                   </div>
                   <h3 className="font-medium text-sm truncate">{product.name}</h3>
                   <p className="text-xs text-text-muted truncate">{getCategoryName(product.categoryId)}</p>
@@ -401,6 +405,27 @@ export function ProductsPage() {
                 placeholder="Select category"
                 required
               />
+            </div>
+
+            {/* Icon Picker */}
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">Icon</label>
+              <div className="flex flex-wrap gap-1.5 p-2 bg-background-secondary rounded-lg border border-white/10 max-h-32 overflow-y-auto">
+                {PRODUCT_ICONS.map((icon) => (
+                  <button
+                    key={icon}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, icon })}
+                    className={`w-8 h-8 text-lg rounded flex items-center justify-center transition-all ${
+                      formData.icon === icon
+                        ? 'bg-accent ring-2 ring-accent'
+                        : 'bg-background-tertiary hover:bg-white/10'
+                    }`}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <Textarea
@@ -480,7 +505,7 @@ export function ProductsPage() {
                 Cancel
               </Button>
               <Button type="submit" variant="primary" className="flex-1" loading={isSubmitting}>
-                {editingProduct ? 'Update Product' : 'Add Product'}
+                {editingProduct ? 'Update' : 'Add Product'}
               </Button>
             </div>
           </form>
@@ -549,6 +574,28 @@ export function ProductsPage() {
                   className="w-full px-3 py-2.5 bg-background-secondary border border-white/10 rounded-lg text-text-primary placeholder-text-muted focus:outline-none focus:border-accent resize-none"
                 />
               </div>
+
+              {/* Icon Picker - Mobile */}
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">Icon</label>
+                <div className="flex flex-wrap gap-1.5 p-2 bg-background-secondary rounded-lg border border-white/10 max-h-28 overflow-y-auto">
+                  {PRODUCT_ICONS.map((icon) => (
+                    <button
+                      key={icon}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, icon })}
+                      className={`w-8 h-8 text-lg rounded flex items-center justify-center transition-all ${
+                        formData.icon === icon
+                          ? 'bg-accent ring-2 ring-accent'
+                          : 'bg-background-tertiary hover:bg-white/10'
+                      }`}
+                    >
+                      {icon}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1.5">Selling Price *</label>
@@ -638,18 +685,11 @@ export function ProductsPage() {
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2 pb-4">
                 <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-6 py-3 bg-background-secondary hover:bg-white/10 text-text-primary font-medium rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {isSubmitting ? 'Saving...' : (editingProduct ? 'Update Product' : 'Add Product')}
+                  {isSubmitting ? 'Saving...' : (editingProduct ? 'Update' : 'Add Product')}
                 </button>
               </div>
             </form>

@@ -33,6 +33,7 @@ export interface Category {
   isActive: boolean;
   restaurantId: string;
   productCount?: number;
+  icon?: string; // Category icon (emoji or icon identifier)
 }
 
 export interface Section {
@@ -66,6 +67,7 @@ export interface Product {
   isActive: boolean;
   enableOnline: boolean;
   restaurantId: string;
+  icon?: string; // Product icon (emoji)
   // Section-wise pricing
   sectionPrices?: { sectionId: string; sectionName?: string; price: number }[];
 }
@@ -130,3 +132,6 @@ export interface ApiResponse<T> {
   error?: string;
   message?: string;
 }
+
+// Icon picker emojis for products
+export const PRODUCT_ICONS = ['🍽️', '🍕', '🍔', '🍟', '🌮', '🌯', '🥗', '🍜', '🍝', '🍣', '🍱', '🍰', '☕', '🍺', '🍷', '🥤', '🧃', '🍎', '🥩', '🍳', '🥐', '🍩', '🍪', '🧁', '🍌', '🥑', '🌶️', '🧅', '🍄', '🥜', '🫘', '🥔', '🍠', '🥚', '🧀', '🥛', '🧈', '🍯', '🧂', '🥣', '🥄', '🍴', '🥢', '🫕', '🥘', '🍲', '🥧', '🍦', '🍨', '🥡', '🥠', '🥮'];

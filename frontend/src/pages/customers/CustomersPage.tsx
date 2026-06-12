@@ -234,7 +234,7 @@ export function CustomersPage() {
                   </div>
                   <div className="flex gap-3">
                     <Button onClick={editingCustomer ? handleUpdateCustomer : handleCreateCustomer} loading={isSubmitting}>
-                      {editingCustomer ? 'Update Customer' : 'Create Customer'}
+                      {editingCustomer ? 'Update' : 'Create Customer'}
                     </Button>
                     <Button variant="ghost" onClick={cancelForm}>
                       Cancel
@@ -337,7 +337,7 @@ export function CustomersPage() {
                     disabled={isSubmitting}
                     className="flex-1 py-3 bg-accent hover:bg-accent/80 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {isSubmitting ? 'Saving...' : (editingCustomer ? 'Update Customer' : 'Create Customer')}
+                    {isSubmitting ? 'Saving...' : (editingCustomer ? 'Update' : 'Create Customer')}
                   </button>
                   <button
                     onClick={cancelForm}

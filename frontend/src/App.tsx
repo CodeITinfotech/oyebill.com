@@ -276,6 +276,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <SettingsPage defaultTab="profile" />
+            </ProtectedRoute>
+          }
+        />
         
 
         {/* NFC/QR Customer Ordering - Public Route */}
