@@ -197,7 +197,7 @@
   }
   
   .modal-content {
-    @apply fixed top-[10%] left-1/2 -translate-x-1/2 bg-background-card rounded-xl shadow-2xl border border-white/10 z-[95] max-h-[85vh] overflow-y-auto;
+    @apply relative bg-background-card rounded-xl shadow-2xl border border-white/10 z-[95] max-h-[90vh] overflow-y-auto;
   }
   
   /* Sidebar Nav Item */

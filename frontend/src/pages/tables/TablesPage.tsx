@@ -373,6 +373,7 @@ export function TablesPage() {
           isOpen={showModal}
           onClose={() => setShowModal(false)}
           title={editingTable ? `Edit Table ${editingTable.number}` : 'Add Table'}
+          size="sm"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">

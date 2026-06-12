@@ -260,8 +260,18 @@ const store = create<DataState>((set, get) => ({
       if (response && response.success) {
         invalidateCache('tables_');
         // Refresh tables to get updated status
-        const tables = await api.getTables();
-        set({ tables });
+        const tablesResponse = await api.getTables();
+        if (tablesResponse.success && Array.isArray(tablesResponse.data)) {
+          const transformedTables = tablesResponse.data.map((t: any) => ({
+            id: t.id,
+            number: t.number,
+            sectionId: t.sectionId,
+            sectionName: t.sectionName,
+            capacity: t.capacity,
+            status: t.status,
+          }));
+          set({ tables: transformedTables });
+        }
         return true;
       }
       console.error('Delete table failed:', response);
