@@ -3402,7 +3402,7 @@ export function BillingPage() {
         title="Switch Table"
         size="md"
       >
-        <div className="space-y-3 sm:space-y-4">
+        <div>
           {/* Section Filter Chips */}
           <div className="flex flex-wrap gap-2">
             <button
@@ -3531,8 +3531,8 @@ export function BillingPage() {
         title="Select Table"
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-text-secondary">
+        <div>
+          <p className="text-sm text-text-secondary mb-3">
             {selectedTable ? `Currently at Table ${selectedTable.number}` : 'No table selected'}
           </p>
           
