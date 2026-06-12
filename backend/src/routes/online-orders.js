@@ -4,6 +4,34 @@ import db from '../../database/index.js';
 
 const router = express.Router();
 
+// Helper function to get order data as an object
+function getOrderData(orderId) {
+  const rows = db.prepare('SELECT data_key, data_value FROM online_orders_data WHERE order_id = ?').all(orderId);
+  const data = {};
+  rows.forEach(row => {
+    try {
+      data[row.data_key] = JSON.parse(row.data_value);
+    } catch {
+      data[row.data_key] = row.data_value;
+    }
+  });
+  return Object.keys(data).length > 0 ? data : null;
+}
+
+// Helper function to save order data key-value pairs
+function saveOrderData(orderId, data) {
+  if (!data || typeof data !== 'object') return;
+  
+  const insertStmt = db.prepare(`
+    INSERT OR REPLACE INTO online_orders_data (id, order_id, data_key, data_value, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `);
+  
+  for (const [key, value] of Object.entries(data)) {
+    insertStmt.run(uuidv4(), orderId, key, JSON.stringify(value));
+  }
+}
+
 // Get all online orders
 router.get('/', (req, res) => {
   try {
@@ -35,10 +63,10 @@ router.get('/', (req, res) => {
     
     const orders = db.prepare(query).all(...params);
     
-    // Parse order_data JSON string if it exists
+    // Get order data from the new table
     const parsedOrders = orders.map(order => ({
       ...order,
-      order_data: order.order_data ? JSON.parse(order.order_data) : null
+      order_data: getOrderData(order.id)
     }));
     
     res.json({ success: true, data: parsedOrders });
@@ -64,10 +92,8 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
     
-    // Parse order_data if exists
-    if (order.order_data) {
-      order.order_data = JSON.parse(order.order_data);
-    }
+    // Get order data from the new table
+    order.order_data = getOrderData(id);
     
     res.json({ success: true, data: order });
   } catch (error) {
@@ -88,8 +114,8 @@ router.post('/', (req, res) => {
     const id = uuidv4();
     
     db.prepare(`
-      INSERT INTO online_orders (id, external_order_id, platform, customer_name, customer_phone, delivery_address, order_data, total_amount, items_count, estimated_time)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO online_orders (id, external_order_id, platform, customer_name, customer_phone, delivery_address, total_amount, items_count, estimated_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       external_order_id || null,
@@ -97,13 +123,18 @@ router.post('/', (req, res) => {
       customer_name || null,
       customer_phone || null,
       delivery_address || null,
-      order_data ? JSON.stringify(order_data) : null,
       total_amount || 0,
       items_count || 0,
       estimated_time || null
     );
     
+    // Save order_data to the new table
+    if (order_data) {
+      saveOrderData(id, order_data);
+    }
+    
     const order = db.prepare('SELECT * FROM online_orders WHERE id = ?').get(id);
+    order.order_data = getOrderData(id);
     
     res.status(201).json({ success: true, data: order });
   } catch (error) {
@@ -134,6 +165,7 @@ router.post('/:id/accept', (req, res) => {
     `).run(id);
     
     const updatedOrder = db.prepare('SELECT * FROM online_orders WHERE id = ?').get(id);
+    updatedOrder.order_data = getOrderData(id);
     
     res.json({ success: true, data: updatedOrder });
   } catch (error) {
@@ -165,6 +197,7 @@ router.post('/:id/decline', (req, res) => {
     `).run(id);
     
     const updatedOrder = db.prepare('SELECT * FROM online_orders WHERE id = ?').get(id);
+    updatedOrder.order_data = getOrderData(id);
     
     res.json({ success: true, data: updatedOrder });
   } catch (error) {
@@ -197,6 +230,7 @@ router.post('/:id/status', (req, res) => {
     `).run(status, id);
     
     const updatedOrder = db.prepare('SELECT * FROM online_orders WHERE id = ?').get(id);
+    updatedOrder.order_data = getOrderData(id);
     
     res.json({ success: true, data: updatedOrder });
   } catch (error) {
@@ -230,6 +264,7 @@ router.post('/:id/link-order', (req, res) => {
     `).run(order_id, id);
     
     const updatedOrder = db.prepare('SELECT * FROM online_orders WHERE id = ?').get(id);
+    updatedOrder.order_data = getOrderData(id);
     
     res.json({ success: true, data: updatedOrder });
   } catch (error) {

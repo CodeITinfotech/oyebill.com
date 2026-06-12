@@ -94,7 +94,6 @@ router.get('/', authenticateToken, (req, res) => {
       billPrinter: settings.bill_printer,
       printCopies: settings.print_copies,
       skipLinesBeforeCut: settings.skip_lines_before_cut || 3,
-      taxName: settings.tax_name || 'GST',
       isActive: settings.is_active === 1,
       printerSettings,
       taxSetup,
@@ -115,7 +114,7 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     const { 
       cgstRate, sgstRate, defaultTaxRate, priceInclusiveTax, 
       kotPrinter, billPrinter, printCopies, skipLinesBeforeCut,
-      taxName, isActive, printerSettings, taxSetup, billSetup, kotSetup, userRights, tableStatusColors
+      isActive, printerSettings, taxSetup, billSetup, kotSetup, userRights, tableStatusColors
     } = req.body;
     const { db } = req;
 
@@ -129,7 +128,6 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
         bill_printer = COALESCE(?, bill_printer),
         print_copies = COALESCE(?, print_copies),
         skip_lines_before_cut = COALESCE(?, skip_lines_before_cut),
-        tax_name = COALESCE(?, tax_name),
         is_active = COALESCE(?, is_active)
       WHERE restaurant_id = ?
     `).run(
@@ -141,7 +139,6 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       billPrinter,
       printCopies,
       skipLinesBeforeCut,
-      taxName,
       isActive !== undefined ? (isActive ? 1 : 0) : null,
       req.user.restaurantId
     );
@@ -333,7 +330,6 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       billPrinter: settings.bill_printer,
       printCopies: settings.print_copies,
       skipLinesBeforeCut: settings.skip_lines_before_cut || 3,
-      taxName: settings.tax_name || 'GST',
       isActive: settings.is_active === 1,
       printerSettings: printerSettingsResult,
       taxSetup: taxSetupResult,

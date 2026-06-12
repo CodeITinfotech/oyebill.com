@@ -3,6 +3,9 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { randomUUID } from 'crypto';
 
+// Helper function for generating UUIDs
+const uuidv4 = () => randomUUID().toString();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -112,6 +115,91 @@ try {
   }
 } catch (err) {
   console.log('Customer online order items modifiers migration note:', err.message);
+}
+
+// Migration: Create product_section_prices table and remove section_prices from products
+try {
+  // Create product_section_prices table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS product_section_prices (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      section_id TEXT NOT NULL,
+      price REAL NOT NULL,
+      restaurant_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(product_id, section_id),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
+      FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
+    )
+  `);
+  console.log('Created product_section_prices table');
+} catch (err) {
+  console.log('Product section prices table creation note:', err.message);
+}
+
+// Migration: Remove tax_name from settings (use tax_setup table instead)
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(settings)").all();
+  const existingColumns = tableInfo.map(col => col.name);
+  
+  if (existingColumns.includes('tax_name')) {
+    db.exec("ALTER TABLE settings DROP COLUMN tax_name");
+    console.log('Removed tax_name column from settings table');
+  }
+} catch (err) {
+  console.log('Settings tax_name migration note:', err.message);
+}
+
+// Migration: Create online_orders_data table and remove order_data from online_orders
+try {
+  // Create online_orders_data table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS online_orders_data (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL,
+      data_key TEXT NOT NULL,
+      data_value TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (order_id) REFERENCES online_orders(id) ON DELETE CASCADE,
+      UNIQUE(order_id, data_key)
+    )
+  `);
+  console.log('Created online_orders_data table');
+  
+  // Check if order_data column exists in online_orders and migrate data
+  const orderInfo = db.prepare("PRAGMA table_info(online_orders)").all();
+  const hasOrderData = orderInfo.some(col => col.name === 'order_data');
+  
+  if (hasOrderData) {
+    // Migrate existing order_data to new table
+    const ordersWithData = db.prepare("SELECT id, order_data FROM online_orders WHERE order_data IS NOT NULL").all();
+    
+    for (const order of ordersWithData) {
+      try {
+        const parsedData = JSON.parse(order.order_data);
+        if (typeof parsedData === 'object' && parsedData !== null) {
+          for (const [key, value] of Object.entries(parsedData)) {
+            db.prepare(`
+              INSERT INTO online_orders_data (id, order_id, data_key, data_value)
+              VALUES (?, ?, ?, ?)
+            `).run(uuidv4(), order.id, key, JSON.stringify(value));
+          }
+        }
+      } catch (e) {
+        console.log('Failed to migrate order_data for order:', order.id);
+      }
+    }
+    
+    // Remove order_data column
+    db.exec("ALTER TABLE online_orders DROP COLUMN order_data");
+    console.log('Migrated order_data to online_orders_data and removed column');
+  }
+} catch (err) {
+  console.log('Online orders data migration note:', err.message);
 }
 
 // Create tables
@@ -248,7 +336,6 @@ db.exec(`
     bill_printer TEXT,
     print_copies INTEGER DEFAULT 1,
     skip_lines_before_cut INTEGER DEFAULT 3,
-    tax_name TEXT DEFAULT 'GST',
     is_active INTEGER DEFAULT 1,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id)
   );
@@ -391,7 +478,6 @@ db.exec(`
     customer_name TEXT,
     customer_phone TEXT,
     delivery_address TEXT,
-    order_data TEXT,
     status TEXT DEFAULT 'new' CHECK(status IN ('new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled', 'declined')),
     total_amount REAL DEFAULT 0,
     items_count INTEGER DEFAULT 0,
@@ -402,6 +488,19 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
     FOREIGN KEY (linked_order_id) REFERENCES orders(id)
+  );
+  
+  -- Online Orders Data table (stores key-value pairs for order metadata)
+  -- This replaces the order_data JSON column from online_orders
+  CREATE TABLE IF NOT EXISTS online_orders_data (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL,
+    data_key TEXT NOT NULL,
+    data_value TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES online_orders(id) ON DELETE CASCADE,
+    UNIQUE(order_id, data_key)
   );
   
   CREATE INDEX IF NOT EXISTS idx_online_orders_status ON online_orders(status);
