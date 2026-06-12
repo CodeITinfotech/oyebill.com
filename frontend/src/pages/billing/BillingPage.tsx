@@ -915,21 +915,10 @@ export function BillingPage() {
     // Final refresh to ensure UI shows latest status
     await store.fetchTables(selectedSection || undefined);
     
-    // Force re-render by updating state with fresh data
+    // Update selected table with fresh data from store
     const finalTable = store.tables.find(t => t.id === table.id);
     if (finalTable) {
-      // If table has items (cart or order), update status to match
-      const hasItems = (cart.length > 0 || (response.success && response.data && response.data.items?.length > 0));
-      if (hasItems && finalTable.status === 'available') {
-        const updateResult = await api.put(`/tables/${finalTable.id}`, { status: 'occupied' });
-        if (updateResult.success) {
-          setSelectedTable({ ...finalTable, status: 'occupied' });
-        } else {
-          setSelectedTable({ ...finalTable });
-        }
-      } else {
-        setSelectedTable({ ...finalTable });
-      }
+      setSelectedTable({ ...finalTable });
     }
   };
 

@@ -17,6 +17,16 @@
   }
 }
 
+/* Desktop: Full height panel */
+@media (min-width: 1024px) {
+  .order-panel {
+    height: calc(100vh - 64px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
 /* Hide scrollbar on category pills */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
