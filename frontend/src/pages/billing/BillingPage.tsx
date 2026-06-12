@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
 import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
+import './BillingPage.css';
 
 // Category Icons - Maps category names to icons
 const CATEGORY_ICONS: Record<string, string> = {
