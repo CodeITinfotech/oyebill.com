@@ -2573,9 +2573,10 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* Desktop Action Buttons - Primary Row */}
-            <div className="hidden lg:block">
-              <div className="grid grid-cols-2 gap-2 mb-2">
+            {/* Desktop Action Buttons - After totals */}
+            <div className="hidden lg:block space-y-2">
+              {/* Primary Row: KOT/Bill or Collect/Push */}
+              <div className="grid grid-cols-2 gap-2">
                 {billGenerated ? (
                   <>
                     <Button
@@ -2626,7 +2627,7 @@ export function BillingPage() {
                   </>
                 )}
               </div>
-              {/* Desktop: Secondary buttons row */}
+              {/* Secondary Row: Discount, Coupon, Clear */}
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {

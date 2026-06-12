@@ -42,10 +42,10 @@ export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="modal-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className={clsx(
-        'modal-content relative w-full max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col rounded-lg shadow-2xl bg-bg-secondary border border-white/10',
+        'modal-content relative w-full max-h-[90vh] overflow-hidden flex flex-col rounded-lg shadow-2xl bg-bg-secondary border border-white/10',
         sizes[size]
       )}>
         {title && (
