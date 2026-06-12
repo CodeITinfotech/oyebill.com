@@ -1668,8 +1668,11 @@ export function BillingPage() {
   // Handle preview print action
   const handlePreviewPrint = async () => {
     // Try QZ Tray for silent printing first
-    await initQZTray();
-    
+    const qzAvailable = await initQZTray();
+    if (!qzAvailable) {
+      toast('warning', 'QZ Tray not available - install for silent printing');
+      return;
+    }
     if (previewContent?.content) {
       try {
         let printContent = '';
