@@ -262,7 +262,7 @@ export default function OnlineOrdersPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold">₹{order.total_amount || 0}</p>
+                      <p className="font-bold">₹{(order.total_amount || 0).toFixed(2)}</p>
                       <p className="text-xs text-text-muted">{getTimeSince(order.created_at)}</p>
                     </div>
                   </div>

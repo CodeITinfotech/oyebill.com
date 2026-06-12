@@ -168,7 +168,7 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
         </div>
         <div className="bg-white/5 rounded-lg p-4">
           <p className="text-text-muted text-sm">Today's Revenue</p>
-          <p className="text-2xl font-bold">₹{stats?.todayRevenue || 0}</p>
+          <p className="text-2xl font-bold">₹{(stats?.todayRevenue || 0).toFixed(2)}</p>
         </div>
         <div className="bg-white/5 rounded-lg p-4">
           <p className="text-text-muted text-sm">Pending Orders</p>
@@ -295,7 +295,7 @@ export const OnlineOrderingSettings: React.FC<OnlineOrderingSettingsProps> = ({ 
               <div className="p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <strong>Free delivery</strong> for customers within {settings.freeDeliveryRadiusKm}km<br />
-                  <strong>Paid delivery</strong> (₹{settings.deliveryCharge}) for {settings.freeDeliveryRadiusKm}-{settings.paidDeliveryRadiusKm}km<br />
+                  <strong>Paid delivery</strong> (₹{settings.deliveryCharge.toFixed(2)}) for {settings.freeDeliveryRadiusKm}-{settings.paidDeliveryRadiusKm}km<br />
                   <strong>No delivery</strong> beyond {settings.paidDeliveryRadiusKm}km
                 </p>
               </div>

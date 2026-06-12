@@ -324,7 +324,7 @@ export const MenuCatalogPage: React.FC<MenuCatalogPageProps> = ({ restaurantId, 
                       <div key={item.product_id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
                         <div className="flex-1">
                           <p className="font-medium">{item.name}</p>
-                          <p className="text-sm text-gray-500">₹{item.price} × {item.quantity}</p>
+                          <p className="text-sm text-gray-500">₹{item.price.toFixed(2)} × {item.quantity}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={() => updateQuantity(item.product_id, -1)} className="p-1 bg-white rounded">

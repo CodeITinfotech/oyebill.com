@@ -267,7 +267,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ restaurantId }) => {
             <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm">
               <p className="text-blue-800">
                 <strong>Free delivery</strong> within {state.settings.freeDeliveryRadiusKm}km<br />
-                <strong>₹{state.settings.deliveryCharge}</strong> delivery charge between {state.settings.freeDeliveryRadiusKm}-{state.settings.paidDeliveryRadiusKm}km<br />
+                <strong>₹{state.settings.deliveryCharge.toFixed(2)}</strong> delivery charge between {state.settings.freeDeliveryRadiusKm}-{state.settings.paidDeliveryRadiusKm}km<br />
                 <strong>No delivery</strong> beyond {state.settings.paidDeliveryRadiusKm}km
               </p>
             </div>
@@ -305,7 +305,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ restaurantId }) => {
                   <p className="text-green-700 text-sm">
                     ✓ {deliveryValidation.message}
                     {deliveryValidation.deliveryCharge > 0 && (
-                      <span className="font-medium"> - ₹{deliveryValidation.deliveryCharge} charge</span>
+                      <span className="font-medium"> - ₹{deliveryValidation.deliveryCharge.toFixed(2)} charge</span>
                     )}
                   </p>
                 ) : (
