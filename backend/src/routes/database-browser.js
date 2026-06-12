@@ -26,6 +26,8 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
     .btn:hover { background: #00b8d4; }
     .btn-secondary { background: #6c757d; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
     .btn-secondary:hover { background: #5a6268; }
+    .btn-sm { background: #2d3a5c; color: #fff; padding: 6px 12px; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+    .btn-sm:hover { background: #00d4ff; color: #000; border-color: #00d4ff; }
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { padding: 10px; text-align: left; border: 1px solid #333; }
     th { background: #0f3460; color: #00d4ff; }
@@ -74,6 +76,12 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
       </div>
       
       <h2>💻 SQL Query <span id="currentTable" style="color:#888;font-weight:normal;font-size:0.8rem"></span></h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="insertTemplate('select')">SELECT</button>
+        <button class="btn-sm" onclick="insertTemplate('insert')">INSERT</button>
+        <button class="btn-sm" onclick="insertTemplate('update')">UPDATE</button>
+        <button class="btn-sm" onclick="insertTemplate('delete')">DELETE</button>
+      </div>
       <textarea id="sql" placeholder="SELECT * FROM tables LIMIT 10"></textarea>
       <div style="margin-top: 10px; display: flex; gap: 10px;">
         <button class="btn" onclick="executeQuery()">▶ Execute</button>
@@ -207,13 +215,14 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
           body: JSON.stringify({ sql })
         });
         const data = await res.json();
-        if (data.error) { 
-          msg.innerHTML = '<div class="error">❌ ' + data.error + '</div>'; 
+        if (data.error || !data.success) { 
+          msg.innerHTML = '<div class="error">❌ ' + (data.error || data.message) + '</div>'; 
           results.innerHTML = ''; 
           document.getElementById('rowCount').textContent = '';
         }
-        else {
-          msg.innerHTML = '<div class="success">✅ Query executed</div>';
+        else if (data.type === 'select') {
+          // SELECT query - show results table
+          msg.innerHTML = '<div class="success">✅ SELECT executed - ' + (data.rows?.length || 0) + ' rows</div>';
           document.getElementById('rowCount').textContent = '(' + (data.rows?.length || 0) + ' rows)';
           if (data.rows?.length) {
             let html = '<table><thead><tr>';
@@ -231,6 +240,16 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
             results.innerHTML = html;
           } else results.innerHTML = '<div class="row-count">Query executed successfully (0 rows returned)</div>';
         }
+        else {
+          // INSERT, UPDATE, DELETE - show affected rows
+          const opIcon = data.type === 'insert' ? '➕' : data.type === 'update' ? '✏️' : '🗑️';
+          const opText = data.type.charAt(0).toUpperCase() + data.type.slice(1);
+          msg.innerHTML = '<div class="success">' + opIcon + ' ' + opText + ' successful! ' + data.affectedRows + ' row(s) affected</div>';
+          if (data.lastInsertRowid) {
+            msg.innerHTML += '<div style="color:#888;margin-top:5px">Last Insert ID: ' + data.lastInsertRowid + '</div>';
+          }
+          results.innerHTML = '<div style="padding:20px;text-align:center;background:#0f3460;border-radius:8px;margin-top:15px"><strong>' + opText + ' completed</strong><br><span style="color:#51cf66;font-size:1.2em">' + data.affectedRows + '</span> row(s) affected</div>';
+        }
       } catch (e) { msg.innerHTML = '<div class="error">❌ ' + e.message + '</div>'; }
     }
     
@@ -243,6 +262,21 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
       document.getElementById('columnsPanel').classList.remove('visible');
       document.querySelectorAll('.table-btn').forEach(btn => btn.classList.remove('active'));
       currentTable = '';
+    }
+    
+    function insertTemplate(type) {
+      const textarea = document.getElementById('sql');
+      const table = currentTable || 'table_name';
+      
+      const templates = {
+        select: `SELECT * FROM ${table} WHERE id = 'xxx' LIMIT 10`,
+        insert: `INSERT INTO ${table} (name, is_active) VALUES ('New Item', 1)`,
+        update: `UPDATE ${table} SET name = 'Updated Name' WHERE id = 'xxx'`,
+        delete: `DELETE FROM ${table} WHERE id = 'xxx'`
+      };
+      
+      textarea.value = templates[type] || templates.select;
+      textarea.focus();
     }
     
     // Close modal on background click
@@ -266,16 +300,70 @@ router.post('/query', authenticateToken, requireRole('admin'), (req, res) => {
   if (!sql) return res.status(400).json({ error: 'SQL required' });
   
   const trimmed = sql.trim().toLowerCase();
-  if (!trimmed.startsWith('select')) {
-    return res.status(400).json({ error: 'Only SELECT queries allowed' });
+  const operation = trimmed.split(' ')[0];
+  
+  // Allowed operations
+  const allowedOps = ['select', 'insert', 'update', 'delete'];
+  if (!allowedOps.includes(operation)) {
+    return res.status(400).json({ error: 'Only SELECT, INSERT, UPDATE, DELETE allowed' });
+  }
+  
+  // Security: Block dangerous operations
+  const blocked = ['drop', 'alter', 'create', 'truncate', 'pragma'];
+  for (const block of blocked) {
+    if (trimmed.includes(block)) {
+      return res.status(400).json({ error: `Operation '${block.toUpperCase()}' is not allowed` });
+    }
   }
   
   try {
     const stmt = db.prepare(sql);
-    const rows = stmt.all();
-    res.json({ columns: rows.length ? Object.keys(rows[0]) : [], rows });
+    
+    if (operation === 'select') {
+      const rows = stmt.all();
+      res.json({ 
+        success: true,
+        type: 'select',
+        columns: rows.length ? Object.keys(rows[0]) : [], 
+        rows,
+        affectedRows: rows.length
+      });
+    } else {
+      const result = stmt.run();
+      res.json({ 
+        success: true,
+        type: operation,
+        affectedRows: result.changes,
+        lastInsertRowid: result.lastInsertRowid
+      });
+    }
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// Execute raw SQL with multiple statements (for migrations)
+router.post('/execute', authenticateToken, requireRole('admin'), (req, res) => {
+  const { sql } = req.body;
+  const { db } = req;
+  
+  if (!sql) return res.status(400).json({ error: 'SQL required' });
+  
+  const trimmed = sql.trim().toLowerCase();
+  
+  // Security: Block dangerous operations except in execute mode
+  const blocked = ['drop', 'truncate'];
+  for (const block of blocked) {
+    if (trimmed.includes(block)) {
+      return res.status(400).json({ error: `Operation '${block.toUpperCase()}' is not allowed` });
+    }
+  }
+  
+  try {
+    const result = db.exec(sql);
+    res.json({ success: true, message: 'Executed successfully' });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
