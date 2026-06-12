@@ -28,7 +28,6 @@ Thumbs.db
 *.bak
 *~
 
-# Database (use oyebill.db.tar.gz for backups)
+# Database - do not commit .db files except in database folder
 *.db
-!backend/database/oyebill.db
-!backend/database/oyebill.db.tar.gz
+!backend/database/*.db
