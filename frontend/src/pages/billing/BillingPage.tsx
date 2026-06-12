@@ -2041,7 +2041,13 @@ export function BillingPage() {
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
                       <button
                         onClick={() => setShowSwitchTableModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent/80 rounded-lg text-xs font-medium"
+                        disabled={!currentOrderId}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                          currentOrderId
+                            ? 'bg-accent hover:bg-accent/80 text-white'
+                            : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
+                        }`}
+                        title={currentOrderId ? 'Switch Table' : 'Generate KOT first to switch table'}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -2064,7 +2070,13 @@ export function BillingPage() {
                     </div>
                     <button
                       onClick={() => setShowSwitchTableModal(true)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-accent hover:bg-accent/80 rounded text-xs font-medium"
+                      disabled={!currentOrderId}
+                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-medium ${
+                        currentOrderId
+                          ? 'bg-accent hover:bg-accent/80 text-white'
+                          : 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
+                      }`}
+                      title={currentOrderId ? 'Switch Table' : 'Generate KOT first to switch table'}
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
