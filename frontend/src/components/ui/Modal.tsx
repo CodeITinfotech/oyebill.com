@@ -42,22 +42,25 @@ export function Modal({ isOpen, onClose, title, size = 'md', children }: ModalPr
   };
 
   return (
-    <>
-      <div className="modal-backdrop" onClick={onClose} />
-      <div className={clsx('modal-content w-full', sizes[size])}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+      <div className="modal-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className={clsx(
+        'modal-content relative w-full max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col rounded-lg shadow-2xl bg-bg-secondary border border-white/10',
+        sizes[size]
+      )}>
         {title && (
-          <div className="flex items-center justify-between p-4 border-b border-white/10">
-            <h2 className="text-lg font-semibold text-text-primary font-display">{title}</h2>
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-white/10 shrink-0">
+            <h2 className="text-base sm:text-lg font-semibold text-text-primary font-display truncate">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors"
+              className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-white/5 transition-colors shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         )}
-        <div className="p-4">{children}</div>
+        <div className="p-3 sm:p-4 overflow-y-auto flex-1">{children}</div>
       </div>
-    </>
+    </div>
   );
 }
