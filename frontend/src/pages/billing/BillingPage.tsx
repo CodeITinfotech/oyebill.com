@@ -2046,29 +2046,35 @@ export function BillingPage() {
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
                       <button
                         onClick={() => setShowSwitchTableModal(true)}
-                        className="text-xs text-accent hover:text-accent/80 font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent/80 rounded-lg text-xs font-medium"
                       >
-                        Switch
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        Switch Table
                       </button>
                     </div>
                   </div>
                 ) : null}
 
-                {/* Mobile: Selected Table Compact with View Tables Button */}
+                {/* Mobile: Selected Table Compact with Switch Table Button */}
                 {!onlineOrder && selectedTable ? (
                   <div className="lg:hidden flex items-center gap-2 p-2 rounded-lg bg-accent/10 border border-accent/20 mb-2">
                     <div className="flex-1 flex items-center gap-2">
                       <span className={`status-dot ${selectedTable.status === 'available' ? 'status-available' : 'status-occupied'}`} />
-                      <span className="font-medium text-sm">T{selectedTable.number}</span>
+                      <div>
+                        <span className="font-medium text-sm">Table {selectedTable.number}</span>
+                        <span className="text-xs text-text-muted ml-1">({selectedTable.capacity} seats)</span>
+                      </div>
                     </div>
                     <button
-                      onClick={() => setShowAllTablesModal(true)}
-                      className="flex items-center gap-1 px-2 py-1 bg-background-secondary hover:bg-white/10 rounded text-xs"
+                      onClick={() => setShowSwitchTableModal(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-accent hover:bg-accent/80 rounded text-xs font-medium"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                       </svg>
-                      Tables
+                      Switch Table
                     </button>
                   </div>
                 ) : (
