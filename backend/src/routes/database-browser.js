@@ -244,11 +244,22 @@ router.get('/', authenticateToken, requireRole('admin'), (req, res) => {
           // INSERT, UPDATE, DELETE - show affected rows
           const opIcon = data.type === 'insert' ? '➕' : data.type === 'update' ? '✏️' : '🗑️';
           const opText = data.type.charAt(0).toUpperCase() + data.type.slice(1);
-          msg.innerHTML = '<div class="success">' + opIcon + ' ' + opText + ' successful! ' + data.affectedRows + ' row(s) affected</div>';
+          const affected = data.affectedRows || 0;
+          const actionText = data.type === 'delete' ? 'deleted' : 'affected';
+          
+          msg.innerHTML = '<div class="success">' + opIcon + ' ' + opText + ' completed! ' + affected + ' row(s) ' + actionText + '</div>';
           if (data.lastInsertRowid) {
             msg.innerHTML += '<div style="color:#888;margin-top:5px">Last Insert ID: ' + data.lastInsertRowid + '</div>';
           }
-          results.innerHTML = '<div style="padding:20px;text-align:center;background:#0f3460;border-radius:8px;margin-top:15px"><strong>' + opText + ' completed</strong><br><span style="color:#51cf66;font-size:1.2em">' + data.affectedRows + '</span> row(s) affected</div>';
+          
+          const borderColor = data.type === 'delete' ? '#e74c3c' : (data.type === 'insert' ? '#27ae60' : '#f39c12');
+          const iconColor = data.type === 'delete' ? '❌' : (data.type === 'insert' ? '✅' : '✏️');
+          results.innerHTML = '<div style="padding:30px;text-align:center;background:#16213e;border-radius:12px;margin-top:15px;border:2px solid ' + borderColor + '">' +
+            '<div style="font-size:2.5em;margin-bottom:10px">' + iconColor + '</div>' +
+            '<div style="font-size:1.2em;color:#fff;margin-bottom:5px">' + opText + ' Successful</div>' +
+            '<div style="font-size:2em;font-weight:bold;color:' + borderColor + '">' + affected + '</div>' +
+            '<div style="color:#888;font-size:0.9em">Row(s) ' + actionText.charAt(0).toUpperCase() + actionText.slice(1) + '</div>' +
+            '</div>';
         }
       } catch (e) { msg.innerHTML = '<div class="error">❌ ' + e.message + '</div>'; }
     }
