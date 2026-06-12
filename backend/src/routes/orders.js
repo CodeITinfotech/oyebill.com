@@ -146,15 +146,14 @@ router.get('/', authenticateToken, (req, res) => {
       userName: order.user_name,
       status: order.status,
       items: [],
-        subtotal: order.subtotal,
-        taxAmount: order.tax_amount,
-        discountAmount: order.discount_amount,
-        discountReason: order.discount_reason,
-        total: order.total,
-        createdAt: order.created_at,
-        updatedAt: order.updated_at,
-      };
-    });
+      subtotal: order.subtotal,
+      taxAmount: order.tax_amount,
+      discountAmount: order.discount_amount,
+      discountReason: order.discount_reason,
+      total: order.total,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+    }));
 
     res.json(ordersWithItems);
   } catch (error) {
