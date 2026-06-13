@@ -2555,7 +2555,7 @@ export function BillingPage() {
             </div>
 
             {/* Action Buttons - Mobile friendly, hidden on mobile, show in cart area */}
-            <div className="hidden lg:grid lg:grid-cols-3 gap-2">
+            <div className="hidden md:grid md:grid-cols-2 gap-2">
               {billGenerated ? (
                 <>
                   <Button
@@ -2607,7 +2607,7 @@ export function BillingPage() {
               )}
               
               {/* Inline Action Buttons for Desktop */}
-              <div className="hidden lg:flex gap-2 w-full">
+              <div className="col-span-2 hidden md:flex gap-2 w-full">
                 {/* Apply Discount */}
                 <button
                   onClick={() => {
@@ -2680,10 +2680,10 @@ export function BillingPage() {
                     }
                   }}
                   disabled={cart.length === 0}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm text-red-400 hover:text-red-300"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white/10 hover:bg-red-500/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm text-red-400 hover:text-red-300 whitespace-nowrap"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span>{cart.some(item => item.isKot) ? 'Clear KOT' : 'Clear Cart'}</span>
+                  <span>Clear Cart</span>
                 </button>
               </div>
               
