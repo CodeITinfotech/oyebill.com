@@ -25,7 +25,7 @@ import { useState, useEffect } from 'react';
 import { useSidebar } from './SidebarContext';
 
 const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Demo Restaurant' },
   { to: '/billing', icon: FileText, label: 'Billing' },
   { to: '/online-orders', icon: Store, label: 'Online Orders', mobileLabel: 'Orders' },
   { to: '/customer-orders', icon: ClipboardList, label: 'Customer Orders' },
