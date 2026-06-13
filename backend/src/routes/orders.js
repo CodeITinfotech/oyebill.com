@@ -273,6 +273,59 @@ router.delete('/:id', authenticateToken, (req, res) => {
   }
 });
 
+// Add item to order
+router.post('/:orderId/items', authenticateToken, (req, res) => {
+  try {
+    const { db } = req;
+    const { orderId } = req.params;
+    const { productId, productName, quantity, unitPrice, taxRate, taxAmount, isKot, cookingInstructions, modifiers } = req.body;
+
+    // Check if order exists and is not billed
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (order.status === 'billed') {
+      return res.status(400).json({ error: 'Cannot modify billed order' });
+    }
+
+    // Create the item
+    const itemId = uuidv4();
+    const itemTotal = (unitPrice || 0) * (quantity || 1);
+    const itemTax = (taxAmount || 0) * (quantity || 1);
+    const modifiersJson = modifiers ? JSON.stringify(modifiers) : null;
+
+    db.prepare(`
+      INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(itemId, orderId, productId, productName, quantity || 1, unitPrice || 0, taxRate || 0, itemTax, itemTotal + itemTax, isKot ? 1 : 0, cookingInstructions || null, modifiersJson);
+
+    // Update order totals
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    let subtotal = 0;
+    let taxAmountTotal = 0;
+    for (const item of items) {
+      subtotal += item.unit_price * item.quantity;
+      taxAmountTotal += item.tax_amount;
+    }
+    const total = subtotal + taxAmountTotal;
+    db.prepare('UPDATE orders SET subtotal = ?, tax_amount = ?, total = ? WHERE id = ?')
+      .run(subtotal, taxAmountTotal, total, orderId);
+
+    // Get the inserted item
+    const insertedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
+
+    res.status(201).json({
+      success: true,
+      message: 'Item added',
+      item: mapOrderItem(insertedItem)
+    });
+  } catch (error) {
+    console.error('Add order item error:', error);
+    res.status(500).json({ error: 'Failed to add order item' });
+  }
+});
+
 // Delete order item
 router.delete('/:orderId/items/:itemId', authenticateToken, (req, res) => {
   try {
@@ -401,7 +454,7 @@ router.post('/', authenticateToken, (req, res) => {
 // Update order (add/update items)
 router.put('/:id', authenticateToken, (req, res) => {
   try {
-    const { items } = req.body;
+    const { items, discountAmount, discountReason } = req.body;
     const { db } = req;
 
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
@@ -413,38 +466,46 @@ router.put('/:id', authenticateToken, (req, res) => {
       return res.status(400).json({ error: 'Cannot update billed order' });
     }
 
-    // Delete existing items
-    db.prepare('DELETE FROM order_items WHERE order_id = ?').run(req.params.id);
+    // If items are provided, update items (full replacement)
+    if (items && Array.isArray(items)) {
+      // Delete existing items
+      db.prepare('DELETE FROM order_items WHERE order_id = ?').run(req.params.id);
 
-    // Add new items
-    let subtotal = 0;
-    let taxAmount = 0;
+      // Add new items
+      let subtotal = 0;
+      let taxAmount = 0;
 
-    for (const item of items) {
-      const itemId = uuidv4();
-      const itemTotal = item.unitPrice * item.quantity;
-      const itemTax = item.taxAmount * item.quantity;
-      
-      // Handle modifiers - store as JSON string
-      const modifiersJson = item.modifiers ? JSON.stringify(item.modifiers) : null;
-      
+      for (const item of items) {
+        const itemId = uuidv4();
+        const itemTotal = item.unitPrice * item.quantity;
+        const itemTax = item.taxAmount * item.quantity;
+        
+        // Handle modifiers - store as JSON string
+        const modifiersJson = item.modifiers ? JSON.stringify(item.modifiers) : null;
+        
+        db.prepare(`
+          INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(itemId, req.params.id, item.productId, item.productName, item.quantity, item.unitPrice, item.taxRate, item.taxAmount, itemTotal + itemTax, item.isKot ? 1 : 0, item.cookingInstructions || null, modifiersJson);
+
+        subtotal += itemTotal;
+        taxAmount += itemTax;
+      }
+
+      // Update order totals with discount
+      const total = subtotal + taxAmount - (discountAmount || 0);
       db.prepare(`
-        INSERT INTO order_items (id, order_id, product_id, product_name, quantity, unit_price, tax_rate, tax_amount, total, is_kot, cooking_instructions, modifiers)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(itemId, req.params.id, item.productId, item.productName, item.quantity, item.unitPrice, item.taxRate, item.taxAmount, itemTotal + itemTax, item.isKot ? 1 : 0, item.cookingInstructions || null, modifiersJson);
+        UPDATE orders SET subtotal = ?, tax_amount = ?, discount_amount = ?, discount_reason = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(subtotal, taxAmount, discountAmount || 0, discountReason || null, total, req.params.id);
 
-      subtotal += itemTotal;
-      taxAmount += itemTax;
+      // Update table status to active_kot when items are added
+      db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', order.table_id);
+    } else {
+      // Just update discount totals (no items change)
+      db.prepare(`
+        UPDATE orders SET discount_amount = ?, discount_reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+      `).run(discountAmount || 0, discountReason || null, req.params.id);
     }
-
-    // Update order totals
-    const total = subtotal + taxAmount - order.discount_amount;
-    db.prepare(`
-      UPDATE orders SET subtotal = ?, tax_amount = ?, total = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-    `).run(subtotal, taxAmount, total, req.params.id);
-
-    // Update table status to active_kot when items are added
-    db.prepare('UPDATE tables SET status = ? WHERE id = ?').run('active_kot', order.table_id);
 
     // Return updated order
     const updatedOrder = db.prepare(`

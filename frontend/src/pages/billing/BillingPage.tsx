@@ -4,16 +4,17 @@ import { useAuthStore } from '../../stores/authStore';
 import { api } from '../../api';
 import { PageHeader } from '../../components/layout';
 import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../components/ui';
-import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, ClipboardList, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
-import { initQZTray, formatBillForPrinter, formatKOTForPrinter, printText } from '../../utils/printService';
+import { formatBillForPrinter, formatKOTForPrinter } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
 
 interface CartItem extends OrderItem {
   isNew?: boolean;
   isOnlineOrder?: boolean;
   alreadyKot?: boolean; // Items that were already KOT'd in previous rounds
+  cookingInstructions?: string; // Special cooking instructions
 }
 
 export function BillingPage() {
@@ -97,6 +98,12 @@ export function BillingPage() {
   const [showPendingCleaningModal, setShowPendingCleaningModal] = useState(false);
   const [pendingCleaningTable, setPendingCleaningTable] = useState<Table | null>(null);
   const [selectedBusser, setSelectedBusser] = useState<string>(''); // Empty = all bussers
+
+  // Cooking instructions modal
+  const [showCookingInstructionsModal, setShowCookingInstructionsModal] = useState(false);
+  const [cookingInstructionsProduct, setCookingInstructionsProduct] = useState<Product | null>(null);
+  const [cookingInstructions, setCookingInstructions] = useState('');
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
 
   // Bill generated state for COLLECT/PUSH buttons
   const [billGenerated, setBillGenerated] = useState(false);
@@ -326,7 +333,7 @@ export function BillingPage() {
     }
     
     setCart(newCart);
-    
+
     // Update table status when items are added
     // - If table is available, change to active_kot
     // - If table has pending_billing and new items are added (not KOT'd), change to active_kot
@@ -338,15 +345,35 @@ export function BillingPage() {
       
       if (shouldUpdateStatus) {
         try {
-          await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
+          api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
           setSelectedTable({ ...selectedTable, status: 'active_kot' });
-          // Refresh tables to update UI
           store.fetchTables(selectedSection || undefined);
         } catch (error) {
           console.error('Failed to update table status:', error);
         }
       }
     }
+  };
+
+  // Handle opening cooking instructions modal for a cart item
+  const openCookingInstructionsModal = (item: CartItem) => {
+    setCookingInstructionsProduct(item as any);
+    setCookingInstructions(item.cookingInstructions || '');
+    setEditingCartItemId(item.id);
+    setShowCookingInstructionsModal(true);
+  };
+
+  // Handle saving cooking instructions to cart item
+  const saveCookingInstructions = () => {
+    if (!editingCartItemId) return;
+    setCart(prev => prev.map(item => 
+      item.id === editingCartItemId 
+        ? { ...item, cookingInstructions: cookingInstructions || undefined }
+        : item
+    ));
+    setShowCookingInstructionsModal(false);
+    setCookingInstructionsProduct(null);
+    setEditingCartItemId(null);
   };
 
   // Focus on quantity input when item is added
@@ -455,72 +482,6 @@ export function BillingPage() {
     
     updateTableStatusOnEmptyCart();
   }, [cart.length]);
-
-  // Sync table status with backend when selecting table
-  useEffect(() => {
-    const syncTableStatusWithBackend = async () => {
-      if (!selectedTable) return;
-      
-      try {
-        const response = await api.getOrderByTable(selectedTable.id);
-        
-        // If no active order, don't change status
-        if (!response.success || !response.data) {
-          return;
-        }
-        
-        const order = response.data;
-        const hasKotItems = order.items && order.items.some((item: any) => item.isKot);
-        const hasItems = order.items && order.items.length > 0;
-        
-        // If table is pending_cleaning or available, don't change it via this sync
-        if (selectedTable.status === 'pending_cleaning' || selectedTable.status === 'available') {
-          return;
-        }
-        
-        // If order has KOT items, table should be 'pending_billing'
-        if (hasKotItems && selectedTable.status !== 'pending_billing') {
-          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'pending_billing' });
-          if (result.success) {
-            setSelectedTable({ ...selectedTable, status: 'pending_billing' });
-          }
-        }
-        // If order exists but no KOT items yet, table should be 'active_kot'
-        else if (hasItems && !hasKotItems && selectedTable.status === 'active_kot') {
-          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
-          if (result.success) {
-            setSelectedTable({ ...selectedTable, status: 'active_kot' });
-          }
-        }
-      } catch (error) {
-        console.error('Failed to sync table status:', error);
-      }
-    };
-    
-    syncTableStatusWithBackend();
-  }, [selectedTable?.id]);
-  
-  // Force sync table status when table is selected and has order items
-  useEffect(() => {
-    const forceSyncTableStatus = async () => {
-      if (!selectedTable) return;
-      
-      // If table is available but we have items in cart, force update status
-      if (selectedTable.status === 'available' && cart.length > 0) {
-        try {
-          const result = await api.put(`/tables/${selectedTable.id}`, { status: 'active_kot' });
-          if (result.success) {
-            setSelectedTable({ ...selectedTable, status: 'active_kot' });
-            store.fetchTables(selectedSection || undefined);
-          }
-        } catch (error) {
-          console.error('Force sync failed:', error);
-        }
-      }
-    };
-    
-    forceSyncTableStatus();
-  }, [selectedTable?.id, cart.length > 0]);
 
   // Update item quantity
   const updateQuantity = (itemId: string, delta: number) => {
@@ -830,7 +791,8 @@ export function BillingPage() {
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               taxRate: item.taxRate,
-              isKot: false
+              isKot: false,
+              cookingInstructions: item.cookingInstructions
             });
           }
         }
@@ -902,22 +864,10 @@ export function BillingPage() {
     // Final refresh to ensure UI shows latest status
     await store.fetchTables(selectedSection || undefined);
     
-    // Force re-render by updating state with fresh data
+    // Just set the selected table with its current status - don't update status here
+    // Status should only change when items are added to cart
     const finalTable = store.tables.find(t => t.id === table.id);
-    if (finalTable) {
-      // If table has items (cart or order), update status to match
-      const hasItems = (cart.length > 0 || (response.success && response.data && response.data.items?.length > 0));
-      if (hasItems && finalTable.status === 'available') {
-        const updateResult = await api.put(`/tables/${finalTable.id}`, { status: 'occupied' });
-        if (updateResult.success) {
-          setSelectedTable({ ...finalTable, status: 'occupied' });
-        } else {
-          setSelectedTable({ ...finalTable });
-        }
-      } else {
-        setSelectedTable({ ...finalTable });
-      }
-    }
+    setSelectedTable(finalTable || table);
   };
 
   // Confirm pending cleaning modal
@@ -1129,22 +1079,6 @@ export function BillingPage() {
         console.error('[KOT] Failed to create order:', response.error);
       }
     }
-    
-    // Actually print KOT
-    const kotPrintData = {
-      orderId: currentOrderId || response.data?.id || 'KOT-' + Date.now(),
-      tableNumber: selectedTable?.number || 'N/A',
-      waiterName: waiters.find(w => w.id === selectedWaiter)?.name || '',
-      customerName: selectedCustomer?.name || '',
-      dateTime: new Date().toLocaleString('en-IN'),
-      items: kotItems.filter((item: any) => item.isNew || item.alreadyKot),
-    };
-    const kotContent = formatKOTForPrinter(kotPrintData);
-    printText(kotContent, { width: 80 }).then((success) => {
-      if (success) {
-        console.log('KOT printed successfully');
-      }
-    });
   };
 
   // Number to words conversion
@@ -1685,38 +1619,9 @@ export function BillingPage() {
       toast('info', 'Bill sent to printer');
     }, 500);
   };
-
-  // Handle preview print action
+  // Handle preview print action - just close modal and execute pending action
   const handlePreviewPrint = async () => {
-    // Try QZ Tray for silent printing first
-    await initQZTray();
-    
-    if (previewContent?.content) {
-      try {
-        let printContent = '';
-        if (previewContent.type === 'bill') {
-          printContent = formatBillForPrinter({
-            ...previewContent.content,
-            restaurantName: settings?.restaurant?.name || 'Restaurant',
-            address: settings?.restaurant?.address || '',
-            phone: settings?.restaurant?.phone || '',
-          });
-        } else {
-          printContent = formatKOTForPrinter(previewContent.content);
-        }
-        const success = await printText(printContent, { width: 80 });
-        if (success) {
-          toast('success', 'Print sent to thermal printer');
-        } else {
-          // Fallback to window.print
-          window.print();
-        }
-      } catch (err) {
-        console.error('Print error:', err);
-        window.print();
-      }
-    }
-    
+    // Close modal and execute pending action (KOT/Bill generation)
     setShowPreviewModal(false);
     if (pendingAction) {
       await pendingAction();
@@ -2320,6 +2225,16 @@ export function BillingPage() {
                         </span>
                       )}
                     </div>
+                    {/* Cooking Instructions Button */}
+                    <button
+                      onClick={() => openCookingInstructionsModal(item)}
+                      className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${
+                        item.cookingInstructions ? 'text-accent' : 'text-text-muted'
+                      }`}
+                      title={item.cookingInstructions ? `Instructions: ${item.cookingInstructions}` : 'Add cooking instructions'}
+                    >
+                      <ClipboardList className="w-3 lg:w-4 h-3 lg:h-4" />
+                    </button>
                     <div className="text-right flex items-center gap-1 lg:gap-2">
                       <p className="font-mono text-accent font-semibold text-xs lg:text-sm">
                         {formatCurrency(item.total)}
@@ -3221,6 +3136,51 @@ export function BillingPage() {
               onClick={handleApplyCoupon}
             >
               Apply Coupon
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Cooking Instructions Modal */}
+      <Modal
+        isOpen={showCookingInstructionsModal}
+        onClose={() => {
+          setShowCookingInstructionsModal(false);
+          setCookingInstructionsProduct(null);
+        }}
+        title="Add Cooking Instructions"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-secondary">
+            Add special instructions for <span className="font-medium text-text-primary">{cookingInstructionsProduct?.productName || cookingInstructionsProduct?.name}</span> (optional)
+          </p>
+          <textarea
+            value={cookingInstructions}
+            onChange={(e) => setCookingInstructions(e.target.value)}
+            placeholder="e.g., Less oil, No onions, Extra spicy..."
+            className="w-full px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent resize-none"
+            rows={3}
+            autoFocus
+          />
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              className="flex-1"
+              onClick={() => {
+                setShowCookingInstructionsModal(false);
+                setCookingInstructionsProduct(null);
+                setEditingCartItemId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              className="flex-1"
+              onClick={saveCookingInstructions}
+            >
+              Save
             </Button>
           </div>
         </div>
