@@ -174,19 +174,6 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Restaurant Selector - Clickable to go to Dashboard */}
-        {restaurant && showFullContent && (
-          <div className="px-4 py-3 border-b border-white/10">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-background-card/50 hover:bg-accent/10 transition-colors"
-            >
-              <Store className="w-4 h-4 text-accent" />
-              <span className="text-sm truncate">{restaurant.name}</span>
-            </button>
-          </div>
-        )}
-
         {/* Navigation */}
         <nav className={clsx(
           'flex-1 p-2 overflow-y-auto',
@@ -209,7 +196,7 @@ export function Sidebar() {
               <path d="M2 7h20"></path>
               <path d="M22 7v3a2 2 0 0 1-2 2v0a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12v0a2 2 0 0 1-2-2V7"></path>
             </svg>
-            <span className="text-sm truncate">Demo Restaurant</span>
+            <span className="text-sm truncate">{restaurant?.name || 'Dashboard'}</span>
           </NavLink>
 
           {/* Rest of nav items */}

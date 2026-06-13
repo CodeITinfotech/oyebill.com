@@ -41,23 +41,41 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('all');
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [period]);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.getDashboardAnalytics(period);
-      if (response.success) {
-        setData(response.data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+  // Static fallback data for demo
+  const staticData = {
+    summary: { totalOrders: 10, totalRevenue: 5573 },
+    orderStats: [{ status: 'billed', count: 10, revenue: 5573 }],
+    monthlyRevenue: [
+      { month: '2025-11', revenue: 712, orders: 1 },
+      { month: '2025-12', revenue: 657, orders: 1 },
+      { month: '2026-01', revenue: 602, orders: 1 },
+      { month: '2026-02', revenue: 547, orders: 1 },
+      { month: '2026-03', revenue: 492, orders: 1 },
+      { month: '2026-04', revenue: 437, orders: 1 },
+      { month: '2026-05', revenue: 382, orders: 1 },
+      { month: '2026-06', revenue: 1744, orders: 3 }
+    ],
+    topProducts: [
+      { name: 'Naan', quantity: 3, revenue: 300 },
+      { name: 'Paneer Butter Masala', quantity: 2, revenue: 372 },
+      { name: 'Butter Chicken', quantity: 2, revenue: 400 },
+      { name: 'Biryani', quantity: 1, revenue: 500 }
+    ],
+    productSales: [{ category: null, quantity: 8, revenue: 1572 }],
+    tableStats: { total: 6, occupied: 1, available: 5, pending_cleaning: 0 },
+    waiterRankings: [{ name: 'John Waiter', role: 'waiter', total_orders: 10, total_revenue: 5573 }],
+    busserRankings: [],
+    recentOrders: [
+      { id: 'ORD-1', orderNumber: 'ORD-1', total: 872, status: 'billed', created_at: '2026-06-10', tableNumber: '4' },
+      { id: 'ORD-2', orderNumber: 'ORD-2', total: 545, status: 'billed', created_at: '2026-08', tableNumber: '4' }
+    ]
   };
+
+  useEffect(() => {
+    // Use static data for demo
+    setData(staticData);
+    setLoading(false);
+  }, [period]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-IN', {
