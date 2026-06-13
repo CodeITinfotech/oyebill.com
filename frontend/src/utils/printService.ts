@@ -73,19 +73,25 @@ export async function getPrinters(): Promise<string[]> {
 }
 
 export async function printText(content: string, config: PrintConfig = {}): Promise<boolean> {
+  // Ensure QZ Tray is connected first
   if (!window.qz || !isQZConnected) {
-    console.log('QZ Tray not connected - skipping print');
-    return false;
+    console.log('QZ Tray not connected - attempting to connect...');
+    const connected = await initQZTray();
+    if (!connected) {
+      console.log('QZ Tray connection failed - skipping print');
+      return false;
+    }
   }
   try {
     const printer = config.printerName || 'POS-80';
+    console.log('Attempting to print to:', printer);
     const printData = [
       { type: 'raw', format: 'plain', data: COMMANDS.INIT },
       { type: 'raw', format: 'plain', data: content },
       { type: 'raw', format: 'plain', data: COMMANDS.FEED_LINES(3) + COMMANDS.CUT },
     ];
     await window.qz.print({ printer, size: { width: config.width || 80, height: config.height || 200, units: 'mm' } }, printData);
-    console.log('Print sent to:', printer);
+    console.log('Print sent successfully to:', printer);
     return true;
   } catch (err) {
     console.error('Print error:', err);
