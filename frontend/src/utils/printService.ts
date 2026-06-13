@@ -41,7 +41,7 @@ export async function initQZTray(): Promise<boolean> {
       resolve(false);
       return;
     }
-    const config = { host: 'localhost', port: 8181 };
+    const config = { host: 'localhost', port: 8182 };
     window.qz.websocket.connect(config).then(() => {
       console.log('QZ Tray connected');
       isQZConnected = true;
@@ -78,7 +78,7 @@ export async function printText(content: string, config: PrintConfig = {}): Prom
     return false;
   }
   try {
-    const printer = config.printerName || 'default';
+    const printer = config.printerName || 'POS-80';
     const printData = [
       { type: 'raw', format: 'plain', data: COMMANDS.INIT },
       { type: 'raw', format: 'plain', data: content },
