@@ -9,6 +9,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { SetupPage } from './pages/auth/SetupPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { BillingPage } from './pages/billing/BillingPage';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
 import OnlineOrdersPage from './pages/online-orders/OnlineOrdersPage';
 import CustomerOrdersPage from './pages/customer-orders/CustomerOrdersPage';
 import { ProductsPage } from './pages/products/ProductsPage';
@@ -148,6 +149,14 @@ function App() {
         />
 
         {/* Protected Routes */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/billing"
           element={

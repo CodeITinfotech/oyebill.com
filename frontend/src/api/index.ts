@@ -769,6 +769,10 @@ class ApiClient {
       body: JSON.stringify({ content, copies }),
     });
   }
+
+  async getDashboardAnalytics(period: string = 'all') {
+    return this.request<any>(`/dashboard/analytics?period=${period}`);
+  }
 }
 
 export const api = new ApiClient();

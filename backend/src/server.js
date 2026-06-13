@@ -30,6 +30,7 @@ import printersRoutes from './routes/printers.js';
 import billPdfRoutes from './routes/bill-pdf.js';
 import billViewRoutes from './routes/bill-view.js';
 import databaseBrowserRoutes from './routes/database-browser.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -81,6 +82,7 @@ app.use('/api/printers', printersRoutes);
 app.use('/api/bill-pdf', billPdfRoutes);
 app.use('/api/bill-view', billViewRoutes);
 app.use('/api/database', databaseBrowserRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

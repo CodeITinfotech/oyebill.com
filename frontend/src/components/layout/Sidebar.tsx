@@ -25,6 +25,7 @@ import { useState, useEffect } from 'react';
 import { useSidebar } from './SidebarContext';
 
 const navItems = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/billing', icon: FileText, label: 'Billing' },
   { to: '/online-orders', icon: Store, label: 'Online Orders', mobileLabel: 'Orders' },
   { to: '/customer-orders', icon: ClipboardList, label: 'Customer Orders' },
@@ -174,13 +175,16 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Restaurant Selector */}
+        {/* Restaurant Selector - Clickable to go to Dashboard */}
         {restaurant && showFullContent && (
           <div className="px-4 py-3 border-b border-white/10">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-card/50">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-background-card/50 hover:bg-accent/10 transition-colors"
+            >
               <Store className="w-4 h-4 text-accent" />
               <span className="text-sm truncate">{restaurant.name}</span>
-            </div>
+            </button>
           </div>
         )}
 
