@@ -6,7 +6,7 @@ const router = express.Router();
 router.get('/analytics', (req, res) => {
   try {
     const { db } = req;
-    const restaurantId = req.user?.restaurantId || req.headers['x-restaurant-id'] || 1;
+    const restaurantId = req.user?.restaurantId || req.headers['x-restaurant-id'] || '23fcaf4f-31a8-4e2b-888c-bae861e8c718';
     const { period = 'all' } = req.query;
 
     let dateCondition = "date(o.created_at) = date('now')";
@@ -22,14 +22,14 @@ router.get('/analytics', (req, res) => {
     const totalOrdersResult = db.prepare(`
       SELECT COUNT(*) as count FROM orders o
       JOIN tables t ON o.table_id = t.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid' AND ${dateCondition}
+      WHERE t.restaurant_id = ? AND o.status = 'billed' AND ${dateCondition}
     `).get(restaurantId);
 
     // 2. Total Revenue
     const revenueResult = db.prepare(`
       SELECT COALESCE(SUM(o.total), 0) as revenue FROM orders o
       JOIN tables t ON o.table_id = t.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid' AND ${dateCondition}
+      WHERE t.restaurant_id = ? AND o.status = 'billed' AND ${dateCondition}
     `).get(restaurantId);
 
     // 3. Order status breakdown
@@ -49,7 +49,7 @@ router.get('/analytics', (req, res) => {
         COUNT(*) as orders
       FROM orders o
       JOIN tables t ON o.table_id = t.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid'
+      WHERE t.restaurant_id = ? AND o.status = 'billed'
         AND o.created_at >= datetime('now', '-12 months')
       GROUP BY strftime('%Y-%m', o.created_at)
       ORDER BY month ASC
@@ -64,7 +64,7 @@ router.get('/analytics', (req, res) => {
       FROM order_items oi
       JOIN orders o ON oi.order_id = o.id
       JOIN tables t ON o.table_id = t.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid' AND ${dateCondition}
+      WHERE t.restaurant_id = ? AND o.status = 'billed' AND ${dateCondition}
       GROUP BY oi.product_name
       ORDER BY quantity DESC
       LIMIT 10
@@ -81,7 +81,7 @@ router.get('/analytics', (req, res) => {
       JOIN tables t ON o.table_id = t.id
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN categories c ON p.category_id = c.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid' AND ${dateCondition}
+      WHERE t.restaurant_id = ? AND o.status = 'billed' AND ${dateCondition}
       GROUP BY c.name
       ORDER BY revenue DESC
     `).all(restaurantId);
@@ -105,7 +105,7 @@ router.get('/analytics', (req, res) => {
         COUNT(o.id) as total_orders,
         COALESCE(SUM(o.total), 0) as total_revenue
       FROM users u
-      LEFT JOIN orders o ON u.id = o.waiter_id AND o.status = 'paid' AND ${dateCondition}
+      LEFT JOIN orders o ON u.id = o.waiter_id AND o.status = 'billed' AND ${dateCondition}
       JOIN tables t ON o.table_id = t.id
       WHERE t.restaurant_id = ? AND u.role IN ('waiter', 'admin')
       GROUP BY u.id
@@ -133,7 +133,7 @@ router.get('/analytics', (req, res) => {
         t.number as tableNumber
       FROM orders o
       LEFT JOIN tables t ON o.table_id = t.id
-      WHERE t.restaurant_id = ? AND o.status = 'paid'
+      WHERE t.restaurant_id = ? AND o.status = 'billed'
       ORDER BY o.created_at DESC
       LIMIT 20
     `).all(restaurantId);
@@ -165,7 +165,7 @@ router.get('/analytics', (req, res) => {
 router.get('/metric/:type', (req, res) => {
   try {
     const { db } = req;
-    const restaurantId = req.user?.restaurantId || req.headers['x-restaurant-id'] || 1;
+    const restaurantId = req.user?.restaurantId || req.headers['x-restaurant-id'] || '23fcaf4f-31a8-4e2b-888c-bae861e8c718';
     const { type } = req.params;
 
     let result;
@@ -174,14 +174,14 @@ router.get('/metric/:type', (req, res) => {
         result = db.prepare(`
           SELECT COUNT(*) as count FROM orders o
           JOIN tables t ON o.table_id = t.id
-          WHERE t.restaurant_id = ? AND o.status = 'paid' AND date(o.created_at) = date('now')
+          WHERE t.restaurant_id = ? AND o.status = 'billed' AND date(o.created_at) = date('now')
         `).get(restaurantId);
         break;
       case 'revenue-today':
         result = db.prepare(`
           SELECT COALESCE(SUM(o.total), 0) as revenue FROM orders o
           JOIN tables t ON o.table_id = t.id
-          WHERE t.restaurant_id = ? AND o.status = 'paid' AND date(o.created_at) = date('now')
+          WHERE t.restaurant_id = ? AND o.status = 'billed' AND date(o.created_at) = date('now')
         `).get(restaurantId);
         break;
       default:
