@@ -1130,11 +1130,21 @@ export function BillingPage() {
       }
     }
     
-    // Print KOT (simulated)
-    setTimeout(() => {
-      console.log('KOT Print triggered');
-      toast('info', 'KOT sent to printer');
-    }, 500);
+    // Actually print KOT
+    const kotPrintData = {
+      orderId: currentOrderId || response.data?.id || 'KOT-' + Date.now(),
+      tableNumber: selectedTable?.number || 'N/A',
+      waiterName: waiters.find(w => w.id === selectedWaiter)?.name || '',
+      customerName: selectedCustomer?.name || '',
+      dateTime: new Date().toLocaleString('en-IN'),
+      items: kotItems.filter((item: any) => item.isNew || item.alreadyKot),
+    };
+    const kotContent = formatKOTForPrinter(kotPrintData);
+    printText(kotContent, { width: 80 }).then((success) => {
+      if (success) {
+        console.log('KOT printed successfully');
+      }
+    });
   };
 
   // Number to words conversion
