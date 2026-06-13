@@ -151,6 +151,15 @@ export function DashboardPage() {
   const avgOrderValue = summary?.totalOrders > 0 ? summary?.totalRevenue / summary?.totalOrders : 0;
   const prevPeriodRevenue = summary?.totalRevenue ? summary?.totalRevenue * 0.88 : 0;
   const revenueChange = summary?.totalRevenue > 0 ? ((summary?.totalRevenue - prevPeriodRevenue) / prevPeriodRevenue * 100).toFixed(1) : 0;
+  
+  // Get last bill value from most recent order
+  const lastBillValue = recentOrders && recentOrders.length > 0 
+    ? recentOrders.reduce((latest: any, order: any) => {
+        const orderDate = new Date(order.created_at);
+        const latestDate = latest ? new Date(latest.created_at) : new Date(0);
+        return orderDate > latestDate ? order : latest;
+      }, null)?.total || 0
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -159,7 +168,6 @@ export function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Welcome back, {user?.name || 'Admin'}!</h1>
-            <p className="text-white/80 mt-1">Monitor your sales, track progress, and gain insights</p>
           </div>
           <div className="flex gap-2">
             {['today', 'week', 'month', 'all'].map((p) => (
@@ -229,15 +237,15 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Avg Order Value */}
+        {/* Last Bill Value */}
         <div className="bg-[#1E293B] rounded-xl p-5 border border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-400 text-sm">Avg Order Value</p>
-              <p className="text-2xl font-bold text-white mt-1">{formatCurrency(avgOrderValue)}</p>
+              <p className="text-gray-400 text-sm">Last Bill Value</p>
+              <p className="text-2xl font-bold text-white mt-1">{formatCurrency(lastBillValue)}</p>
               <div className="flex items-center gap-1 mt-2 text-xs">
                 <Activity className="w-3 h-3 text-blue-400" />
-                <span className="text-blue-400">Per order</span>
+                <span className="text-blue-400">Most recent order</span>
               </div>
             </div>
             <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
