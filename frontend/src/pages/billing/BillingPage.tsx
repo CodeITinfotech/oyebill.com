@@ -3741,9 +3741,11 @@ export function BillingPage() {
                         <span className="font-bold">{previewContent.content.orderId}</span>
                       </div>
                       {previewContent.content.kotNumber && (
-                        <div className="flex justify-between">
-                          <span>Token/KOT No:</span>
-                          <span>{previewContent.content.kotNumber}</span>
+                        <div className="flex justify-between items-center">
+                          <span>Token/KOT:</span>
+                          <span className="text-xs font-mono truncate max-w-[140px]" title={previewContent.content.kotNumber}>
+                            {previewContent.content.kotNumber.slice(0, 8)}...
+                          </span>
                         </div>
                       )}
                       <div className="flex justify-between">
