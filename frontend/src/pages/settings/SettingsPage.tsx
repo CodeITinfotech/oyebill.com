@@ -1967,26 +1967,61 @@ TOTAL:               ₹620
                         </div>
                         
                         {/* Bill Printer */}
-                        <div className="relative">
-                          <label className="block text-sm text-text-secondary mb-1">Bill Printer (IP/Printer Name)</label>
-                          <div className="relative">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="block text-sm text-text-secondary">Bill Printer (IP/Printer Name)</label>
+                            <span className="text-xs text-text-muted">{printerForm.kotPrinters.length > 0 ? '1 printer' : ''}</span>
+                          </div>
+                          
+                          {/* Add new Bill printer */}
+                          <div className="flex gap-2">
                             <input
                               type="text"
-                              value={printerForm.billPrinter}
-                              onChange={(e) => setPrinterForm({ ...printerForm, billPrinter: e.target.value })}
+                              id="newBillPrinter"
                               placeholder="192.168.0.220/POS-80"
-                              className="w-full px-3 py-2 pr-10 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
+                              className="flex-1 px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary focus:outline-none focus:border-accent font-mono text-sm"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const input = e.currentTarget;
+                                  const value = input.value.trim();
+                                  if (value) {
+                                    setPrinterForm({ ...printerForm, billPrinter: value });
+                                    input.value = '';
+                                  }
+                                }
+                              }}
                             />
-                            {printerForm.billPrinter && (
-                              <button
-                                type="button"
-                                onClick={() => setPrinterForm({ ...printerForm, billPrinter: '' })}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-red-400"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
+                            <Button 
+                              size="sm"
+                              onClick={() => {
+                                const input = document.getElementById('newBillPrinter') as HTMLInputElement;
+                                const value = input?.value.trim();
+                                if (value) {
+                                  setPrinterForm({ ...printerForm, billPrinter: value });
+                                  input.value = '';
+                                }
+                              }}
+                            >
+                              Add
+                            </Button>
                           </div>
+                          
+                          {/* Current Bill printer */}
+                          {printerForm.billPrinter && (
+                            <div className="flex items-center justify-between p-2 bg-background-secondary rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Printer className="w-4 h-4 text-text-muted" />
+                                <span className="text-sm font-mono truncate max-w-[180px]" title={printerForm.billPrinter}>{printerForm.billPrinter}</span>
+                              </div>
+                              <button
+                                onClick={() => setPrinterForm({ ...printerForm, billPrinter: '' })}
+                                className="p-1 text-text-muted hover:text-red-400"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
+                          <p className="text-xs text-text-muted">Enter IP/PrinterName format (e.g., 192.168.0.220/POS-80)</p>
                         </div>
                       </div>
                       
@@ -2049,26 +2084,26 @@ TOTAL:               ₹620
                       <Button onClick={handleSavePrinter} loading={isSubmitting}>
                         Save Printer Settings
                       </Button>
-                      {printerForm.kotPrinters.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary text-sm"
-                            value={printerForm.defaultKotPrinter}
-                            onChange={(e) => setPrinterForm({ ...printerForm, defaultKotPrinter: e.target.value })}
-                          >
-                            {printerForm.kotPrinters.map((p, i) => (
-                              <option key={i} value={p}>{p}</option>
-                            ))}
-                          </select>
-                          <Button 
-                            variant="secondary"
-                            onClick={() => handleTestPrintKOT(printerForm.defaultKotPrinter)}
-                            loading={isTestPrinting}
-                          >
-                            🖨️ Test KOT
-                          </Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="px-3 py-2 bg-background-primary border border-white/10 rounded-lg text-text-primary text-sm"
+                          value={printerForm.defaultKotPrinter}
+                          onChange={(e) => setPrinterForm({ ...printerForm, defaultKotPrinter: e.target.value })}
+                        >
+                          <option value="">Select KOT Printer</option>
+                          {printerForm.kotPrinters.map((p, i) => (
+                            <option key={i} value={p}>{p}</option>
+                          ))}
+                        </select>
+                        <Button 
+                          variant="secondary"
+                          onClick={() => handleTestPrintKOT(printerForm.defaultKotPrinter)}
+                          loading={isTestPrinting}
+                          disabled={!printerForm.defaultKotPrinter}
+                        >
+                          🖨️ Test KOT
+                        </Button>
+                      </div>
                       <Button 
                         variant="secondary"
                         onClick={handleTestPrintBill}

@@ -82,14 +82,25 @@ router.get('/', authenticateToken, (req, res) => {
     const kotSetup = getKotSetup(db, req.user.restaurantId);
     const userRights = getUserRights(db, req.user.restaurantId);
 
+    // Parse kot_printers JSON string for backward compatibility
+    let kotPrintersArray = [];
+    try {
+      if (settings.kot_printers) {
+        const parsed = JSON.parse(settings.kot_printers);
+        kotPrintersArray = Array.isArray(parsed) ? parsed : (typeof parsed === 'string' ? JSON.parse(parsed) : []);
+      }
+    } catch (e) {
+      kotPrintersArray = [];
+    }
+
     res.json({
       restaurantId: settings.restaurant_id,
       cgstRate: settings.cgst_rate,
       sgstRate: settings.sgst_rate,
       defaultTaxRate: settings.default_tax_rate,
       priceInclusiveTax: settings.price_inclusive_tax === 1,
-      kotPrinters: printerSettings.filter(p => p.printer_type === 'kot'),
-      billPrinters: printerSettings.filter(p => p.printer_type === 'bill'),
+      kotPrinters: kotPrintersArray,
+      kotPrinter: settings.kot_printer,
       defaultKotPrinter: settings.kot_printer,
       billPrinter: settings.bill_printer,
       printCopies: settings.print_copies,
@@ -112,40 +123,46 @@ router.get('/', authenticateToken, (req, res) => {
 router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
   try {
     const { 
-      cgstRate, sgstRate, defaultTaxRate, priceInclusiveTax, 
-      kotPrinter, billPrinter, printCopies, skipLinesBeforeCut,
-      isActive, printerSettings, taxSetup, billSetup, kotSetup, userRights, tableStatusColors
+      cgst_rate, sgst_rate, default_tax_rate, price_inclusive_tax, 
+      kot_printer, kot_printers, bill_printer, print_copies, skip_lines_before_cut,
+      is_active, printer_settings, tax_setup, bill_setup, kot_setup, user_rights, table_status_colors
     } = req.body;
     const { db } = req;
 
-    db.prepare(`
+    // Use kot_printer if default_kot_printer is provided (for backward compatibility)
+    const kotPrinterToSave = kot_printer;
+    const kotPrintersJson = kot_printers && Array.isArray(kot_printers) ? JSON.stringify(kot_printers) : null;
+
+    const result = db.prepare(`
       UPDATE settings SET
         cgst_rate = COALESCE(?, cgst_rate),
         sgst_rate = COALESCE(?, sgst_rate),
         default_tax_rate = COALESCE(?, default_tax_rate),
         price_inclusive_tax = COALESCE(?, price_inclusive_tax),
-        kot_printer = COALESCE(?, kot_printer),
-        bill_printer = COALESCE(?, bill_printer),
+        kot_printer = ?,
+        kot_printers = ?,
+        bill_printer = ?,
         print_copies = COALESCE(?, print_copies),
         skip_lines_before_cut = COALESCE(?, skip_lines_before_cut),
         is_active = COALESCE(?, is_active)
       WHERE restaurant_id = ?
     `).run(
-      cgstRate,
-      sgstRate,
-      defaultTaxRate,
-      priceInclusiveTax !== undefined ? (priceInclusiveTax ? 1 : 0) : null,
-      kotPrinter,
-      billPrinter,
-      printCopies,
-      skipLinesBeforeCut,
-      isActive !== undefined ? (isActive ? 1 : 0) : null,
+      cgst_rate,
+      sgst_rate,
+      default_tax_rate,
+      price_inclusive_tax !== undefined ? (price_inclusive_tax ? 1 : 0) : null,
+      kotPrinterToSave,
+      kotPrintersJson,
+      bill_printer,
+      print_copies,
+      skip_lines_before_cut,
+      is_active !== undefined ? (is_active ? 1 : 0) : null,
       req.user.restaurantId
     );
 
     // Update printer settings
-    if (printerSettings && Array.isArray(printerSettings)) {
-      for (const printer of printerSettings) {
+    if (printer_settings && Array.isArray(printer_settings)) {
+      for (const printer of printer_settings) {
         db.prepare(`
           INSERT INTO printer_settings (id, restaurant_id, printer_name, printer_type, printer_ip, printer_port, is_default, paper_width)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -170,8 +187,8 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     }
 
     // Update tax setup
-    if (taxSetup && Array.isArray(taxSetup)) {
-      for (const tax of taxSetup) {
+    if (tax_setup && Array.isArray(tax_setup)) {
+      for (const tax of tax_setup) {
         db.prepare(`
           INSERT INTO tax_setup (id, restaurant_id, tax_name, tax_rate, tax_type, is_active)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -192,7 +209,7 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     }
 
     // Update bill setup
-    if (billSetup) {
+    if (bill_setup) {
       db.prepare(`
         INSERT INTO bill_setup (id, restaurant_id, header_text, footer_text, show_logo, show_qr, qr_data, show_tax_breakup, show_waiter, show_table, show_order_no, paper_size, font_size)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -211,22 +228,22 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       `).run(
         uuidv4(),
         req.user.restaurantId,
-        billSetup.header_text,
-        billSetup.footer_text,
-        billSetup.show_logo ? 1 : 0,
-        billSetup.show_qr ? 1 : 0,
-        billSetup.qr_data,
-        billSetup.show_tax_breakup ? 1 : 0,
-        billSetup.show_waiter ? 1 : 0,
-        billSetup.show_table ? 1 : 0,
-        billSetup.show_order_no ? 1 : 0,
-        billSetup.paper_size || '80mm',
-        billSetup.font_size || 12
+        bill_setup.header_text,
+        bill_setup.footer_text,
+        bill_setup.show_logo ? 1 : 0,
+        bill_setup.show_qr ? 1 : 0,
+        bill_setup.qr_data,
+        bill_setup.show_tax_breakup ? 1 : 0,
+        bill_setup.show_waiter ? 1 : 0,
+        bill_setup.show_table ? 1 : 0,
+        bill_setup.show_order_no ? 1 : 0,
+        bill_setup.paper_size || '80mm',
+        bill_setup.font_size || 12
       );
     }
 
     // Update KOT setup
-    if (kotSetup) {
+    if (kot_setup) {
       db.prepare(`
         INSERT INTO kot_setup (id, restaurant_id, header_text, footer_text, show_logo, show_category, show_item_notes, show_modifiers, paper_size, font_size, auto_print, print_count)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -244,22 +261,22 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
       `).run(
         uuidv4(),
         req.user.restaurantId,
-        kotSetup.header_text,
-        kotSetup.footer_text,
-        kotSetup.show_logo ? 1 : 0,
-        kotSetup.show_category ? 1 : 0,
-        kotSetup.show_item_notes ? 1 : 0,
-        kotSetup.show_modifiers ? 1 : 0,
-        kotSetup.paper_size || '80mm',
-        kotSetup.font_size || 12,
-        kotSetup.auto_print ? 1 : 0,
-        kotSetup.print_count || 1
+        kot_setup.header_text,
+        kot_setup.footer_text,
+        kot_setup.show_logo ? 1 : 0,
+        kot_setup.show_category ? 1 : 0,
+        kot_setup.show_item_notes ? 1 : 0,
+        kot_setup.show_modifiers ? 1 : 0,
+        kot_setup.paper_size || '80mm',
+        kot_setup.font_size || 12,
+        kot_setup.auto_print ? 1 : 0,
+        kot_setup.print_count || 1
       );
     }
 
     // Update user rights
-    if (userRights && Array.isArray(userRights)) {
-      for (const rights of userRights) {
+    if (user_rights && Array.isArray(user_rights)) {
+      for (const rights of user_rights) {
         db.prepare(`
           INSERT INTO user_rights (id, restaurant_id, role, can_take_orders, can_print_kot, can_print_bill, can_void_order, can_apply_discount, can_give_complimentary, can_view_reports, can_manage_products, can_manage_users, can_manage_settings, can_refund)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -296,8 +313,8 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     }
 
     // Update table status colors
-    if (tableStatusColors && typeof tableStatusColors === 'object') {
-      for (const [statusKey, colorData] of Object.entries(tableStatusColors)) {
+    if (table_status_colors && typeof table_status_colors === 'object') {
+      for (const [statusKey, colorData] of Object.entries(table_status_colors)) {
         db.prepare(`
           INSERT INTO table_status_colors (id, restaurant_id, status_key, bg, border, label)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -318,14 +335,25 @@ router.put('/', authenticateToken, requireRole('admin'), (req, res) => {
     const kotSetupResult = getKotSetup(db, req.user.restaurantId);
     const userRightsResult = getUserRights(db, req.user.restaurantId);
 
+    // Parse kot_printers JSON string
+    let kotPrintersArray = [];
+    try {
+      if (settings.kot_printers) {
+        const parsed = JSON.parse(settings.kot_printers);
+        kotPrintersArray = Array.isArray(parsed) ? parsed : [];
+      }
+    } catch (e) {
+      kotPrintersArray = [];
+    }
+
     res.json({
       restaurantId: settings.restaurant_id,
       cgstRate: settings.cgst_rate,
       sgstRate: settings.sgst_rate,
       defaultTaxRate: settings.default_tax_rate,
       priceInclusiveTax: settings.price_inclusive_tax === 1,
-      kotPrinters: printerSettingsResult.filter(p => p.printer_type === 'kot'),
-      billPrinters: printerSettingsResult.filter(p => p.printer_type === 'bill'),
+      kotPrinters: kotPrintersArray,
+      kotPrinter: settings.kot_printer,
       defaultKotPrinter: settings.kot_printer,
       billPrinter: settings.bill_printer,
       printCopies: settings.print_copies,
