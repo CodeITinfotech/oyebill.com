@@ -660,6 +660,8 @@ export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: strin
       return;
     }
     
+    // Show message immediately on click
+    toast('info', `Sending test print to ${printerToUse}...`);
     setIsTestPrinting(true);
     setTestPrintStatus(`Sending test print to ${printerToUse}...`);
     
@@ -688,11 +690,11 @@ Dal Tadka       1     ₹150
         toast('success', 'Test KOT printed');
       } else {
         setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
-        toast('error', 'Test print failed');
+        toast('error', 'Test KOT failed: ' + (response.output || response.error || 'Print failed'));
       }
     } catch (error: any) {
       setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
-      toast('error', 'Failed to send test print');
+      toast('error', 'Failed to send test KOT');
     } finally {
       setIsTestPrinting(false);
       setTimeout(() => setTestPrintStatus(null), 5000);
@@ -706,6 +708,8 @@ Dal Tadka       1     ₹150
       return;
     }
     
+    // Show message immediately on click
+    toast('info', 'Sending test print to Bill printer...');
     setIsTestPrinting(true);
     setTestPrintStatus('Sending test print to Bill printer...');
     
@@ -742,7 +746,7 @@ TOTAL:               ₹620
         toast('success', 'Test Bill printed');
       } else {
         setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
-        toast('error', 'Test print failed');
+        toast('error', 'Test print failed: ' + (response.output || response.error || 'Print failed'));
       }
     } catch (error: any) {
       setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
