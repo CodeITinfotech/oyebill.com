@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:80"  # HTTP (nginx serves frontend)
-      - "5000:5000" # API port
+      - "6000:5000" # API port
       - "12000:80"  # External access port 12000 (work-1)
       - "12001:80"  # External access port 12001 (work-2)
     environment:
