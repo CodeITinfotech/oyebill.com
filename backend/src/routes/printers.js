@@ -4,6 +4,8 @@ import { promisify } from 'util';
 import { readdirSync, existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
+import SMB2 from 'smb2';
+import SMB2v9 from '@tryjsky/v9u-smb2';
 
 const router = express.Router();
 const execAsync = promisify(exec);
@@ -757,6 +759,72 @@ router.post('/remove-printer', authenticateToken, requireRole('admin'), async (r
 });
 
 // Print KOT (Kitchen Order Ticket)
+// Helper function to print via SMB
+async function printViaSMB(host, shareName, content) {
+  // First try smbclient
+  try {
+    const escapedContent = content.replace(/'/g, "'\\''");
+    const { stdout, stderr } = await execAsync(
+      `echo '${escapedContent}' | smbclient //${host}/${shareName} -N -c 'print -' 2>&1`,
+      { timeout: 10000 }
+    );
+    
+    if (stderr && !stderr.includes('NT_STATUS') && !stderr.includes('Connection refused')) {
+      return { success: true, output: stdout + stderr, method: 'smbclient' };
+    }
+  } catch (smbError) {
+    console.log('smbclient not available:', smbError.message);
+  }
+  
+  // Fallback: Try using SMB2 library to write directly to the share
+  // Note: This only works if the server is on the same network as the printer
+  try {
+    const smb2 = new SMB2v9({
+      share: `\\\\${host}\\${shareName}`,
+      domain: 'WORKGROUP',
+      password: '',
+      autoCloseTimeout: 5000
+    });
+    
+    // Set connection timeout
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        smb2.disconnect();
+        reject(new Error('Connection timeout - printer may not be reachable from this network'));
+      }, 8000);
+      
+      smb2.writeFile(`PRINT_${Date.now()}.tmp`, content)
+        .then(() => {
+          clearTimeout(timeout);
+          resolve(true);
+        })
+        .catch(err => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+    });
+    
+    smb2.disconnect();
+    return { success: true, output: `Printed via SMB2 to ${host}/${shareName}`, method: 'smb2' };
+  } catch (smb2Error) {
+    // Check if it's a network reachability issue
+    if (smb2Error.message.includes('ENOTFOUND') || 
+        smb2Error.message.includes('ETIMEDOUT') || 
+        smb2Error.message.includes('ECONNREFUSED') ||
+        smb2Error.message.includes('Connection timeout') ||
+        smb2Error.message.includes('ENETUNREACH') ||
+        smb2Error.message.includes('EHOSTUNREACH')) {
+      return { 
+        success: false, 
+        output: `Cannot reach printer at ${host}. The printer must be on the same network as the server.`,
+        error: 'Network unreachable - cloud servers cannot access local network printers directly. Run the application locally or use a print relay.',
+        isNetworkError: true
+      };
+    }
+    return { success: false, output: `SMB2 failed: ${smb2Error.message}`, error: smb2Error.message };
+  }
+}
+
 router.post('/print-kot', authenticateToken, async (req, res) => {
   try {
     const { content, copies, printer: selectedPrinter } = req.body;
@@ -814,29 +882,12 @@ router.post('/print-kot', authenticateToken, async (req, res) => {
         
         console.log(`Printing to: host=${host}, share=${shareName}`);
         
-        // Try using smbclient for Windows shared printers
-        try {
-          const escapedContent = printContent.replace(/'/g, "'\\''");
-          const { stdout, stderr } = await execAsync(
-            `echo '${escapedContent}' | smbclient //${host}/${shareName} -N -c 'print -' 2>&1`,
-            { timeout: 10000 }
-          );
-          
-          console.log('smbclient stdout:', stdout);
-          console.log('smbclient stderr:', stderr);
-          
-          if (stderr && !stderr.includes('NT_STATUS') && !stderr.includes('Connection refused')) {
-            output = stdout + stderr;
-            success = true;
-          } else {
-            output = `smbclient: ${stderr || stdout}`;
-          }
-        } catch (smbError) {
-          output = `smbclient failed: ${smbError.message}`;
-          // Check for specific network errors
-          if (smbError.message.includes('NT_STATUS_IO_TIMEOUT') || smbError.message.includes('Connection refused')) {
-            output += ' - Cannot reach printer. Check network connectivity.';
-          }
+        // Use helper function
+        const result = await printViaSMB(host, shareName, printContent);
+        success = result.success;
+        output = result.output;
+        if (result.error) {
+          output += ` - ${result.error}`;
         }
       } else if (printer.startsWith('/dev/')) {
         // Direct device path (USB or serial)
@@ -875,10 +926,7 @@ router.post('/print-kot', authenticateToken, async (req, res) => {
                 host = parts[0];
                 shareName = parts[1];
               }
-              await execAsync(
-                `echo '${printContent.replace(/'/g, "'\\''")}' | smbclient //${host}/${shareName} -N -c 'print -' 2>&1`,
-                { timeout: 10000 }
-              );
+              await printViaSMB(host, shareName, printContent);
             }
           } catch (e) {}
         }
@@ -946,21 +994,14 @@ router.post('/print-bill', authenticateToken, async (req, res) => {
           shareName = parts[1];
         }
         
-        try {
-          const escapedContent = printContent.replace(/'/g, "'\\''");
-          const { stdout, stderr } = await execAsync(
-            `echo '${escapedContent}' | smbclient //${host}/${shareName} -N -c 'print -' 2>&1`,
-            { timeout: 10000 }
-          );
-          
-          if (stderr && !stderr.includes('NT_STATUS') && !stderr.includes('Connection refused')) {
-            output = stdout + stderr;
-            success = true;
-          } else {
-            output = `smbclient: ${stderr || stdout}`;
-          }
-        } catch (smbError) {
-          output = `smbclient failed: ${smbError.message}`;
+        console.log(`Printing bill to: host=${host}, share=${shareName}`);
+        
+        // Use helper function
+        const result = await printViaSMB(host, shareName, printContent);
+        success = result.success;
+        output = result.output;
+        if (result.error) {
+          output += ` - ${result.error}`;
         }
       } else if (printer.startsWith('/dev/')) {
         const fs = await import('fs');
@@ -975,6 +1016,33 @@ router.post('/print-bill', authenticateToken, async (req, res) => {
         } catch (lpError) {
           output = `lp failed: ${lpError.message}`;
         }
+      }
+      
+      // Print multiple copies if needed
+      if (success && printCopies > 1) {
+        for (let i = 1; i < printCopies; i++) {
+          try {
+            if (printer.includes('/') || printer.includes('\\')) {
+              let host, shareName;
+              if (printer.startsWith('\\\\')) {
+                const withoutBackslashes = printer.replace(/^\\+/, '').replace(/\\/g, '/');
+                const parts = withoutBackslashes.split('/');
+                host = parts[0];
+                shareName = parts[1];
+              } else if (printer.includes('/')) {
+                const parts = printer.split('/');
+                host = parts[0];
+                shareName = parts[1];
+              } else {
+                const parts = printer.split('\\');
+                host = parts[0];
+                shareName = parts[1];
+              }
+              await printViaSMB(host, shareName, printContent);
+            }
+          } catch (e) {}
+        }
+        output += ` (${printCopies} copies)`;
       }
       
     } catch (error) {
