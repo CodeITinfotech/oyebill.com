@@ -10,6 +10,37 @@ import SMB2v9 from '@tryjsky/v9u-smb2';
 const router = express.Router();
 const execAsync = promisify(exec);
 
+// Queue print job to relay (for cloud servers that can't reach local network printers)
+function queuePrintJob(db, restaurantId, jobType, content, copies = 1) {
+  try {
+    // Create table if not exists
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS print_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        restaurant_id TEXT NOT NULL,
+        job_type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        copies INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        completed_at DATETIME
+      )
+    `);
+    
+    const stmt = db.prepare(`
+      INSERT INTO print_jobs (restaurant_id, job_type, content, copies, status)
+      VALUES (?, ?, ?, ?, 'pending')
+    `);
+    
+    const result = stmt.run(restaurantId, jobType, content, copies);
+    console.log(`Queued print job #${result.lastInsertRowid} for ${jobType}`);
+    return result.lastInsertRowid;
+  } catch (error) {
+    console.error('Failed to queue print job:', error);
+    return null;
+  }
+}
+
 // Detect USB printers (Linux)
 async function detectUSBPrintersLinux() {
   const printers = [];
@@ -938,6 +969,15 @@ router.post('/print-kot', authenticateToken, async (req, res) => {
       output = `Print failed: ${error.message}`;
     }
     
+    // If direct printing failed, queue for relay
+    if (!success) {
+      const jobId = queuePrintJob(db, req.user.restaurantId, 'kot', printContent, printCopies);
+      if (jobId) {
+        success = true; // Job is queued, consider it success
+        output = `Queued for relay (Job #${jobId})`;
+      }
+    }
+    
     res.json({
       success,
       output,
@@ -1047,6 +1087,15 @@ router.post('/print-bill', authenticateToken, async (req, res) => {
       
     } catch (error) {
       output = `Print failed: ${error.message}`;
+    }
+    
+    // If direct printing failed, queue for relay
+    if (!success) {
+      const jobId = queuePrintJob(db, req.user.restaurantId, 'bill', printContent, printCopies);
+      if (jobId) {
+        success = true; // Job is queued, consider it success
+        output = `Queued for relay (Job #${jobId})`;
+      }
     }
     
     res.json({
