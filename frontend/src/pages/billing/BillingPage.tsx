@@ -7,7 +7,7 @@ import { Button, Select, Card, CardBody, Modal, Input, toast } from '../../compo
 import { Plus, Minus, Trash2, Printer, Receipt, Percent, Users, X, Check, Edit3, ClipboardList, MoreHorizontal, Ticket, Tag, Key, Bell, CheckCircle, XCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { jsPDF } from 'jspdf';
-import { formatBillForPrinter, formatKOTForPrinter } from '../../utils/printService';
+import { formatBillForPrinter, formatKOTForPrinter, initQZTray, printText } from '../../utils/printService';
 import type { Product, Table, OrderItem } from '../../types';
 
 interface CartItem extends OrderItem {
@@ -937,6 +937,57 @@ export function BillingPage() {
     }
   };
 
+  // --- QZ Tray printing helpers -------------------------------------
+  // These print directly from the browser via the locally-installed QZ
+  // Tray app to a USB/network printer. No backend involvement.
+
+  const printKOTReceipt = async (kotData: any) => {
+    const printerName = settings?.defaultKotPrinter || settings?.default_kot_printer || '';
+    const copies = settings?.printCopies || settings?.print_copies || 1;
+
+    const connected = await initQZTray();
+    if (!connected) {
+      toast('warning', 'QZ Tray not connected - KOT not printed. Make sure QZ Tray is running and allow the print prompt.');
+      return false;
+    }
+
+    const content = formatKOTForPrinter(kotData);
+    const printed = await printText(content, { printerName: printerName || undefined, copies });
+    if (printed) {
+      toast('success', 'KOT printed');
+    } else {
+      toast('error', 'KOT print failed - check the printer name in Settings > Printer and the QZ Tray window for errors');
+    }
+    return printed;
+  };
+
+  const printBillReceipt = async (billData: any) => {
+    const printerName = settings?.billPrinter || settings?.bill_printer || '';
+    const copies = settings?.printCopies || settings?.print_copies || 1;
+
+    const connected = await initQZTray();
+    if (!connected) {
+      toast('warning', 'QZ Tray not connected - Bill not printed. Make sure QZ Tray is running and allow the print prompt.');
+      return false;
+    }
+
+    const enrichedBillData = {
+      ...billData,
+      restaurantName: settings?.restaurant?.name,
+      address: settings?.restaurant?.address,
+      phone: settings?.restaurant?.phone,
+    };
+
+    const content = formatBillForPrinter(enrichedBillData);
+    const printed = await printText(content, { printerName: printerName || undefined, copies });
+    if (printed) {
+      toast('success', 'Bill printed');
+    } else {
+      toast('error', 'Bill print failed - check the printer name in Settings > Printer and the QZ Tray window for errors');
+    }
+    return printed;
+  };
+
   // Generate KOT
   const handleKOT = async () => {
     // Check for items
@@ -1000,12 +1051,14 @@ export function BillingPage() {
       const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       setPendingAction(async () => {
         await executeKOT(preKotState);
+        await printKOTReceipt(kotContent);
       });
       setShowPreviewModal(true);
     } else {
-      // If preview disabled, directly execute KOT without printing
+      // If preview disabled, directly execute KOT and print
       const preKotState = cart.map(item => ({ id: item.id, isKot: item.isKot, alreadyKot: item.alreadyKot }));
       await executeKOT(preKotState);
+      await printKOTReceipt(kotContent);
     }
   };
 
@@ -1490,10 +1543,12 @@ export function BillingPage() {
       setPreviewContent({ type: 'bill', content: billContent });
       setPendingAction(async () => {
         await executeBill();
+        await printBillReceipt(billContent);
       });
       setShowPreviewModal(true);
     } else {
       await executeBill();
+      await printBillReceipt(billContent);
     }
   };
 
@@ -1612,12 +1667,6 @@ export function BillingPage() {
     } else {
       toast('success', 'Bill Generated successfully');
     }
-    
-    // Print Bill (simulated)
-    setTimeout(() => {
-      console.log('Bill Print triggered');
-      toast('info', 'Bill sent to printer');
-    }, 500);
   };
   // Handle preview print action - just close modal and execute pending action
   const handlePreviewPrint = async () => {

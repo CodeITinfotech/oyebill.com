@@ -10,6 +10,7 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { User, Building, Users, Percent, Printer, Shield, Check, Plus, Trash2, Ticket, Calendar, Tag, UserPlus, LayoutGrid, QrCode, X, Globe } from 'lucide-react';
 import { api } from '../../api';
 import { OnlineOrderingSettings } from './OnlineOrderingSettings';
+import { initQZTray, printText, getPrinters } from '../../utils/printService';
 
 type SettingsTab = 'restaurant' | 'profile' | 'users' | 'tax' | 'printer' | 'rights' | 'payment' | 'coupons' | 'tableStatus' | 'tableAllocations' | 'onlineOrdering' | 'maintenance';
 type PrinterTab = 'kot' | 'bill' | 'setup';
@@ -123,6 +124,11 @@ export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: strin
   const [isDetecting, setIsDetecting] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState<string>('');
   const [scanDiagnostics, setScanDiagnostics] = useState<any>(null);
+
+  // QZ Tray printer detection state (client-side printers, no backend involved)
+  const [qzPrinters, setQzPrinters] = useState<string[]>([]);
+  const [isDetectingQZ, setIsDetectingQZ] = useState(false);
+  const [qzStatus, setQzStatus] = useState<string>('');
   
   // Manual printer add state
   const [showAddPrinter, setShowAddPrinter] = useState(false);
@@ -619,6 +625,32 @@ export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: strin
     }
   };
   
+  // Detect printers via QZ Tray (client-side, no backend involved)
+  const detectQZPrinters = async () => {
+    setIsDetectingQZ(true);
+    setQzStatus('Connecting to QZ Tray...');
+    try {
+      const connected = await initQZTray();
+      if (!connected) {
+        setQzStatus('❌ QZ Tray not detected. Make sure the QZ Tray app is installed and running (check the system tray icon), then try again.');
+        setQzPrinters([]);
+        return;
+      }
+      const printers = await getPrinters();
+      setQzPrinters(printers);
+      if (printers.length > 0) {
+        setQzStatus(`✅ QZ Tray connected. Found ${printers.length} printer(s) on this device.`);
+      } else {
+        setQzStatus('⚠️ QZ Tray connected, but no printers were found. Check that your printer is installed in Windows/macOS.');
+      }
+    } catch (error: any) {
+      setQzStatus('❌ Error: ' + (error.message || 'Failed to query QZ Tray'));
+      setQzPrinters([]);
+    } finally {
+      setIsDetectingQZ(false);
+    }
+  };
+
   // Add printer manually
   const handleAddPrinter = async () => {
     if (!newPrinterForm.name || !newPrinterForm.address) {
@@ -663,7 +695,7 @@ export function SettingsPage({ defaultTab = 'restaurant' }: { defaultTab?: strin
     // Show message immediately on click
     toast('info', `Sending test print to ${printerToUse}...`);
     setIsTestPrinting(true);
-    setTestPrintStatus(`Sending test print to ${printerToUse}...`);
+    setTestPrintStatus(`Connecting to QZ Tray...`);
     
     const testContent = `
 ================================
@@ -675,29 +707,37 @@ Order: TEST-001
 
 Item            Qty    Price
 --------------------------------
-Biryani         2     ₹300
-Tandoori Roti   4     ₹80
-Dal Tadka       1     ₹150
+Biryani         2     Rs.300
+Tandoori Roti   4     Rs.80
+Dal Tadka       1     Rs.150
 ================================
         Thank You!
 ================================
 `.trim();
 
     try {
-      const response = await api.printKot(testContent, 1, printerToUse);
-      if (response.success) {
+      const connected = await initQZTray();
+      if (!connected) {
+        setTestPrintStatus('❌ QZ Tray not detected. Make sure QZ Tray is installed and running on this device.');
+        toast('error', 'QZ Tray not connected');
+        return;
+      }
+
+      setTestPrintStatus(`Sending test print to ${printerToUse}...`);
+      const printed = await printText(testContent, { printerName: printerToUse, copies: 1 });
+      if (printed) {
         setTestPrintStatus('✅ Test KOT printed successfully!');
         toast('success', 'Test KOT printed');
       } else {
-        setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
-        toast('error', 'Test KOT failed: ' + (response.output || response.error || 'Print failed'));
+        setTestPrintStatus(`❌ Print failed. Check the printer name "${printerToUse}" matches a printer QZ Tray can see, and check the QZ Tray window for an "Allow" prompt.`);
+        toast('error', 'Test KOT failed - see status below');
       }
     } catch (error: any) {
       setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
       toast('error', 'Failed to send test KOT');
     } finally {
       setIsTestPrinting(false);
-      setTimeout(() => setTestPrintStatus(null), 5000);
+      setTimeout(() => setTestPrintStatus(null), 8000);
     }
   };
 
@@ -711,7 +751,7 @@ Dal Tadka       1     ₹150
     // Show message immediately on click
     toast('info', 'Sending test print to Bill printer...');
     setIsTestPrinting(true);
-    setTestPrintStatus('Sending test print to Bill printer...');
+    setTestPrintStatus('Connecting to QZ Tray...');
     
     const testContent = `
 ================================
@@ -724,36 +764,44 @@ Table: Test Table
 --------------------------------
 Item            Qty    Price
 --------------------------------
-Biryani         2     ₹300
-Tandoori Roti   4     ₹80
-Dal Tadka       1     ₹150
-Soft Drink      2     ₹60
+Biryani         2     Rs.300
+Tandoori Roti   4     Rs.80
+Dal Tadka       1     Rs.150
+Soft Drink      2     Rs.60
 --------------------------------
-Subtotal:            ₹590
-CGST (2.5%):          ₹15
-SGST (2.5%):          ₹15
+Subtotal:            Rs.590
+CGST (2.5%):          Rs.15
+SGST (2.5%):          Rs.15
 --------------------------------
-TOTAL:               ₹620
+TOTAL:               Rs.620
 ================================
     Thank You! Visit Again!
 ================================
 `.trim();
 
     try {
-      const response = await api.printBill(testContent);
-      if (response.success) {
+      const connected = await initQZTray();
+      if (!connected) {
+        setTestPrintStatus('❌ QZ Tray not detected. Make sure QZ Tray is installed and running on this device.');
+        toast('error', 'QZ Tray not connected');
+        return;
+      }
+
+      setTestPrintStatus('Sending test print to Bill printer...');
+      const printed = await printText(testContent, { printerName: printerForm.billPrinter, copies: 1 });
+      if (printed) {
         setTestPrintStatus('✅ Test Bill printed successfully!');
         toast('success', 'Test Bill printed');
       } else {
-        setTestPrintStatus('❌ ' + (response.output || response.error || 'Print failed'));
-        toast('error', 'Test print failed: ' + (response.output || response.error || 'Print failed'));
+        setTestPrintStatus(`❌ Print failed. Check the printer name "${printerForm.billPrinter}" matches a printer QZ Tray can see, and check the QZ Tray window for an "Allow" prompt.`);
+        toast('error', 'Test Bill failed - see status below');
       }
     } catch (error: any) {
       setTestPrintStatus('❌ Error: ' + (error.message || 'Failed to print'));
       toast('error', 'Failed to send test print');
     } finally {
       setIsTestPrinting(false);
-      setTimeout(() => setTestPrintStatus(null), 5000);
+      setTimeout(() => setTestPrintStatus(null), 8000);
     }
   };
 
@@ -1708,6 +1756,86 @@ TOTAL:               ₹620
                     <p className="text-sm text-text-muted">Configure printer connections via USB, Bluetooth, or Network</p>
                   </CardHeader>
                   <CardBody className="space-y-6">
+                    {/* QZ Tray Detect Printers Section - client-side, USB printers */}
+                    <div className="p-4 rounded-lg border border-success/30 bg-success/5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="font-medium flex items-center gap-2">
+                            <Printer className="w-5 h-5" />
+                            Detect Printers via QZ Tray (USB / Local)
+                          </h3>
+                          <p className="text-sm text-text-muted mt-1">
+                            Detects printers connected to THIS device using the QZ Tray app. Use this for USB thermal printers.
+                            Requires QZ Tray to be installed and running on this device.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={detectQZPrinters}
+                          loading={isDetectingQZ}
+                          variant="success"
+                        >
+                          {isDetectingQZ ? 'Detecting...' : '🖨️ Detect via QZ Tray'}
+                        </Button>
+                      </div>
+
+                      {qzStatus && (
+                        <div className={`text-sm mb-3 ${qzPrinters.length > 0 ? 'text-success' : 'text-yellow-400'}`}>
+                          {qzStatus}
+                        </div>
+                      )}
+
+                      {qzPrinters.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-text-secondary">Printers found by QZ Tray:</p>
+                          {qzPrinters.map((printerName, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-background-secondary border border-white/10">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-green-500/20 text-green-400">
+                                  <Printer className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <p className="font-medium">{printerName}</p>
+                                  <p className="text-xs text-text-muted">Detected via QZ Tray</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const currentPrinters = Array.isArray(printerForm.kotPrinters) ? printerForm.kotPrinters : [];
+                                    setPrinterForm({
+                                      ...printerForm,
+                                      kotPrinters: currentPrinters.includes(printerName) ? currentPrinters : [...currentPrinters, printerName],
+                                      defaultKotPrinter: printerForm.defaultKotPrinter || printerName,
+                                    });
+                                    toast('success', `"${printerName}" set as KOT printer`);
+                                  }}
+                                  title="Set as KOT printer"
+                                >
+                                  KOT
+                                </Button>
+                                <Button
+                                  variant="accent"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPrinterForm({ ...printerForm, billPrinter: printerName });
+                                    toast('success', `"${printerName}" set as Bill printer`);
+                                  }}
+                                  title="Set as Bill printer"
+                                >
+                                  Bill
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-xs text-text-muted">
+                            Click KOT or Bill to use this printer's exact name for printing. Remember to click "Save Printer Settings" below.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Detect Printers Section */}
                     <div className="p-4 rounded-lg border border-accent/30 bg-accent/5">
                       <div className="flex items-center justify-between mb-4">
