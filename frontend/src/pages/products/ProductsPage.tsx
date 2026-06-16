@@ -343,7 +343,7 @@ export function ProductsPage() {
                   </div>
                   <h3 className="font-medium text-sm truncate">{product.name}</h3>
                   <p className="text-xs text-text-muted truncate">{getCategoryName(product.categoryId)}</p>
-                  <p className="text-accent font-bold mt-1">₹{product.sellingPrice}</p>
+                  <p className="text-accent font-bold mt-1">₹{(product.sellingPrice || 0).toFixed(2)}</p>
                 </div>
                 <div className="flex border-t border-white/10">
                   <button
